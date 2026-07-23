@@ -316,13 +316,13 @@ export default function MyProducts() {
         </div>
       )}
 
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-        <p className="text-blue-700 dark:text-blue-400 text-sm font-medium">
-          Produtos conectados ao Supabase
+      <div className="">
+        <p className="t">
+         
         </p>
 
-        <p className="text-blue-700 dark:text-blue-400 text-sm mt-1">
-          Ao registrar uma venda, o pedido é criado na tabela orders com o supplier_id do produto salvo.
+        <p className="">
+        
         </p>
       </div>
 

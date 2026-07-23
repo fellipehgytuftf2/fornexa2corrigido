@@ -151,14 +151,12 @@ export default function Catalog() {
         </button>
       </div>
 
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-        <p className="text-blue-700 dark:text-blue-400 text-sm font-medium">
+      <div className="">
+        <p className="">
          
         </p>
 
-        <p className="text-blue-700 dark:text-blue-400 text-sm mt-1">
-
-        </p>
+  
       </div>
 
       {errorMessage && (
