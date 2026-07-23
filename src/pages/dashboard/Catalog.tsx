@@ -153,11 +153,11 @@ export default function Catalog() {
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
         <p className="text-blue-700 dark:text-blue-400 text-sm font-medium">
-          Catálogo com fornecedor vinculado
+         
         </p>
 
         <p className="text-blue-700 dark:text-blue-400 text-sm mt-1">
-          Cada produto agora vem da tabela catalog_products e busca o fornecedor responsável na tabela suppliers.
+
         </p>
       </div>
 
