@@ -73,7 +73,12 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
         return;
       }
 
-      const isReady = data?.status === 'prepared' || data?.status === 'connected';
+      // IMPORTANTE: só 'connected' representa uma conexão real, obtida pelo
+      // fluxo OAuth de verdade (com access_token/refresh_token válidos).
+      // 'prepared' era um status de placeholder que a tela de Integrações
+      // usava antes de estar ligada ao OAuth de verdade — não deve mais
+      // liberar a publicação de anúncios.
+      const isReady = data?.status === 'connected';
 
       setMercadoLivreConnected(isReady);
     };
