@@ -153,26 +153,34 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
       return;
     }
 
-    const { error } = await supabase.from('user_products').insert({
-      user_id: user.id,
-      supplier_id: product.supplierId,
-      name: product.name,
-      image_url: product.image,
-      supplier_price: supplierPrice,
-      sale_price: finalPrice,
-      margin: profitAmount,
-      status: 'active',
-      marketplace: 'Mercado Livre',
-      announcement_title: generatedTitle,
-      announcement_description: generatedDescription,
-      announcement_category: product.category,
-      announcement_price: finalPrice,
-      announcement_image_url: product.image,
+    const { data: publishResult, error: publishInvokeError } = await supabase.functions.invoke<{
+      success?: boolean;
+      error?: string;
+      ml_item_id?: string;
+      permalink?: string;
+    }>('ml-publish-product', {
+      body: {
+        catalog_product_id: product.id ?? null,
+        supplier_id: product.supplierId,
+        name: product.name,
+        image_url: product.image,
+        supplier_price: supplierPrice,
+        sale_price: finalPrice,
+        margin: profitAmount,
+        announcement_title: generatedTitle,
+        announcement_description: generatedDescription,
+        announcement_category: product.category,
+        announcement_price: finalPrice,
+        announcement_image_url: product.image,
+      },
     });
 
-    if (error) {
+    if (publishInvokeError || !publishResult?.success) {
       setPublishing(false);
-      setPublishError('Não foi possível salvar o produto no Supabase.');
+      setPublishError(
+        publishResult?.error ??
+          'Não foi possível publicar o anúncio no Mercado Livre. Tente novamente.'
+      );
       return;
     }
 
