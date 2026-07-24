@@ -79,3 +79,23 @@ body {
 .animate-slide-up {
   animation: slideUp 0.6s ease forwards;
 }
+
+/* Leve flutuação do mockup na Hero — discreta, sem exagero */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Glow "respirando" lentamente atrás do mockup na Hero */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.85; }
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 5s ease-in-out infinite;
+}

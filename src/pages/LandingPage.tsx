@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import Header from '../components/landing/Header';
 import Hero from '../components/landing/Hero';
-import DashboardMockup from '../components/landing/DashboardMockup';
 import Benefits from '../components/landing/Benefits';
 import Plans from '../components/landing/Plans';
 import FinalCTA from '../components/landing/FinalCTA';
@@ -12,7 +11,6 @@ export default function LandingPage() {
       <Header />
       <main>
         <Hero />
-        <DashboardMockup />
         <Benefits />
         <Plans />
         <FinalCTA />
