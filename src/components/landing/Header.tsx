@@ -28,9 +28,11 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-6 py-4">
         <nav className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 bg-white rounded-md flex items-center justify-center transition-transform group-hover:scale-105">
-              <span className="text-navy-900 font-bold text-sm">F</span>
-            </div>
+            <img
+              src="/fornexa-logo.jpeg"
+              alt="FORNEXA"
+              className="w-9 h-9 rounded-md object-contain transition-transform group-hover:scale-105"
+            />
             <span className="text-white font-semibold text-lg tracking-tight">FORNEXA</span>
           </Link>
 
