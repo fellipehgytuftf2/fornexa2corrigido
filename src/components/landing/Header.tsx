@@ -44,7 +44,7 @@ export default function Header() {
             </Link>
             <Link
               to="/dashboard"
-              className="bg-white text-navy-900 px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-slate-100 transition-colors btn-transition"
+              className="bg-gold text-navy-900 px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-gold-hover transition-colors btn-transition"
             >
               Assinar agora
             </Link>
