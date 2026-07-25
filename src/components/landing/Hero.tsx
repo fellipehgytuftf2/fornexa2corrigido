@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { Users, Package, Link2, Star } from 'lucide-react';
-import { AnimatedGradientBorder } from '../ui/animated-gradient-border';
 
 export default function Hero() {
   const handleScrollToPlans = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -16,8 +15,8 @@ export default function Hero() {
       {/* Glow suave central (mantido do design original) */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl" />
 
-      <div className="relative z-10 max-w-[1400px] mx-auto px-4 lg:px-6 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.15fr] gap-10 lg:gap-8 items-center">
+      <div className="relative z-10 max-w-[1500px] mx-auto px-4 lg:px-6 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.35fr] gap-10 lg:gap-8 items-center">
           {/* Coluna esquerda — badge, texto, indicadores, CTA e prova social */}
           <div className="text-center lg:text-left">
             {/* Badge */}
@@ -106,56 +105,39 @@ export default function Hero() {
             </div>
           </div>
 
-          {/* Coluna direita — mockup do Dashboard (catálogo real do FORNEXA) com
-              glow azul ambiente atrás. Rotação bem sutil (só 2D) para manter o
-              texto da screenshot legível — inclinações 3D fortes borram texto
-              pequeno, então preferimos "floating" via sombra + glow. */}
+          {/* Coluna direita — mockup do Dashboard.
+              A imagem "projeto-remover-fundo.png" já tem fundo transparente
+              (PNG com canal alpha real) e já vem com a inclinação/perspectiva
+              pronta. Por isso aqui NÃO tem borda, NÃO tem rotate/transform,
+              e NÃO tem retângulo de fundo — só a imagem flutuando de verdade
+              sobre o glow, sem nenhuma caixa ao redor. */}
           <div className="relative hidden lg:block animate-fade-in" style={{ animationDelay: '0.15s' }}>
             <div className="relative animate-float">
-              {/* Ambient Blue Glow — atrás do mockup, forte e bem difuso */}
+              {/* Ambient Blue Glow — atrás da imagem, difuso, saindo pelas
+                  laterais e por baixo */}
               <div
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-glow-pulse z-0"
+                className="absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-glow-pulse z-0"
                 style={{
                   width: '85%',
-                  height: '90%',
+                  height: '80%',
                   background:
-                    'radial-gradient(circle, #3BA7FF 0%, #1D9BF0 45%, rgba(29,155,240,0) 75%)',
+                    'radial-gradient(circle, #4CCBFF 0%, #2FA7FF 35%, #1E7BA8 55%, transparent 75%)',
                   filter: 'blur(130px)',
-                  opacity: 0.95,
-                }}
-              />
-              {/* Bloom — reforço central, mais concentrado e brilhante */}
-              <div
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-glow-pulse z-0"
-                style={{
-                  width: '50%',
-                  height: '52%',
-                  background:
-                    'radial-gradient(circle, rgba(220,240,255,0.85) 0%, rgba(59,167,255,0.35) 55%, transparent 78%)',
-                  filter: 'blur(60px)',
+                  opacity: 0.65,
                 }}
               />
 
-              <AnimatedGradientBorder
-                animationMode="auto-rotate"
-                animationSpeed={10}
-                borderWidth={2}
-                borderRadius={16}
-                gradientColors={{
-                  primary: '#0B4C7A',
-                  secondary: '#1D9BF0',
-                  accent: '#8FD1FF',
+              {/* A própria imagem, sem caixa/borda ao redor — o recorte
+                  transparente é o que dá a forma ao mockup */}
+              <img
+                src="/projeto-remover-fundo.png"
+                alt="Catálogo FORNEXA — produtos prontos para anunciar"
+                className="relative z-10 w-full h-auto block select-none"
+                style={{
+                  filter: 'drop-shadow(0 40px 100px rgba(30,123,168,0.35))',
                 }}
-                backgroundColor="#06151E"
-                className="relative z-10 shadow-mockup overflow-hidden rotate-[-1.2deg]"
-              >
-                <img
-                  src="/fornexa-catalog-preview.png"
-                  alt="Catálogo FORNEXA — produtos prontos para anunciar"
-                  className="w-full h-auto block select-none rounded-2xl"
-                  draggable={false}
-                />
-              </AnimatedGradientBorder>
+                draggable={false}
+              />
             </div>
           </div>
         </div>
