@@ -39,15 +39,23 @@ const catalogSample = [
   },
 ];
 
+/**
+ * Marca oficial. Mesmo tratamento do Header da landing: o arquivo é um JPEG
+ * com muita margem em volta do símbolo, então é cortado com object-cover +
+ * scale para sobrar só o cubo.
+ */
 function Wordmark({ className = '' }: { className?: string }) {
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
-      <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-        <span className="text-black font-display font-bold text-sm leading-none">
-          F
-        </span>
+      <div className="w-10 h-10 rounded-md overflow-hidden bg-navy-900 flex items-center justify-center">
+        <img
+          src="/fornexa-logo.jpeg"
+          alt=""
+          className="w-full h-full object-cover scale-[2.8]"
+          draggable={false}
+        />
       </div>
-      <span className="text-white font-display font-semibold tracking-tight">
+      <span className="text-white font-display font-semibold text-lg tracking-tight">
         FORNEXA
       </span>
     </div>
@@ -168,7 +176,7 @@ export default function Login() {
             style={{ '--rise-delay': '0.08s' } as React.CSSProperties}
           >
             Do catálogo ao anúncio
-            <span className="block font-medium text-slate-400">
+            <span className="block font-medium text-gold">
               publicado, em minutos.
             </span>
           </h2>
