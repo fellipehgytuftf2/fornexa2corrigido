@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
   Clock,
   Link2,
@@ -53,6 +54,13 @@ const statusLabels: Record<OrderStatus, string> = {
   cancelled: 'Cancelado',
 };
 
+interface PendingIssue {
+  origem: 'webhook' | 'sincronizacao';
+  ml_order_id: string | null;
+  motivo: string;
+  data: string;
+}
+
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +68,24 @@ export default function Orders() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [syncingMl, setSyncingMl] = useState(false);
+  const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
+  const [showIssues, setShowIssues] = useState(false);
+
+  const loadPendingIssues = async () => {
+    const { data, error } = await supabase.functions.invoke<{
+      success?: boolean;
+      issues?: PendingIssue[];
+    }>('ml-pending-issues');
+
+    if (error || !data?.success) {
+      // Não interrompe a tela por causa disso — é uma informação
+      // complementar, não crítica para o funcionamento da página.
+      console.error('Falha ao buscar pedidos com problema:', error);
+      return;
+    }
+
+    setPendingIssues(data.issues ?? []);
+  };
 
   const syncMercadoLivreOrders = async () => {
     setSyncingMl(true);
@@ -105,6 +131,7 @@ export default function Orders() {
     );
 
     await loadOrders();
+    await loadPendingIssues();
   };
 
   const loadOrders = async () => {
@@ -156,6 +183,7 @@ export default function Orders() {
 
   useEffect(() => {
     loadOrders();
+    loadPendingIssues();
   }, []);
 
   const showSuccess = (message: string) => {
@@ -424,6 +452,54 @@ export default function Orders() {
           <p className="text-red-700 dark:text-red-400 text-sm font-medium">
             {errorMessage}
           </p>
+        </div>
+      )}
+
+      {pendingIssues.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowIssues((prev) => !prev)}
+            className="w-full flex items-center justify-between gap-3 p-4 text-left"
+          >
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <p className="text-amber-800 dark:text-amber-300 text-sm font-medium">
+                {pendingIssues.length} pedido(s) do Mercado Livre não puderam ser processados automaticamente
+              </p>
+            </div>
+
+            <span className="text-amber-700 dark:text-amber-400 text-xs font-medium shrink-0">
+              {showIssues ? 'Ocultar' : 'Ver detalhes'}
+            </span>
+          </button>
+
+          {showIssues && (
+            <div className="border-t border-amber-200 dark:border-amber-800 divide-y divide-amber-200 dark:divide-amber-800">
+              {pendingIssues.map((issue, index) => (
+                <div key={`${issue.ml_order_id}-${index}`} className="p-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                  <div className="flex-1">
+                    <p className="text-sm text-navy-900 dark:text-white font-medium">
+                      {issue.ml_order_id ? `Pedido #${issue.ml_order_id}` : 'Pedido sem identificação'}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-slate-400 mt-0.5">
+                      {issue.motivo}
+                    </p>
+                  </div>
+
+                  <p className="text-xs text-gray-400 dark:text-slate-500 shrink-0">
+                    {new Date(issue.data).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+              ))}
+
+              <div className="p-4 bg-amber-100/50 dark:bg-amber-900/10">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Corrija o motivo indicado (ex: vincule um fornecedor ao produto) e clique em
+                  "Sincronizar com Mercado Livre" para tentar novamente.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
