@@ -41,6 +41,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [mercadoLivreError, setMercadoLivreError] = useState('');
 
   const [publishError, setPublishError] = useState('');
+  const [publishedPermalink, setPublishedPermalink] = useState('');
 
   useEffect(() => {
     const loadMercadoLivreStatus = async () => {
@@ -177,14 +178,34 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
 
     if (publishInvokeError || !publishResult?.success) {
       setPublishing(false);
+
+      // IMPORTANTE: quando a Edge Function retorna um status diferente de
+      // 2xx (ex: 422), o supabase-js sinaliza isso como "error" e NÃO
+      // preenche "data" com o corpo da resposta — mesmo que a função tenha
+      // devolvido um JSON com uma mensagem específica. Por isso, nesse
+      // caso, precisamos ler o corpo da resposta manualmente a partir de
+      // publishInvokeError.context (um objeto Response).
+      let mensagemEspecifica: string | undefined = publishResult?.error;
+
+      if (!mensagemEspecifica && publishInvokeError && 'context' in publishInvokeError) {
+        try {
+          const errorBody = await (publishInvokeError as any).context.json();
+          mensagemEspecifica = errorBody?.error;
+        } catch {
+          // Se não der pra ler o corpo (ex: não é JSON), seguimos com a
+          // mensagem genérica abaixo.
+        }
+      }
+
       setPublishError(
-        publishResult?.error ??
+        mensagemEspecifica ??
           'Não foi possível publicar o anúncio no Mercado Livre. Tente novamente.'
       );
       return;
     }
 
     setPublishing(false);
+    setPublishedPermalink(publishResult.permalink ?? '');
     setPublished(true);
   };
 
@@ -649,6 +670,7 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
           marginPercent={marginPercentValue}
           onPublishingDone={handlePublishingDone}
           onClose={onClose}
+          permalink={publishedPermalink}
         />
       )}
     </>

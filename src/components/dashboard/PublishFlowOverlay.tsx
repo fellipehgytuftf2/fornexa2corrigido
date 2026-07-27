@@ -17,6 +17,10 @@ interface PublishFlowOverlayProps {
   marginPercent: number;
   onPublishingDone: () => void;
   onClose: () => void;
+  // Link real do anúncio no Mercado Livre, devolvido pela API depois da
+  // publicação de verdade. Se não vier (ex: falha ao obter o link), cai
+  // no toast "Em breve" como fallback.
+  permalink?: string;
 }
 
 const CHECKLIST_STEPS = [
@@ -40,6 +44,7 @@ export default function PublishFlowOverlay({
   marginPercent,
   onPublishingDone,
   onClose,
+  permalink,
 }: PublishFlowOverlayProps) {
   const [progress, setProgress] = useState(0);
   const [showToast, setShowToast] = useState(false);
@@ -91,6 +96,11 @@ export default function PublishFlowOverlay({
   };
 
   const handleViewAnnouncement = () => {
+    if (permalink) {
+      window.open(permalink, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     setShowToast(true);
     setTimeout(() => setShowToast(false), 2500);
   };
