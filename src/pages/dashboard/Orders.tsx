@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
+  Link2,
   MessageCircle,
   Package,
   RefreshCw,
@@ -58,6 +59,53 @@ export default function Orders() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [syncingMl, setSyncingMl] = useState(false);
+
+  const syncMercadoLivreOrders = async () => {
+    setSyncingMl(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const { data: syncResult, error: syncInvokeError } = await supabase.functions.invoke<{
+      success?: boolean;
+      error?: string;
+      total_encontrados?: number;
+      criados?: number;
+      atualizados?: number;
+      pulados_sem_produto?: number;
+      pulados_sem_fornecedor?: number;
+      erros?: number;
+    }>('ml-sync-orders');
+
+    if (syncInvokeError || !syncResult?.success) {
+      // Mesmo cuidado do ml-publish-product: em respostas não-2xx, o
+      // supabase-js não popula "data" — o corpo real vem em
+      // syncInvokeError.context.
+      let mensagemEspecifica: string | undefined = syncResult?.error;
+
+      if (!mensagemEspecifica && syncInvokeError && 'context' in syncInvokeError) {
+        try {
+          const errorBody = await (syncInvokeError as any).context.json();
+          mensagemEspecifica = errorBody?.error;
+        } catch {
+          // segue com a mensagem genérica abaixo
+        }
+      }
+
+      setSyncingMl(false);
+      setErrorMessage(mensagemEspecifica ?? 'Não foi possível sincronizar os pedidos do Mercado Livre.');
+      return;
+    }
+
+    setSyncingMl(false);
+    setSuccessMessage(
+      `Sincronização concluída: ${syncResult.criados ?? 0} pedido(s) novo(s), ${
+        syncResult.atualizados ?? 0
+      } atualizado(s).`
+    );
+
+    await loadOrders();
+  };
 
   const loadOrders = async () => {
     setLoading(true);
@@ -339,13 +387,24 @@ export default function Orders() {
           </p>
         </div>
 
-        <button
-          onClick={loadOrders}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Atualizar pedidos
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={loadOrders}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Atualizar pedidos
+          </button>
+
+          <button
+            onClick={syncMercadoLivreOrders}
+            disabled={syncingMl}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold hover:bg-gold-hover text-black text-sm font-semibold transition-colors disabled:opacity-60"
+          >
+            <Link2 className={`w-4 h-4 ${syncingMl ? 'animate-spin' : ''}`} />
+            {syncingMl ? 'Sincronizando...' : 'Sincronizar com Mercado Livre'}
+          </button>
+        </div>
       </div>
 
       {successMessage && (
