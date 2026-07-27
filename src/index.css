@@ -138,3 +138,58 @@ body {
 .fornexa-gradient-border-stop-hover:hover {
   animation-play-state: paused;
 }
+
+/* ============================================================
+   FORNEXA — Login: sequência de entrada
+   Um único movimento orquestrado: os blocos sobem em cascata.
+   O atraso vem de --rise-delay, definido inline em cada item.
+   ============================================================ */
+@keyframes lgnRise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lgn-rise {
+  opacity: 0;
+  animation: lgnRise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+  animation-delay: var(--rise-delay, 0s);
+}
+
+/* Filete do extrato: some nas pontas, então a régua não "corta" o painel */
+.lgn-rule {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.14) 12%,
+    rgba(255, 255, 255, 0.14) 88%,
+    transparent
+  );
+}
+
+/* ============================================================
+   Acessibilidade — respeita quem pediu menos movimento
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .lgn-rise {
+    opacity: 1;
+  }
+}

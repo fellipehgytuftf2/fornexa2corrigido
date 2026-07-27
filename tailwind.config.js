@@ -6,7 +6,9 @@ export default {
     extend: {
       colors: {
         navy: {
+          950: '#041016',
           900: '#06151E',
+          850: '#0B1D28',
           800: '#11212D',
           700: '#11212D',
           600: '#545A5B',
@@ -25,6 +27,8 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['Archivo', 'Inter', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       borderRadius: {
         'xl': '12px',

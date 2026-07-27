@@ -1,14 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  AlertCircle,
-  ArrowLeft,
-  Eye,
-  EyeOff,
-  Loader2,
-  Lock,
-  Mail,
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface Profile {
@@ -16,6 +8,50 @@ interface Profile {
   email: string;
   plan: string;
   role: string;
+}
+
+/**
+ * Amostra do catálogo mostrada no painel da esquerda.
+ * Preços de custo são os mesmos do catálogo real (src/data/mockData.ts);
+ * o preço de venda é ilustrativo — por isso o bloco se chama "amostra".
+ */
+const catalogSample = [
+  {
+    sku: 'SKU-0001',
+    name: 'Fone Bluetooth Premium TWS',
+    cost: 'R$ 19,90',
+    price: 'R$ 59,90',
+    margin: '+201%',
+  },
+  {
+    sku: 'SKU-0002',
+    name: 'Smartwatch Pro Series X',
+    cost: 'R$ 45,00',
+    price: 'R$ 129,90',
+    margin: '+189%',
+  },
+  {
+    sku: 'SKU-0007',
+    name: 'Suporte Celular Veicular',
+    cost: 'R$ 12,50',
+    price: 'R$ 39,90',
+    margin: '+219%',
+  },
+];
+
+function Wordmark({ className = '' }: { className?: string }) {
+  return (
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
+        <span className="text-black font-display font-bold text-sm leading-none">
+          F
+        </span>
+      </div>
+      <span className="text-white font-display font-semibold tracking-tight">
+        FORNEXA
+      </span>
+    </div>
+  );
 }
 
 export default function Login() {
@@ -89,85 +125,209 @@ export default function Login() {
     navigate('/dashboard');
   };
 
+  const fieldClass =
+    'w-full px-4 py-3.5 bg-white/[0.03] border border-white/10 rounded-xl text-white ' +
+    'placeholder:text-slate-600 transition-colors ' +
+    'hover:border-white/20 ' +
+    'focus:outline-none focus:border-gold focus:bg-white/[0.05] ' +
+    'focus-visible:ring-2 focus-visible:ring-gold/25 ' +
+    'disabled:opacity-50 disabled:cursor-not-allowed';
+
+  const labelClass =
+    'block font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-2.5';
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-navy-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-navy-950 text-white lg:grid lg:grid-cols-[1.05fr_1fr]">
+      {/* ------------------------------------------------------------------
+          Painel esquerdo — a marca e o que espera do outro lado do login.
+          Escondido no mobile: ali o formulário é a única coisa que importa.
+         ------------------------------------------------------------------ */}
+      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden border-r border-white/5 p-12 xl:p-16">
+        <div className="absolute inset-0 grid-pattern opacity-60" aria-hidden="true" />
+
+        {/* Brilho quente no canto inferior, puxando o dourado da marca */}
+        <div
+          className="absolute -bottom-40 -left-32 w-[560px] h-[560px] rounded-full blur-3xl pointer-events-none"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(255,211,0,0.10) 0%, rgba(255,211,0,0.04) 45%, transparent 70%)',
+          }}
+          aria-hidden="true"
+        />
+
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white mb-6"
+          className="relative z-10 lgn-rise w-fit rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-4 focus-visible:ring-offset-navy-950"
         >
-          <ArrowLeft className="w-4 h-4" />
-          Voltar para o início
+          <Wordmark />
         </Link>
 
-        <div className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-gray-200 dark:border-navy-700">
-            <h1 className="text-2xl font-bold text-navy-900 dark:text-white">
-              Entrar no FORNEXA
+        <div className="relative z-10 max-w-lg">
+          <h2
+            className="lgn-rise font-display text-[2.6rem] xl:text-[3rem] leading-[1.05] tracking-[-0.03em] font-semibold"
+            style={{ '--rise-delay': '0.08s' } as React.CSSProperties}
+          >
+            Do catálogo ao anúncio
+            <span className="block font-medium text-slate-400">
+              publicado, em minutos.
+            </span>
+          </h2>
+
+          {/* Assinatura da página: o catálogo como extrato.
+              Filetes, monoespaçada e números tabulares — a mesma leitura
+              de uma planilha de margem, que é onde o vendedor decide. */}
+          <div
+            className="lgn-rise mt-12"
+            style={{ '--rise-delay': '0.16s' } as React.CSSProperties}
+          >
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-slate-500 mb-5">
+              Amostra do catálogo
+            </p>
+
+            <div className="lgn-rule" />
+
+            <ul>
+              {catalogSample.map((item, index) => (
+                <li
+                  key={item.sku}
+                  className="lgn-rise"
+                  style={
+                    { '--rise-delay': `${0.24 + index * 0.09}s` } as React.CSSProperties
+                  }
+                >
+                  <div className="flex items-baseline justify-between gap-8 py-4">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[11px] tracking-[0.1em] text-slate-600">
+                        {item.sku}
+                      </p>
+
+                      <p className="text-slate-200 mt-1.5 truncate">{item.name}</p>
+
+                      <p className="font-mono text-xs text-slate-500 mt-2 tabular-nums">
+                        custo {item.cost}
+                        <span className="text-slate-700 mx-2">·</span>
+                        venda {item.price}
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p className="font-mono text-xl text-gold tabular-nums leading-none">
+                        {item.margin}
+                      </p>
+
+                      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-600 mt-2">
+                        margem
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="lgn-rule" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <p
+          className="relative z-10 lgn-rise font-mono text-[11px] text-slate-600"
+          style={{ '--rise-delay': '0.5s' } as React.CSSProperties}
+        >
+          +750 produtos disponíveis
+        </p>
+      </aside>
+
+      {/* ------------------------------------------------------------------
+          Painel direito — o formulário.
+         ------------------------------------------------------------------ */}
+      <main className="flex items-center justify-center px-6 py-12 sm:px-10">
+        <div className="w-full max-w-[400px]">
+          {/* No mobile o painel da esquerda não existe, então a marca vem aqui */}
+          <Link to="/" className="lg:hidden inline-block mb-10">
+            <Wordmark />
+          </Link>
+
+          <header
+            className="lgn-rise"
+            style={{ '--rise-delay': '0.1s' } as React.CSSProperties}
+          >
+            <h1 className="font-display text-3xl font-semibold tracking-[-0.02em]">
+              Entrar
             </h1>
 
-            <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
-              Acesse sua conta para gerenciar produtos, fornecedores e pedidos.
+            <p className="text-slate-400 mt-3 leading-relaxed">
+              Gerencie seus produtos, fornecedores e pedidos.
             </p>
-          </div>
+          </header>
 
-          <form onSubmit={handleLogin} className="p-6 space-y-5">
+          <form
+            onSubmit={handleLogin}
+            noValidate
+            className="lgn-rise mt-10 space-y-6"
+            style={{ '--rise-delay': '0.18s' } as React.CSSProperties}
+          >
             {errorMessage && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
-
-                <p className="text-sm text-red-700 dark:text-red-400">
-                  {errorMessage}
-                </p>
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3.5"
+              >
+                <AlertCircle
+                  className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-red-200">{errorMessage}</p>
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+              <label htmlFor="login-email" className={labelClass}>
                 E-mail
               </label>
 
-              <div className="relative">
-                <Mail className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="seuemail@exemplo.com"
-                  className="w-full pl-10 pr-4 py-3 bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600 rounded-xl text-navy-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-                  disabled={loading}
-                />
-              </div>
+              <input
+                id="login-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="seuemail@exemplo.com"
+                aria-invalid={Boolean(errorMessage)}
+                className={fieldClass}
+                disabled={loading}
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+              <label htmlFor="login-password" className={labelClass}>
                 Senha
               </label>
 
               <div className="relative">
-                <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Digite sua senha"
-                  className="w-full pl-10 pr-12 py-3 bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600 rounded-xl text-navy-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                  aria-invalid={Boolean(errorMessage)}
+                  className={`${fieldClass} pr-12`}
                   disabled={loading}
                 />
 
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-slate-500 transition-colors hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
                   disabled={loading}
                 >
                   {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
+                    <EyeOff className="w-[18px] h-[18px]" aria-hidden="true" />
                   ) : (
-                    <Eye className="w-5 h-5" />
+                    <Eye className="w-[18px] h-[18px]" aria-hidden="true" />
                   )}
                 </button>
               </div>
@@ -176,12 +336,12 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black hover:bg-gray-900 text-white font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-4 py-3.5 font-semibold text-navy-900 transition-colors hover:bg-gold-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Entrando...
+                  <Loader2 className="w-[18px] h-[18px] animate-spin" aria-hidden="true" />
+                  Entrando
                 </>
               ) : (
                 'Entrar'
@@ -189,19 +349,32 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="px-6 pb-6">
-            <p className="text-sm text-gray-500 dark:text-slate-400 text-center">
+          <footer
+            className="lgn-rise mt-10 space-y-6"
+            style={{ '--rise-delay': '0.26s' } as React.CSSProperties}
+          >
+            <div className="lgn-rule" />
+
+            <p className="text-sm text-slate-400">
               Ainda não tem conta?{' '}
               <Link
                 to="/register"
-                className="text-navy-900 dark:text-white font-semibold hover:underline"
+                className="font-medium text-white underline decoration-gold decoration-2 underline-offset-4 transition-colors hover:text-gold"
               >
                 Criar conta
               </Link>
             </p>
-          </div>
+
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-sm text-slate-500 transition-colors hover:text-slate-300"
+            >
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              Voltar para o início
+            </Link>
+          </footer>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
