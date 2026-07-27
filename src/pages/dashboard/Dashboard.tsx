@@ -5,8 +5,11 @@ import {
   Calendar,
   Link2,
   Package,
+  Receipt,
   ShoppingCart,
+  TrendingDown,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
 import {
   Area,
@@ -199,12 +202,26 @@ export default function Dashboard({ darkMode }: DashboardProps) {
     return orders.filter((order) => new Date(order.created_at) >= cutoff);
   }, [orders]);
 
+  const yesterdayKey = useMemo(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return dateKey(yesterday);
+  }, [todayKey]);
+
+  const yesterdayOrders = useMemo(() => {
+    return orders.filter((order) => dateKey(order.created_at) === yesterdayKey);
+  }, [orders, yesterdayKey]);
+
   const summary = useMemo(() => {
     const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.sale_price || 0), 0);
     const todayProfit = todayOrders.reduce((sum, o) => sum + Number(o.profit || 0), 0);
     const todayTicket = todayOrders.length ? todayRevenue / todayOrders.length : 0;
 
     const last30Revenue = last30Orders.reduce((sum, o) => sum + Number(o.sale_price || 0), 0);
+
+    const yesterdayRevenue = yesterdayOrders.reduce((sum, o) => sum + Number(o.sale_price || 0), 0);
+    const yesterdayProfit = yesterdayOrders.reduce((sum, o) => sum + Number(o.profit || 0), 0);
+    const yesterdayTicket = yesterdayOrders.length ? yesterdayRevenue / yesterdayOrders.length : 0;
 
     return {
       todayOrdersCount: todayOrders.length,
@@ -213,8 +230,32 @@ export default function Dashboard({ darkMode }: DashboardProps) {
       todayTicket,
       last30Count: last30Orders.length,
       last30Revenue,
+      yesterdayOrdersCount: yesterdayOrders.length,
+      yesterdayRevenue,
+      yesterdayProfit,
+      yesterdayTicket,
     };
-  }, [todayOrders, last30Orders]);
+  }, [todayOrders, last30Orders, yesterdayOrders]);
+
+  // Crescimento percentual de hoje em relação a ontem. Quando não houve
+  // nenhum valor ontem, qualquer valor hoje conta como alta de 100%; sem
+  // valor em nenhum dos dois dias, não há crescimento a mostrar (0%).
+  const calcGrowth = (current: number, previous: number) => {
+    if (previous === 0) {
+      return current > 0 ? 100 : 0;
+    }
+    return ((current - previous) / previous) * 100;
+  };
+
+  const growth = useMemo(
+    () => ({
+      orders: calcGrowth(summary.todayOrdersCount, summary.yesterdayOrdersCount),
+      revenue: calcGrowth(summary.todayRevenue, summary.yesterdayRevenue),
+      profit: calcGrowth(summary.todayProfit, summary.yesterdayProfit),
+      ticket: calcGrowth(summary.todayTicket, summary.yesterdayTicket),
+    }),
+    [summary]
+  );
 
   const statusBreakdown = useMemo(() => {
     const total = orders.length || 1;
@@ -276,12 +317,29 @@ export default function Dashboard({ darkMode }: DashboardProps) {
   const tooltipBorder = darkMode ? '#253745' : '#e5e7eb';
   const tooltipText = darkMode ? '#ffffff' : '#111827';
 
+  const renderGrowth = (value: number) => {
+    const isPositive = value >= 0;
+    const GrowthIcon = isPositive ? TrendingUp : TrendingDown;
+
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-xs font-medium mt-2 ${
+          isPositive ? 'text-success' : 'text-error'
+        }`}
+      >
+        <GrowthIcon className="w-3 h-3" />
+        {isPositive ? '+' : ''}
+        {value.toFixed(0)}% em relação a ontem
+      </span>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end gap-3">
         <Link
           to="/dashboard/catalog"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-medium transition-colors"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 hover:bg-navy-850 text-white text-sm font-medium transition-colors"
         >
           <Package className="w-4 h-4" />
           Ver catálogo
@@ -289,12 +347,13 @@ export default function Dashboard({ darkMode }: DashboardProps) {
 
         <Link
           to="/dashboard/my-products"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors"
+          className="glow-gold-hover inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold hover:bg-gold-hover text-black text-sm font-semibold transition-all"
         >
           <ShoppingCart className="w-4 h-4" />
           Meus Produtos
         </Link>
       </div>
+
 
       {errorMessage && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
@@ -341,42 +400,78 @@ export default function Dashboard({ darkMode }: DashboardProps) {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
-              <p className="text-sm text-gray-500 dark:text-slate-400">Pedidos hoje</p>
-              <p className="text-2xl font-bold text-navy-900 dark:text-white mt-1">
+            <div className="bg-white dark:bg-navy-800 rounded-[18px] border border-gray-200 dark:border-navy-700 p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Pedidos hoje</p>
+                <div className="w-11 h-11 rounded-full bg-navy-900/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                  <ShoppingCart className="w-5 h-5 text-navy-900 dark:text-white" />
+                </div>
+              </div>
+
+              <p className="text-2xl font-bold text-navy-900 dark:text-white mt-3">
                 {summary.todayOrdersCount}
               </p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+
+              {renderGrowth(growth.orders)}
+
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 {summary.last30Count} em 30 dias
               </p>
             </div>
 
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
-              <p className="text-sm text-gray-500 dark:text-slate-400">Faturamento hoje</p>
-              <p className="text-2xl font-bold text-gold mt-1">
+            <div className="bg-white dark:bg-navy-800 rounded-[18px] border border-gray-200 dark:border-navy-700 p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Faturamento hoje</p>
+                <div className="w-11 h-11 rounded-full bg-gold/15 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-5 h-5 text-gold" />
+                </div>
+              </div>
+
+              <p className="text-2xl font-bold text-gold mt-3">
                 {formatCurrency(summary.todayRevenue)}
               </p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+
+              {renderGrowth(growth.revenue)}
+
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 {formatCurrency(summary.last30Revenue)} em 30 dias
               </p>
             </div>
 
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
-              <p className="text-sm text-gray-500 dark:text-slate-400">Lucro hoje</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
+            <div className="bg-white dark:bg-navy-800 rounded-[18px] border border-gray-200 dark:border-navy-700 p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Lucro hoje</p>
+                <div className="w-11 h-11 rounded-full bg-success/15 flex items-center justify-center shrink-0">
+                  <Wallet className="w-5 h-5 text-success" />
+                </div>
+              </div>
+
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-3">
                 {formatCurrency(summary.todayProfit)}
               </p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+
+              {renderGrowth(growth.profit)}
+
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 Margem sobre vendas de hoje
               </p>
             </div>
 
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
-              <p className="text-sm text-gray-500 dark:text-slate-400">Ticket médio</p>
-              <p className="text-2xl font-bold text-navy-900 dark:text-white mt-1">
+            <div className="bg-white dark:bg-navy-800 rounded-[18px] border border-gray-200 dark:border-navy-700 p-5 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Ticket médio</p>
+                <div className="w-11 h-11 rounded-full bg-navy-900/10 dark:bg-white/10 flex items-center justify-center shrink-0">
+                  <Receipt className="w-5 h-5 text-navy-900 dark:text-white" />
+                </div>
+              </div>
+
+              <p className="text-2xl font-bold text-navy-900 dark:text-white mt-3">
                 {formatCurrency(summary.todayTicket)}
               </p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+
+              {renderGrowth(growth.ticket)}
+
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 {summary.todayOrdersCount} pedido(s) hoje
               </p>
             </div>
