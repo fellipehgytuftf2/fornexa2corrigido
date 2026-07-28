@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle,
+  Copy,
   Edit,
   Image,
+  KeyRound,
   Package,
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Store,
   Trash2,
   Truck,
@@ -24,6 +27,18 @@ interface Supplier {
   city: string;
   state: string;
   status: 'active' | 'inactive';
+
+  // Só vêm na listagem de fornecedores, não no join do catálogo.
+  email?: string | null;
+  auth_user_id?: string | null;
+}
+
+/** Credenciais recém-criadas. Só existem em memória, some ao sair da tela. */
+interface CreatedAccess {
+  supplierName: string;
+  email: string;
+  password: string;
+  warning: string | null;
 }
 
 interface CatalogProduct {
@@ -77,6 +92,88 @@ export default function Admin() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  // --- Acesso do fornecedor ao Portal ---
+  const [accessSupplierId, setAccessSupplierId] = useState<string | null>(null);
+  const [accessEmail, setAccessEmail] = useState('');
+  const [creatingAccess, setCreatingAccess] = useState(false);
+  const [createdAccess, setCreatedAccess] = useState<CreatedAccess | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const openAccessForm = (supplier: Supplier) => {
+    setAccessSupplierId(supplier.id);
+    setAccessEmail(supplier.email || '');
+    setCreatedAccess(null);
+    setErrorMessage('');
+  };
+
+  const closeAccessForm = () => {
+    setAccessSupplierId(null);
+    setAccessEmail('');
+  };
+
+  const copyToClipboard = async (value: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    } catch {
+      setErrorMessage('Não foi possível copiar. Selecione o texto e copie manualmente.');
+    }
+  };
+
+  const handleCreateAccess = async (supplier: Supplier) => {
+    setCreatingAccess(true);
+    setErrorMessage('');
+    setCreatedAccess(null);
+
+    const { data, error } = await supabase.functions.invoke<{
+      email?: string;
+      password?: string;
+      supplier_name?: string;
+      profile_warning?: string | null;
+      error?: string;
+    }>('supplier-create-access', {
+      body: {
+        supplier_id: supplier.id,
+        email: accessEmail.trim().toLowerCase(),
+      },
+    });
+
+    if (error || !data?.password) {
+      // Em respostas não-2xx o supabase-js não popula "data" — o corpo real
+      // vem em error.context. Mesmo tratamento usado em Pedidos.
+      let specificMessage: string | undefined = data?.error;
+
+      const errorContext = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!specificMessage && errorContext?.json) {
+        try {
+          const errorBody = await errorContext.json();
+          specificMessage = errorBody?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setCreatingAccess(false);
+      setErrorMessage(specificMessage ?? 'Não foi possível criar o acesso do fornecedor.');
+      return;
+    }
+
+    setCreatingAccess(false);
+    setCreatedAccess({
+      supplierName: data.supplier_name || supplier.company_name || supplier.name,
+      email: data.email || accessEmail.trim().toLowerCase(),
+      password: data.password,
+      warning: data.profile_warning ?? null,
+    });
+
+    closeAccessForm();
+    await loadData();
+  };
 
   const handleImageUpload = async (file: File) => {
     setUploadingImage(true);
@@ -140,7 +237,7 @@ export default function Admin() {
 
       supabase
         .from('suppliers')
-        .select('id, name, company_name, whatsapp, city, state, status')
+        .select('id, name, company_name, whatsapp, city, state, status, email, auth_user_id')
         .order('created_at', { ascending: false }),
     ]);
 
@@ -539,6 +636,200 @@ export default function Admin() {
             {summary.linkedProducts}
           </p>
         </div>
+      </div>
+
+      {/* --------------------------------------------------------------
+          Acessos ao Portal do Fornecedor
+         -------------------------------------------------------------- */}
+      <div className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-200 dark:border-navy-700">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-5 h-5 text-navy-900 dark:text-white" />
+
+            <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+              Acesso ao Portal do Fornecedor
+            </h2>
+          </div>
+
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+            Crie o login do fornecedor para ele acompanhar os próprios pedidos. A senha
+            aparece uma única vez — copie e repasse ao fornecedor.
+          </p>
+        </div>
+
+        {createdAccess && (
+          <div className="m-5 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-5">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-green-800 dark:text-green-300">
+                  Acesso criado para {createdAccess.supplierName}
+                </p>
+
+                <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                  Esta senha não pode ser consultada depois. Copie agora e envie ao
+                  fornecedor por um canal privado.
+                </p>
+
+                <div className="mt-4 space-y-2">
+                  {[
+                    { label: 'E-mail', value: createdAccess.email, field: 'email' },
+                    { label: 'Senha', value: createdAccess.password, field: 'password' },
+                  ].map((item) => (
+                    <div
+                      key={item.field}
+                      className="flex items-center gap-3 rounded-lg bg-white dark:bg-navy-800 border border-green-200 dark:border-green-800 px-3 py-2.5"
+                    >
+                      <span className="text-xs text-gray-500 dark:text-slate-400 w-14 shrink-0">
+                        {item.label}
+                      </span>
+
+                      <code className="text-sm font-mono text-navy-900 dark:text-white break-all flex-1">
+                        {item.value}
+                      </code>
+
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(item.value, item.field)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-xs font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors shrink-0"
+                      >
+                        {copiedField === item.field ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Copiado
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            Copiar
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {createdAccess.warning && (
+                  <p className="text-xs text-yellow-700 dark:text-yellow-500 mt-3">
+                    {createdAccess.warning}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setCreatedAccess(null)}
+                  className="mt-4 text-sm font-semibold text-green-800 dark:text-green-300 hover:underline"
+                >
+                  Já copiei, pode esconder
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {suppliers.length === 0 ? (
+          <p className="p-5 text-sm text-gray-500 dark:text-slate-400">
+            Nenhum fornecedor cadastrado ainda.
+          </p>
+        ) : (
+          <ul className="divide-y divide-gray-200 dark:divide-navy-700">
+            {suppliers.map((supplier) => {
+              const hasAccess = Boolean(supplier.auth_user_id);
+              const isEditing = accessSupplierId === supplier.id;
+
+              return (
+                <li key={supplier.id} className="p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-navy-900 dark:text-white truncate">
+                        {supplier.company_name || supplier.name}
+                      </p>
+
+                      <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 truncate">
+                        {supplier.email || 'Sem e-mail cadastrado'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {hasAccess ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          Acesso ativo
+                        </span>
+                      ) : isEditing ? null : (
+                        <button
+                          type="button"
+                          onClick={() => openAccessForm(supplier)}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors"
+                        >
+                          <KeyRound className="w-4 h-4" />
+                          Criar acesso
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditing && !hasAccess && (
+                    <div className="mt-4 rounded-xl bg-gray-50 dark:bg-navy-700 p-4">
+                      <label
+                        htmlFor={`access-email-${supplier.id}`}
+                        className="block text-sm font-medium text-navy-900 dark:text-white mb-2"
+                      >
+                        E-mail de login do fornecedor
+                      </label>
+
+                      <input
+                        id={`access-email-${supplier.id}`}
+                        type="email"
+                        autoComplete="off"
+                        value={accessEmail}
+                        onChange={(event) => setAccessEmail(event.target.value)}
+                        placeholder="fornecedor@empresa.com.br"
+                        className="w-full px-4 py-3 rounded-xl bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                      />
+
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                        A conta é criada já confirmada, com uma senha forte gerada pelo
+                        sistema.
+                      </p>
+
+                      <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => handleCreateAccess(supplier)}
+                          disabled={creatingAccess || !accessEmail.trim()}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {creatingAccess ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Criando...
+                            </>
+                          ) : (
+                            <>
+                              <KeyRound className="w-4 h-4" />
+                              Criar acesso e gerar senha
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={closeAccessForm}
+                          disabled={creatingAccess}
+                          className="px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold hover:bg-white dark:hover:bg-navy-800 transition-colors disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <form

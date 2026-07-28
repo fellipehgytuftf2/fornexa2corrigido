@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import SupplierLogin from './pages/SupplierLogin';
+import SupplierPortal from './pages/supplier/SupplierPortal';
 
 import DashboardLayout from './layouts/DashboardLayout';
 import Dashboard from './pages/dashboard/Dashboard';
@@ -20,6 +22,7 @@ import Tutorials from './pages/dashboard/Tutorials';
 import Settings from './pages/dashboard/Settings';
 
 import { supabase } from './lib/supabase';
+import { fetchSupplierAccount } from './lib/supplierAuth';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -32,9 +35,80 @@ interface Profile {
   role: string;
 }
 
+function SessionLoading({ label }: { label: string }) {
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-navy-900 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-black dark:border-navy-700 dark:border-t-white rounded-full animate-spin mx-auto" />
+
+        <p className="text-sm text-gray-500 dark:text-slate-400 mt-4">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Guarda do Portal do Fornecedor: exige sessão E um cadastro em `suppliers`
+ * ligado a ela. Vendedor logado que tentar a URL do portal cai no login do
+ * fornecedor.
+ */
+function SupplierRoute({ children }: ProtectedRouteProps) {
+  const [checking, setChecking] = useState(true);
+  const [isSupplier, setIsSupplier] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const check = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      if (error || !data.session?.user) {
+        localStorage.removeItem('fornexa_supplier');
+        setIsSupplier(false);
+        setChecking(false);
+        return;
+      }
+
+      const supplier = await fetchSupplierAccount(data.session.user.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (!supplier) {
+        localStorage.removeItem('fornexa_supplier');
+      }
+
+      setIsSupplier(Boolean(supplier));
+      setChecking(false);
+    };
+
+    check();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (checking) {
+    return <SessionLoading label="Verificando acesso do fornecedor..." />;
+  }
+
+  if (!isSupplier) {
+    return <Navigate to="/fornecedor/login" replace />;
+  }
+
+  return children;
+}
+
 function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [redirectToPortal, setRedirectToPortal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -54,6 +128,19 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
       }
 
       const user = data.session.user;
+
+      // Fornecedor não usa o dashboard do vendedor: tem portal próprio.
+      const supplier = await fetchSupplierAccount(user.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      if (supplier) {
+        setRedirectToPortal(true);
+        setCheckingSession(false);
+        return;
+      }
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -89,17 +176,11 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   }, []);
 
   if (checkingSession) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-navy-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-4 border-gray-200 border-t-black dark:border-navy-700 dark:border-t-white rounded-full animate-spin mx-auto" />
+    return <SessionLoading label="Verificando sessão..." />;
+  }
 
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-4">
-            Verificando sessão...
-          </p>
-        </div>
-      </div>
-    );
+  if (redirectToPortal) {
+    return <Navigate to="/fornecedor" replace />;
   }
 
   if (!authenticated) {
@@ -132,6 +213,17 @@ function App() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Portal do Fornecedor — área separada, não usa o DashboardLayout */}
+        <Route path="/fornecedor/login" element={<SupplierLogin />} />
+        <Route
+          path="/fornecedor"
+          element={
+            <SupplierRoute>
+              <SupplierPortal />
+            </SupplierRoute>
+          }
+        />
 
         <Route
           path="/dashboard"
