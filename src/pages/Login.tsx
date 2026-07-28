@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fetchSupplierAccount } from '../lib/supplierAuth';
 
 interface Profile {
   name: string;
@@ -104,6 +105,26 @@ export default function Login() {
     if (!data.user) {
       setLoading(false);
       setErrorMessage('Não foi possível entrar. Tente novamente.');
+      return;
+    }
+
+    // Fornecedor tem portal próprio. Entrar por aqui é comum (é o link que
+    // ele conhece), então leva para o lugar certo em vez de barrar.
+    const supplier = await fetchSupplierAccount(data.user.id);
+
+    if (supplier) {
+      localStorage.setItem(
+        'fornexa_supplier',
+        JSON.stringify({
+          id: supplier.id,
+          name: supplier.company_name || supplier.name,
+          email: supplier.email || formattedEmail,
+          loggedAt: new Date().toISOString(),
+        })
+      );
+
+      setLoading(false);
+      navigate('/fornecedor');
       return;
     }
 

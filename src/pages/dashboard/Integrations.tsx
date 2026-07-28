@@ -104,14 +104,28 @@ export default function Integrations() {
     setSaving(true);
     setErrorMessage('');
 
-    const { data, error } = await supabase.functions.invoke<{ url: string }>(
+    const { data, error } = await supabase.functions.invoke<{ url: string; error?: string }>(
       'ml-oauth-start'
     );
 
     if (error || !data?.url) {
+      // Mesmo cuidado já usado no ProductModal.tsx e em Orders.tsx: em
+      // respostas não-2xx, o supabase-js não popula "data" — o corpo real
+      // do erro vem em error.context.
+      let mensagemEspecifica: string | undefined = data?.error;
+
+      if (!mensagemEspecifica && error && 'context' in error) {
+        try {
+          const errorBody = await (error as any).context.json();
+          mensagemEspecifica = errorBody?.error;
+        } catch {
+          // segue com a mensagem genérica abaixo
+        }
+      }
+
       setSaving(false);
       setErrorMessage(
-        'Não foi possível iniciar a conexão com o Mercado Livre. Tente novamente.'
+        mensagemEspecifica ?? 'Não foi possível iniciar a conexão com o Mercado Livre. Tente novamente.'
       );
       return;
     }
@@ -148,7 +162,7 @@ export default function Integrations() {
     setSaving(false);
 
     if (error) {
-      setErrorMessage('Não foi possível desconectar o Mercado Livre.');
+      setErrorMessage(`Não foi possível desconectar o Mercado Livre: ${error.message}`);
       return;
     }
 
