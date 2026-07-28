@@ -10,7 +10,9 @@ import {
   Moon,
   Package,
   ShoppingCart,
+  Store,
   Sun,
+  Truck,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -54,6 +56,18 @@ const navigationItems: NavigationItem[] = [
     path: '/dashboard/integrations',
     label: 'Integrações',
     icon: Link2,
+  },
+  {
+    path: '/dashboard/suppliers',
+    label: 'Fornecedores',
+    icon: Truck,
+    adminOnly: true,
+  },
+  {
+    path: '/dashboard/admin',
+    label: 'Admin',
+    icon: Store,
+    adminOnly: true,
   },
 ];
 

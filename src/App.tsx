@@ -13,6 +13,7 @@ import MyProducts from './pages/dashboard/MyProducts';
 import Orders from './pages/dashboard/Orders';
 import Financial from './pages/dashboard/Financial';
 import Integrations from './pages/dashboard/Integrations';
+import Admin from './pages/dashboard/Admin';
 import Tickets from './pages/dashboard/Tickets';
 import Tools from './pages/dashboard/Tools';
 import Tutorials from './pages/dashboard/Tutorials';
@@ -147,6 +148,7 @@ function App() {
           <Route path="orders" element={<Orders />} />
           <Route path="financial" element={<Financial />} />
           <Route path="integrations" element={<Integrations />} />
+          <Route path="admin" element={<Admin />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="tools" element={<Tools />} />
           <Route path="tutorials" element={<Tutorials />} />

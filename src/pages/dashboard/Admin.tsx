@@ -12,6 +12,7 @@ import {
   Store,
   Trash2,
   Truck,
+  Upload,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -75,6 +76,37 @@ export default function Admin() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    setErrorMessage('');
+
+    // Nome de arquivo único para evitar sobrescrever imagens de outros
+    // produtos com o mesmo nome original.
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      setUploadingImage(false);
+      setErrorMessage(`Não foi possível enviar a imagem: ${uploadError.message}`);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('product-images')
+      .getPublicUrl(fileName);
+
+    setForm((prev) => ({ ...prev, image_url: publicUrlData.publicUrl }));
+    setUploadingImage(false);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -572,17 +604,51 @@ export default function Admin() {
 
           <div>
             <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
-              URL da imagem
+              Imagem do produto
             </label>
 
-            <div className="relative">
+            <div className="flex items-center gap-4">
+              {form.image_url && (
+                <img
+                  src={form.image_url}
+                  alt="Preview"
+                  className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-navy-600 shrink-0"
+                />
+              )}
+
+              <label
+                className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors cursor-pointer ${
+                  uploadingImage ? 'opacity-60 pointer-events-none' : ''
+                }`}
+              >
+                <Upload className="w-4 h-4" />
+                {uploadingImage ? 'Enviando...' : 'Enviar imagem'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingImage}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handleImageUpload(file);
+                    }
+                    // Permite selecionar o mesmo arquivo de novo depois,
+                    // caso o usuário queira reenviar.
+                    event.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="relative mt-3">
               <Image className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
 
               <input
                 type="url"
                 value={form.image_url}
                 onChange={(event) => setForm({ ...form, image_url: event.target.value })}
-                placeholder="https://..."
+                placeholder="Ou cole uma URL de imagem externa: https://..."
                 className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
               />
             </div>
