@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  ShieldOff,
   Store,
   Trash2,
   Truck,
@@ -99,6 +100,8 @@ export default function Admin() {
   const [creatingAccess, setCreatingAccess] = useState(false);
   const [createdAccess, setCreatedAccess] = useState<CreatedAccess | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const openAccessForm = (supplier: Supplier) => {
     setAccessSupplierId(supplier.id);
@@ -120,6 +123,50 @@ export default function Admin() {
     } catch {
       setErrorMessage('Não foi possível copiar. Selecione o texto e copie manualmente.');
     }
+  };
+
+  const handleRevokeAccess = async (supplier: Supplier) => {
+    setRevokingId(supplier.id);
+    setErrorMessage('');
+    setCreatedAccess(null);
+
+    const { data, error } = await supabase.functions.invoke<{
+      supplier_name?: string;
+      account_was_missing?: boolean;
+      error?: string;
+    }>('supplier-revoke-access', {
+      body: { supplier_id: supplier.id },
+    });
+
+    if (error || !data?.supplier_name) {
+      let specificMessage: string | undefined = data?.error;
+
+      const errorContext = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!specificMessage && errorContext?.json) {
+        try {
+          const errorBody = await errorContext.json();
+          specificMessage = errorBody?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setRevokingId(null);
+      setErrorMessage(specificMessage ?? 'Não foi possível remover o acesso do fornecedor.');
+      return;
+    }
+
+    setRevokingId(null);
+    setConfirmRevokeId(null);
+    await loadData();
+    showSuccess(
+      data.account_was_missing
+        ? `Vínculo removido de ${data.supplier_name}. A conta de login já não existia.`
+        : `Acesso removido de ${data.supplier_name}. A conta de login foi apagada.`
+    );
   };
 
   const handleCreateAccess = async (supplier: Supplier) => {
@@ -753,10 +800,22 @@ export default function Admin() {
 
                     <div className="flex items-center gap-3 shrink-0">
                       {hasAccess ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          Acesso ativo
-                        </span>
+                        <>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Acesso ativo
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRevokeId(supplier.id)}
+                            disabled={revokingId === supplier.id}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-semibold transition-colors disabled:opacity-50"
+                          >
+                            <ShieldOff className="w-4 h-4" />
+                            Remover acesso
+                          </button>
+                        </>
                       ) : isEditing ? null : (
                         <button
                           type="button"
@@ -769,6 +828,56 @@ export default function Admin() {
                       )}
                     </div>
                   </div>
+
+                  {confirmRevokeId === supplier.id && hasAccess && (
+                    <div className="mt-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+
+                        <div>
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                            Remover o acesso de {supplier.company_name || supplier.name}?
+                          </p>
+
+                          <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+                            A conta de login é apagada e a senha atual deixa de valer. O
+                            cadastro do fornecedor e os pedidos continuam intactos, e o
+                            e-mail volta a ficar livre para criar um acesso novo.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeAccess(supplier)}
+                          disabled={revokingId === supplier.id}
+                          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                        >
+                          {revokingId === supplier.id ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Removendo...
+                            </>
+                          ) : (
+                            <>
+                              <ShieldOff className="w-4 h-4" />
+                              Sim, remover o acesso
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRevokeId(null)}
+                          disabled={revokingId === supplier.id}
+                          className="px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold hover:bg-white dark:hover:bg-navy-800 transition-colors disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {isEditing && !hasAccess && (
                     <div className="mt-4 rounded-xl bg-gray-50 dark:bg-navy-700 p-4">
