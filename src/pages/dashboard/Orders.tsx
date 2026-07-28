@@ -14,7 +14,13 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
-type OrderStatus = 'pending' | 'sent_to_supplier' | 'shipped' | 'delivered' | 'cancelled';
+type OrderStatus =
+  | 'pending'
+  | 'sent_to_supplier'
+  | 'separating'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
 
 interface Supplier {
   id: string;
@@ -49,6 +55,7 @@ interface Order {
 const statusLabels: Record<OrderStatus, string> = {
   pending: 'Pendente',
   sent_to_supplier: 'Enviado ao fornecedor',
+  separating: 'Em separação',
   shipped: 'Enviado',
   delivered: 'Entregue',
   cancelled: 'Cancelado',
@@ -109,9 +116,13 @@ export default function Orders() {
       // syncInvokeError.context.
       let mensagemEspecifica: string | undefined = syncResult?.error;
 
-      if (!mensagemEspecifica && syncInvokeError && 'context' in syncInvokeError) {
+      const errorContext = (
+        syncInvokeError as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!mensagemEspecifica && errorContext?.json) {
         try {
-          const errorBody = await (syncInvokeError as any).context.json();
+          const errorBody = await errorContext.json();
           mensagemEspecifica = errorBody?.error;
         } catch {
           // segue com a mensagem genérica abaixo
@@ -278,6 +289,11 @@ export default function Orders() {
       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
     }
 
+    // O fornecedor marcou que está separando o pedido, pelo Portal.
+    if (status === 'separating') {
+      return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+    }
+
     if (status === 'shipped') {
       return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
     }
@@ -294,7 +310,9 @@ export default function Orders() {
       return 'sent_to_supplier';
     }
 
-    if (status === 'sent_to_supplier') {
+    // O fornecedor pode marcar "em separação" pelo Portal, mas o vendedor
+    // segue podendo pular direto para enviado.
+    if (status === 'sent_to_supplier' || status === 'separating') {
       return 'shipped';
     }
 
@@ -310,7 +328,7 @@ export default function Orders() {
       return 'Marcar enviado ao fornecedor';
     }
 
-    if (status === 'sent_to_supplier') {
+    if (status === 'sent_to_supplier' || status === 'separating') {
       return 'Marcar como enviado';
     }
 
