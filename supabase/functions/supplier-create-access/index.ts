@@ -95,7 +95,10 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (profileError) {
-    return json({ error: 'Não foi possível confirmar sua permissão.' }, 500);
+    return json(
+      { error: `Não foi possível confirmar sua permissão: ${profileError.message}` },
+      500
+    );
   }
 
   if (callerProfile?.role !== 'admin') {
@@ -128,7 +131,17 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (supplierError) {
-    return json({ error: 'Não foi possível carregar o fornecedor.' }, 500);
+    // Endpoint restrito a admin, então mostrar o erro do banco é seguro e
+    // evita ter que caçar em log toda vez.
+    return json(
+      {
+        error: `Não foi possível carregar o fornecedor: ${supplierError.message}`,
+        code: supplierError.code,
+        details: supplierError.details,
+        hint: supplierError.hint,
+      },
+      500
+    );
   }
 
   if (!supplier) {
