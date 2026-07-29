@@ -57,7 +57,10 @@ const tabs: Tab[] = [
   {
     id: 'novos',
     label: 'Novos',
-    statuses: ['sent_to_supplier'],
+    // `pending` entra aqui porque é o status com que a venda nasce ao vir do
+    // Mercado Livre. Sem isso o pedido só apareceria depois de o vendedor
+    // liberar um por um, que é justamente o passo manual a ser eliminado.
+    statuses: ['pending', 'sent_to_supplier'],
     emptyMessage: 'Nenhum pedido novo agora. Assim que uma venda chegar, ela aparece aqui.',
   },
   {
@@ -518,7 +521,8 @@ export default function SupplierPortal() {
                           </span>
                         )}
 
-                        {order.status === 'sent_to_supplier' && (
+                        {(order.status === 'pending' ||
+                          order.status === 'sent_to_supplier') && (
                           <button
                             onClick={() => updateStatus(order, 'separating')}
                             disabled={isBusy}
@@ -531,7 +535,8 @@ export default function SupplierPortal() {
                           </button>
                         )}
 
-                        {(order.status === 'sent_to_supplier' ||
+                        {(order.status === 'pending' ||
+                          order.status === 'sent_to_supplier' ||
                           order.status === 'separating') && (
                           <button
                             onClick={() => updateStatus(order, 'shipped')}
