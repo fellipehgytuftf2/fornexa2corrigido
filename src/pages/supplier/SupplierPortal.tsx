@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -89,6 +89,13 @@ const tabs: Tab[] = [
   },
 ];
 
+/**
+ * De quanto em quanto tempo o portal procura pedido novo. Quarenta e cinco
+ * segundos é curto o bastante para o fornecedor perceber a venda logo, e longo
+ * o bastante para não pesar: é uma consulta a cada minuto por aba aberta.
+ */
+const INTERVALO_VERIFICACAO = 45000;
+
 const formatCurrency = (value: number) =>
   `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
 
@@ -111,10 +118,24 @@ export default function SupplierPortal() {
   const [activeTab, setActiveTab] = useState('novos');
   const [actionId, setActionId] = useState<string | null>(null);
   const [labelId, setLabelId] = useState<string | null>(null);
+
+  /** Quantos pedidos entraram desde a última vez que o fornecedor olhou. */
+  const [pedidosNovos, setPedidosNovos] = useState(0);
+
+  /**
+   * Ids já vistos. Fica em ref, e não em estado, porque serve só de comparação
+   * — mudar isso não precisa redesenhar a tela. Começa nulo para a primeira
+   * carga não anunciar todos os pedidos como novidade.
+   */
+  const idsConhecidos = useRef<Set<string> | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const loadOrders = useCallback(async () => {
+  /**
+   * @param silencioso usado pela verificação automática: uma falha de rede
+   * momentânea não deve cobrir a tela com erro enquanto o fornecedor trabalha.
+   */
+  const loadOrders = useCallback(async ({ silencioso = false } = {}) => {
     // Lê da view, nunca de `orders`. A view já filtra pelo fornecedor logado e
     // não expõe preço de venda nem lucro do vendedor. O fornecedor não tem
     // permissão nenhuma na tabela.
@@ -125,11 +146,32 @@ export default function SupplierPortal() {
 
     if (error) {
       console.error('Erro ao carregar pedidos:', error);
-      setErrorMessage('Não foi possível carregar seus pedidos.');
+
+      if (!silencioso) {
+        setErrorMessage('Não foi possível carregar seus pedidos.');
+      }
+
       return;
     }
 
-    setOrders((data || []) as SupplierOrder[]);
+    const novos = (data || []) as SupplierOrder[];
+
+    // Descobre o que chegou desde a última verificação. Comparar ids, e não a
+    // quantidade, evita falso alarme quando um pedido some (cancelado) e outro
+    // entra no mesmo intervalo.
+    const conhecidos = idsConhecidos.current;
+
+    if (conhecidos) {
+      const recemChegados = novos.filter((pedido) => !conhecidos.has(pedido.id));
+
+      if (recemChegados.length > 0) {
+        setPedidosNovos(recemChegados.length);
+      }
+    }
+
+    idsConhecidos.current = new Set(novos.map((pedido) => pedido.id));
+
+    setOrders(novos);
   }, []);
 
   useEffect(() => {
@@ -168,9 +210,60 @@ export default function SupplierPortal() {
     };
   }, [navigate, loadOrders]);
 
+  /**
+   * Verifica pedidos novos de tempos em tempos.
+   *
+   * Não dá para usar o Realtime do Supabase aqui: ele respeita RLS, e o
+   * fornecedor não tem permissão nenhuma em `orders` — é assim que o preço de
+   * venda do vendedor fica protegido. Realtime também não funciona sobre view.
+   *
+   * A verificação pausa com a aba em segundo plano e dispara na hora em que
+   * ela volta, para não gastar requisição à toa nem mostrar dado velho.
+   */
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    const verificar = () => {
+      if (!document.hidden) {
+        loadOrders({ silencioso: true });
+      }
+    };
+
+    const intervalo = window.setInterval(verificar, INTERVALO_VERIFICACAO);
+
+    document.addEventListener('visibilitychange', verificar);
+
+    return () => {
+      window.clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', verificar);
+    };
+  }, [loading, loadOrders]);
+
+  /**
+   * Avisa no título da aba. É o único canal que alcança o fornecedor com o
+   * portal aberto em segundo plano — enquanto não existe e-mail, é o que há.
+   */
+  useEffect(() => {
+    const base = 'Portal do Fornecedor — FORNEXA';
+    document.title = pedidosNovos > 0 ? `(${pedidosNovos}) ${base}` : base;
+  }, [pedidosNovos]);
+
+  // Devolve o título original ao sair, para a aba não continuar anunciando o
+  // portal depois que o fornecedor faz logout.
+  useEffect(() => {
+    const tituloOriginal = document.title;
+
+    return () => {
+      document.title = tituloOriginal;
+    };
+  }, []);
+
   const handleRefresh = async () => {
     setRefreshing(true);
     setErrorMessage('');
+    setPedidosNovos(0);
     await loadOrders();
     setRefreshing(false);
   };
@@ -346,6 +439,26 @@ export default function SupplierPortal() {
           >
             <AlertCircle className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5" />
             <p className="text-sm text-red-200">{errorMessage}</p>
+          </div>
+        )}
+
+        {pedidosNovos > 0 && (
+          <div
+            role="status"
+            className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3.5"
+          >
+            <p className="text-sm text-gold">
+              {pedidosNovos === 1
+                ? 'Chegou 1 pedido novo.'
+                : `Chegaram ${pedidosNovos} pedidos novos.`}
+            </p>
+
+            <button
+              onClick={() => setPedidosNovos(0)}
+              className="text-sm font-semibold text-gold underline underline-offset-4 transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 rounded"
+            >
+              Entendi
+            </button>
           </div>
         )}
 
