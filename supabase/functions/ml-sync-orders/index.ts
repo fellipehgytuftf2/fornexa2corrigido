@@ -272,6 +272,13 @@ Deno.serve(async (req: Request) => {
         const salePrice = Number(firstItem?.unit_price ?? userProduct.sale_price ?? 0);
         const profit = salePrice - Number(userProduct.supplier_price ?? 0);
 
+        // Status do lado do Mercado Livre. Não se confunde com orders.status,
+        // que é o andamento interno controlado por vendedor e fornecedor.
+        // O portal do fornecedor só mostra pedido pago, então pagamento
+        // recusado ou venda cancelada some de lá sozinho.
+        const mlOrderStatus: string | null = mlOrder?.status ?? null;
+        const mlOrderStatusDetail: string | null = mlOrder?.status_detail ?? null;
+
         if (existingOrder) {
           // Pedido já existe: atualiza SOMENTE campos que vêm do Mercado
           // Livre (rastreio/shipment/contato) — nunca o status, que é
@@ -280,6 +287,8 @@ Deno.serve(async (req: Request) => {
             .from("orders")
             .update({
               ml_shipment_id: mlShipmentId,
+              ml_order_status: mlOrderStatus,
+              ml_order_status_detail: mlOrderStatusDetail,
               tracking_code: trackingCode,
               customer_phone: customerPhone,
               customer_address: customerAddress,
@@ -321,6 +330,8 @@ Deno.serve(async (req: Request) => {
             marketplace: userProduct.marketplace || "Mercado Livre",
             ml_order_id: mlOrderId,
             ml_shipment_id: mlShipmentId,
+            ml_order_status: mlOrderStatus,
+            ml_order_status_detail: mlOrderStatusDetail,
             quantidade,
           });
 
