@@ -48,8 +48,23 @@ interface Order {
   profit: number;
   status: OrderStatus;
   tracking_code: string | null;
+  ml_shipment_id: string | null;
   created_at: string;
   suppliers?: Supplier | Supplier[] | null;
+}
+
+/**
+ * Resposta do diagnóstico de envio. Existe para descobrir se a confirmação de
+ * despacho no Mercado Livre é feita por API (envio do vendedor) ou não se
+ * aplica (Mercado Envios, onde a transportadora é quem atualiza).
+ */
+interface DiagnosticoEnvio {
+  pedidoId: string;
+  mode: string | null;
+  logistic_type: string | null;
+  status: string | null;
+  substatus: string | null;
+  conclusao: string;
 }
 
 const statusLabels: Record<OrderStatus, string> = {
@@ -77,6 +92,60 @@ export default function Orders() {
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
   const [showIssues, setShowIssues] = useState(false);
+  const [diagnosticoId, setDiagnosticoId] = useState<string | null>(null);
+  const [diagnostico, setDiagnostico] = useState<DiagnosticoEnvio | null>(null);
+
+  /**
+   * Consulta o Mercado Livre sobre como o envio deste pedido é classificado.
+   * Só lê — não altera nada lá.
+   */
+  const diagnosticarEnvio = async (order: Order) => {
+    setDiagnosticoId(order.id);
+    setErrorMessage('');
+    setDiagnostico(null);
+
+    const { data, error } = await supabase.functions.invoke<{
+      mode?: string | null;
+      logistic_type?: string | null;
+      status?: string | null;
+      substatus?: string | null;
+      conclusao?: string;
+      error?: string;
+    }>('ml-shipment-info', {
+      body: { pedido_id: order.id },
+    });
+
+    setDiagnosticoId(null);
+
+    if (error || !data?.conclusao) {
+      let mensagem: string | undefined = data?.error;
+
+      const contexto = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!mensagem && contexto?.json) {
+        try {
+          const corpo = await contexto.json();
+          mensagem = corpo?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setErrorMessage(mensagem ?? 'Não foi possível consultar o envio no Mercado Livre.');
+      return;
+    }
+
+    setDiagnostico({
+      pedidoId: order.id,
+      mode: data.mode ?? null,
+      logistic_type: data.logistic_type ?? null,
+      status: data.status ?? null,
+      substatus: data.substatus ?? null,
+      conclusao: data.conclusao,
+    });
+  };
 
   const loadPendingIssues = async () => {
     const { data, error } = await supabase.functions.invoke<{
@@ -167,6 +236,7 @@ export default function Orders() {
         profit,
         status,
         tracking_code,
+        ml_shipment_id,
         created_at,
         suppliers (
           id,
@@ -729,6 +799,17 @@ export default function Orders() {
                       {actionId === order.id ? 'Atualizando...' : getNextStatusLabel(order.status)}
                     </button>
 
+                    {order.ml_shipment_id && (
+                      <button
+                        onClick={() => diagnosticarEnvio(order)}
+                        disabled={diagnosticoId === order.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <Truck className="w-4 h-4" />
+                        {diagnosticoId === order.id ? 'Consultando...' : 'Dados de envio'}
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleDeleteOrder(order.id)}
                       disabled={actionId === order.id}
@@ -738,6 +819,43 @@ export default function Orders() {
                       Excluir
                     </button>
                   </div>
+
+                  {/* Diagnóstico de envio — decide qual caminho a confirmação
+                      de despacho no Mercado Livre precisa seguir. */}
+                  {diagnostico?.pedidoId === order.id && (
+                    <div className="mt-4 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 p-4">
+                      <p className="text-sm font-semibold text-navy-900 dark:text-white">
+                        Como o Mercado Livre classifica este envio
+                      </p>
+
+                      <dl className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                          ['Modo', diagnostico.mode],
+                          ['Logística', diagnostico.logistic_type],
+                          ['Status', diagnostico.status],
+                          ['Substatus', diagnostico.substatus],
+                        ].map(([rotulo, valor]) => (
+                          <div key={rotulo as string}>
+                            <dt className="text-xs text-gray-500 dark:text-slate-400">{rotulo}</dt>
+                            <dd className="text-sm font-medium text-navy-900 dark:text-white mt-1 break-all">
+                              {valor ?? '—'}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+
+                      <p className="text-sm text-gray-600 dark:text-slate-300 mt-4 leading-relaxed">
+                        {diagnostico.conclusao}
+                      </p>
+
+                      <button
+                        onClick={() => setDiagnostico(null)}
+                        className="text-sm font-semibold text-navy-900 dark:text-white hover:underline mt-3"
+                      >
+                        Fechar
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
