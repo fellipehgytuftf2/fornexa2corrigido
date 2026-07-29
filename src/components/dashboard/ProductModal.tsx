@@ -33,7 +33,6 @@ const MARGIN_PRESETS = [30, 50, 80, 100];
 export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [marginPercentage, setMarginPercentage] = useState<string>('40');
   const [publishing, setPublishing] = useState(false);
-  const [published, setPublished] = useState(false);
   const [flowStage, setFlowStage] = useState<'idle' | 'publishing' | 'success'>('idle');
 
   const [mercadoLivreConnected, setMercadoLivreConnected] = useState(false);
@@ -187,9 +186,13 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
       // publishInvokeError.context (um objeto Response).
       let mensagemEspecifica: string | undefined = publishResult?.error;
 
-      if (!mensagemEspecifica && publishInvokeError && 'context' in publishInvokeError) {
+      const errorContext = (
+        publishInvokeError as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!mensagemEspecifica && errorContext?.json) {
         try {
-          const errorBody = await (publishInvokeError as any).context.json();
+          const errorBody = await errorContext.json();
           mensagemEspecifica = errorBody?.error;
         } catch {
           // Se não der pra ler o corpo (ex: não é JSON), seguimos com a
@@ -206,7 +209,6 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
 
     setPublishing(false);
     setPublishedPermalink(publishResult.permalink ?? '');
-    setPublished(true);
   };
 
   const handlePublishClick = () => {

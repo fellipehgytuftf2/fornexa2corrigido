@@ -114,9 +114,13 @@ export default function Integrations() {
       // do erro vem em error.context.
       let mensagemEspecifica: string | undefined = data?.error;
 
-      if (!mensagemEspecifica && error && 'context' in error) {
+      const errorContext = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!mensagemEspecifica && errorContext?.json) {
         try {
-          const errorBody = await (error as any).context.json();
+          const errorBody = await errorContext.json();
           mensagemEspecifica = errorBody?.error;
         } catch {
           // segue com a mensagem genérica abaixo
