@@ -14,6 +14,7 @@
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { chavePublica, chaveSecreta, urlDoProjeto } from '../_shared/chaves.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,9 +55,9 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Método não permitido.' }, 405);
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const supabaseUrl = urlDoProjeto();
+  const serviceRoleKey = chaveSecreta();
+  const anonKey = chavePublica();
 
   if (!supabaseUrl || !serviceRoleKey || !anonKey) {
     return json({ error: 'Função mal configurada no servidor.' }, 500);
