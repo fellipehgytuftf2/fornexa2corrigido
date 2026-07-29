@@ -109,28 +109,12 @@ export default function SupplierPortal() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const loadOrders = useCallback(async () => {
-    // A policy fornecedores_select_own_orders já limita o resultado aos
-    // pedidos deste fornecedor — não dá para pedir os de outro.
+    // Lê da view, nunca de `orders`. A view já filtra pelo fornecedor logado e
+    // não expõe preço de venda nem lucro do vendedor. O fornecedor não tem
+    // permissão nenhuma na tabela.
     const { data, error } = await supabase
-      .from('orders')
-      .select(
-        `
-        id,
-        product_name,
-        product_image_url,
-        quantidade,
-        customer_name,
-        customer_phone,
-        customer_address,
-        comprador_documento,
-        supplier_price,
-        status,
-        tracking_code,
-        etiqueta_url,
-        marketplace,
-        created_at
-      `
-      )
+      .from('pedidos_do_fornecedor')
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -200,10 +184,12 @@ export default function SupplierPortal() {
     setActionId(order.id);
     setErrorMessage('');
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: nextStatus })
-      .eq('id', order.id);
+    // A função valida dono e transição no banco. O fornecedor não consegue
+    // dar UPDATE em `orders` de forma alguma.
+    const { error } = await supabase.rpc('fornecedor_atualiza_status_pedido', {
+      p_pedido_id: order.id,
+      p_novo_status: nextStatus,
+    });
 
     setActionId(null);
 
