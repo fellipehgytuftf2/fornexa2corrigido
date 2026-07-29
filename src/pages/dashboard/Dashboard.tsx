@@ -202,8 +202,11 @@ export default function Dashboard({ darkMode }: DashboardProps) {
     return orders.filter((order) => new Date(order.created_at) >= cutoff);
   }, [orders]);
 
+  // Derivado de todayKey, e não de new Date(), para a dependência ser real:
+  // a intenção sempre foi refazer a conta quando o dia vira, e agora o
+  // resultado é comprovadamente o dia anterior ao de hoje.
   const yesterdayKey = useMemo(() => {
-    const yesterday = new Date();
+    const yesterday = new Date(`${todayKey}T00:00:00`);
     yesterday.setDate(yesterday.getDate() - 1);
     return dateKey(yesterday);
   }, [todayKey]);
