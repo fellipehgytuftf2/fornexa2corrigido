@@ -12,3 +12,10 @@ if (!supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Em desenvolvimento, deixa o cliente acessível pelo console do navegador.
+// Serve para testar permissão de verdade — como conferir que o fornecedor
+// realmente não lê `orders`. Não vai para o build de produção.
+if (import.meta.env.DEV) {
+  (window as unknown as { supabase: typeof supabase }).supabase = supabase;
+}
