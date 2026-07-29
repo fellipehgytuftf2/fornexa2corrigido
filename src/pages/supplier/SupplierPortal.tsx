@@ -42,6 +42,8 @@ interface SupplierOrder {
   etiqueta_url: string | null;
   /** A view calcula isto a partir de ml_shipment_id — sem expor o id em si. */
   etiqueta_disponivel: boolean;
+  /** Comprador cancelou no marketplace. Independe do andamento interno. */
+  cancelado_no_marketplace: boolean;
   marketplace: string;
   created_at: string;
 }
@@ -49,9 +51,18 @@ interface SupplierOrder {
 interface Tab {
   id: string;
   label: string;
-  statuses: OrderStatus[];
+  /**
+   * Decide se o pedido pertence à aba. É função, e não lista de status,
+   * porque cancelamento não é um status interno: vem do marketplace e tem
+   * precedência sobre onde o pedido estava.
+   */
+  match: (order: SupplierOrder) => boolean;
   emptyMessage: string;
 }
+
+/** Cancelado no marketplace sai de todas as abas de trabalho. */
+const emAndamento = (order: SupplierOrder, ...statuses: OrderStatus[]) =>
+  !order.cancelado_no_marketplace && statuses.includes(order.status);
 
 const tabs: Tab[] = [
   {
@@ -60,31 +71,33 @@ const tabs: Tab[] = [
     // `pending` entra aqui porque é o status com que a venda nasce ao vir do
     // Mercado Livre. Sem isso o pedido só apareceria depois de o vendedor
     // liberar um por um, que é justamente o passo manual a ser eliminado.
-    statuses: ['pending', 'sent_to_supplier'],
+    match: (order) => emAndamento(order, 'pending', 'sent_to_supplier'),
     emptyMessage: 'Nenhum pedido novo agora. Assim que uma venda chegar, ela aparece aqui.',
   },
   {
     id: 'separacao',
     label: 'Em separação',
-    statuses: ['separating'],
+    match: (order) => emAndamento(order, 'separating'),
     emptyMessage: 'Nenhum pedido em separação.',
   },
   {
     id: 'enviados',
     label: 'Enviados',
-    statuses: ['shipped'],
+    match: (order) => emAndamento(order, 'shipped'),
     emptyMessage: 'Nenhum pedido enviado ainda.',
   },
   {
     id: 'cancelados',
     label: 'Cancelados',
-    statuses: ['cancelled'],
+    // Duas origens: cancelamento no marketplace, e o status interno, que hoje
+    // nenhuma tela grava mas continua previsto.
+    match: (order) => order.cancelado_no_marketplace || order.status === 'cancelled',
     emptyMessage: 'Nenhum pedido cancelado.',
   },
   {
     id: 'historico',
     label: 'Histórico',
-    statuses: ['delivered'],
+    match: (order) => emAndamento(order, 'delivered'),
     emptyMessage: 'Nenhum pedido entregue ainda.',
   },
 ];
@@ -361,14 +374,14 @@ export default function SupplierPortal() {
     const counts: Record<string, number> = {};
 
     tabs.forEach((tab) => {
-      counts[tab.id] = orders.filter((order) => tab.statuses.includes(order.status)).length;
+      counts[tab.id] = orders.filter(tab.match).length;
     });
 
     return counts;
   }, [orders]);
 
   const visibleOrders = useMemo(
-    () => orders.filter((order) => currentTab.statuses.includes(order.status)),
+    () => orders.filter(currentTab.match),
     [orders, currentTab]
   );
 
@@ -613,6 +626,21 @@ export default function SupplierPortal() {
                         )}
                       </div>
 
+                      {/* Cancelado no marketplace: nada a fazer, e é preciso
+                          dizer isso com todas as letras. O fornecedor pode já
+                          ter separado e embalado. */}
+                      {order.cancelado_no_marketplace ? (
+                        <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3.5">
+                          <AlertCircle
+                            className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5"
+                            aria-hidden="true"
+                          />
+                          <p className="text-sm text-red-200">
+                            Este pedido foi cancelado no {order.marketplace}. Não envie.
+                            Se já tiver separado, pode devolver ao estoque.
+                          </p>
+                        </div>
+                      ) : (
                       <div className="mt-5 flex flex-col sm:flex-row gap-3">
                         {order.etiqueta_disponivel ? (
                           <button
@@ -663,6 +691,7 @@ export default function SupplierPortal() {
                           </button>
                         )}
                       </div>
+                      )}
                     </div>
                   </li>
                 );
