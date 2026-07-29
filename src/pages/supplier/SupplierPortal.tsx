@@ -40,6 +40,8 @@ interface SupplierOrder {
   status: OrderStatus;
   tracking_code: string | null;
   etiqueta_url: string | null;
+  /** A view calcula isto a partir de ml_shipment_id — sem expor o id em si. */
+  etiqueta_disponivel: boolean;
   marketplace: string;
   created_at: string;
 }
@@ -105,6 +107,7 @@ export default function SupplierPortal() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('novos');
   const [actionId, setActionId] = useState<string | null>(null);
+  const [labelId, setLabelId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -178,6 +181,54 @@ export default function SupplierPortal() {
   const showSuccess = (message: string) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(''), 4000);
+  };
+
+  /**
+   * A etiqueta vem em PDF pela Edge Function, que age como proxy: o token do
+   * vendedor fica no servidor e nunca chega aqui. O arquivo não é gravado em
+   * lugar nenhum — abre numa aba e é descartado.
+   */
+  const baixarEtiqueta = async (order: SupplierOrder) => {
+    setLabelId(order.id);
+    setErrorMessage('');
+
+    const { data, error } = await supabase.functions.invoke<Blob>('supplier-order-label', {
+      body: { pedido_id: order.id },
+    });
+
+    setLabelId(null);
+
+    if (error || !data) {
+      let specificMessage: string | undefined;
+
+      const errorContext = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (errorContext?.json) {
+        try {
+          const errorBody = await errorContext.json();
+          specificMessage = errorBody?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setErrorMessage(specificMessage ?? 'Não foi possível buscar a etiqueta.');
+      return;
+    }
+
+    const url = URL.createObjectURL(data);
+    const aberta = window.open(url, '_blank', 'noopener,noreferrer');
+
+    if (!aberta) {
+      setErrorMessage(
+        'O navegador bloqueou a janela da etiqueta. Libere pop-ups para este site e tente de novo.'
+      );
+    }
+
+    // Libera a memória depois que o navegador teve tempo de carregar o PDF.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   const updateStatus = async (order: SupplierOrder, nextStatus: OrderStatus) => {
@@ -447,16 +498,19 @@ export default function SupplierPortal() {
                       </div>
 
                       <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                        {order.etiqueta_url ? (
-                          <a
-                            href={order.etiqueta_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+                        {order.etiqueta_disponivel ? (
+                          <button
+                            onClick={() => baixarEtiqueta(order)}
+                            disabled={labelId === order.id}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50"
                           >
-                            <FileText className="w-4 h-4" aria-hidden="true" />
-                            Baixar etiqueta
-                          </a>
+                            {labelId === order.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                            ) : (
+                              <FileText className="w-4 h-4" aria-hidden="true" />
+                            )}
+                            {labelId === order.id ? 'Buscando...' : 'Baixar etiqueta'}
+                          </button>
                         ) : (
                           <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/5 px-4 py-3 text-sm text-slate-600">
                             <FileText className="w-4 h-4" aria-hidden="true" />
