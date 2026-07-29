@@ -369,11 +369,20 @@ Deno.serve(async (req: Request) => {
       .eq("ml_order_id", mlOrderId)
       .maybeSingle();
 
+    // Status do lado do Mercado Livre, distinto de orders.status, que é o
+    // andamento interno. O portal do fornecedor só mostra pedido pago, então
+    // venda cancelada ou aguardando pagamento some de lá sozinha — e volta a
+    // aparecer se o pagamento for aprovado depois, porque o webhook avisa.
+    const mlOrderStatus: string | null = mlOrder?.status ?? null;
+    const mlOrderStatusDetail: string | null = mlOrder?.status_detail ?? null;
+
     if (existingOrder) {
       await supabase
         .from("orders")
         .update({
           ml_shipment_id: mlShipmentId,
+          ml_order_status: mlOrderStatus,
+          ml_order_status_detail: mlOrderStatusDetail,
           tracking_code: trackingCode,
           customer_phone: customerPhone,
           customer_address: customerAddress,
@@ -406,6 +415,8 @@ Deno.serve(async (req: Request) => {
         marketplace: userProduct.marketplace || "Mercado Livre",
         ml_order_id: mlOrderId,
         ml_shipment_id: mlShipmentId,
+        ml_order_status: mlOrderStatus,
+        ml_order_status_detail: mlOrderStatusDetail,
         quantidade,
       });
     }
