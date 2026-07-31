@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 140" role="img" aria-label="Mercado Livre">
+  <title>Mercado Livre</title>
+
+  <!--
+    Representação do símbolo do Mercado Livre, usada para identificar a
+    integração dentro do FORNEXA. Desenhada à mão a partir da marca, é
+    aproximada e não substitui o arquivo oficial: basta sobrescrever este
+    arquivo com o oficial, mantendo o nome, que as telas passam a usá-lo.
+
+    Fundo transparente de propósito, para funcionar sobre o claro do dashboard
+    e sobre o navy do Portal do Fornecedor.
+  -->
+
+  <ellipse cx="100" cy="70" rx="92" ry="62" fill="#FFE600" stroke="#2D3277" stroke-width="11" />
+
+  <g fill="#FFFFFF" stroke="#2D3277" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Antebraço e mão vindos da esquerda -->
+    <path d="M10 52
+             C 34 44, 60 46, 80 58
+             L 104 74
+             C 110 78, 108 88, 100 88
+             L 74 86
+             C 52 84, 28 76, 10 66
+             Z" />
+
+    <!-- Antebraço e mão vindos da direita, fechando o aperto -->
+    <path d="M190 92
+             C 166 100, 140 98, 120 86
+             L 96 70
+             C 90 66, 92 56, 100 56
+             L 126 58
+             C 148 60, 172 68, 190 78
+             Z" />
+
+    <!-- Dedos sugeridos sobre o ponto do aperto -->
+    <path d="M84 74 L 96 81" />
+    <path d="M92 66 L 104 73" />
+  </g>
+</svg>
