@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Package } from 'lucide-react';
+import { AlertCircle, Package, Search, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Product } from '../../types';
 import ProductModal from '../../components/dashboard/ProductModal';
@@ -33,8 +33,12 @@ interface CatalogProductFromSupabase {
 export default function Catalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [searchTerm] = useState('');
-  const [selectedCategory] = useState('Todos');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [selectedSupplier, setSelectedSupplier] = useState('Todos');
+  const [ordem, setOrdem] = useState<'recentes' | 'preco-asc' | 'preco-desc' | 'nome'>(
+    'recentes'
+  );
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -113,20 +117,57 @@ export default function Catalog() {
     loadCatalogProducts();
   }, []);
 
+  /** Opções montadas a partir do que existe no catálogo, não de lista fixa. */
+  const categorias = useMemo(() => {
+    const encontradas = new Set(products.map((produto) => produto.category).filter(Boolean));
+    return ['Todos', ...[...encontradas].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  }, [products]);
+
+  const fornecedores = useMemo(() => {
+    const encontrados = new Set(
+      products.map((produto) => produto.supplierName || '').filter(Boolean)
+    );
+    return ['Todos', ...[...encontrados].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  }, [products]);
+
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    const busca = searchTerm.trim().toLowerCase();
+
+    const encontrados = products.filter((product) => {
       const matchesSearch =
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.supplierName?.toLowerCase().includes(searchTerm.toLowerCase());
+        !busca ||
+        product.name.toLowerCase().includes(busca) ||
+        product.description.toLowerCase().includes(busca) ||
+        product.category.toLowerCase().includes(busca) ||
+        Boolean(product.supplierName?.toLowerCase().includes(busca));
 
       const matchesCategory =
         selectedCategory === 'Todos' || product.category === selectedCategory;
 
-      return matchesSearch && matchesCategory;
+      const matchesSupplier =
+        selectedSupplier === 'Todos' || product.supplierName === selectedSupplier;
+
+      return matchesSearch && matchesCategory && matchesSupplier;
     });
-  }, [products, searchTerm, selectedCategory]);
+
+    // Cópia antes de ordenar: sort altera o array original, e o original aqui
+    // é o resultado do filter, mas manter o hábito evita surpresa depois.
+    return [...encontrados].sort((a, b) => {
+      if (ordem === 'preco-asc') return a.supplierPrice - b.supplierPrice;
+      if (ordem === 'preco-desc') return b.supplierPrice - a.supplierPrice;
+      if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');
+      return 0; // recentes: mantém a ordem que veio do banco
+    });
+  }, [products, searchTerm, selectedCategory, selectedSupplier, ordem]);
+
+  const filtroAtivo =
+    Boolean(searchTerm.trim()) || selectedCategory !== 'Todos' || selectedSupplier !== 'Todos';
+
+  const limparFiltros = () => {
+    setSearchTerm('');
+    setSelectedCategory('Todos');
+    setSelectedSupplier('Todos');
+  };
 
   const formatCurrency = (value: number) => {
     return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
@@ -154,12 +195,91 @@ export default function Catalog() {
         </button>
       </div>
 
-      <div className="">
-        <p className="">
-         
-        </p>
+      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-4 shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
 
-  
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por produto, descrição, categoria ou fornecedor..."
+              aria-label="Buscar no catálogo"
+              className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+            />
+          </div>
+
+          {/* Fornecedor só aparece quando há mais de um: com um fornecedor só,
+              o seletor não filtra nada e vira ruído. */}
+          {fornecedores.length > 2 && (
+            <select
+              value={selectedSupplier}
+              onChange={(event) => setSelectedSupplier(event.target.value)}
+              aria-label="Filtrar por fornecedor"
+              className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+            >
+              {fornecedores.map((fornecedor) => (
+                <option key={fornecedor} value={fornecedor}>
+                  {fornecedor === 'Todos' ? 'Todos os fornecedores' : fornecedor}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <select
+            value={ordem}
+            onChange={(event) => setOrdem(event.target.value as typeof ordem)}
+            aria-label="Ordenar catálogo"
+            className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+          >
+            <option value="recentes">Mais recentes</option>
+            <option value="preco-asc">Menor preço</option>
+            <option value="preco-desc">Maior preço</option>
+            <option value="nome">Nome (A-Z)</option>
+          </select>
+        </div>
+
+        {categorias.length > 2 && (
+          <div className="flex flex-wrap gap-2">
+            {categorias.map((categoria) => {
+              const ativa = categoria === selectedCategory;
+
+              return (
+                <button
+                  key={categoria}
+                  onClick={() => setSelectedCategory(categoria)}
+                  aria-pressed={ativa}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    ativa
+                      ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-navy-700 dark:text-slate-300 dark:hover:bg-navy-600'
+                  }`}
+                >
+                  {categoria}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-500 dark:text-slate-400">
+            {filteredProducts.length === products.length
+              ? `${products.length} produto(s) no catálogo`
+              : `${filteredProducts.length} de ${products.length} produto(s)`}
+          </p>
+
+          {filtroAtivo && (
+            <button
+              onClick={limparFiltros}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-900 dark:text-white hover:underline"
+            >
+              <X className="w-4 h-4" />
+              Limpar filtros
+            </button>
+          )}
+        </div>
       </div>
 
       {errorMessage && (
@@ -242,13 +362,27 @@ export default function Catalog() {
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
           <Package className="w-12 h-12 text-gray-300 dark:text-navy-600 mx-auto mb-4" />
 
+          {/* Catálogo vazio e filtro sem resultado são situações diferentes:
+              numa não há o que fazer, na outra basta limpar o filtro. */}
           <h3 className="text-navy-900 dark:text-white font-semibold">
-            Nenhum produto encontrado
+            {filtroAtivo ? 'Nenhum produto com esses filtros' : 'Catálogo vazio'}
           </h3>
 
           <p className="text-gray-500 dark:text-slate-400 text-sm mt-2">
-            Tente mudar a busca ou cadastrar produtos na tabela catalog_products.
+            {filtroAtivo
+              ? 'Tente outra busca, outra categoria, ou limpe os filtros.'
+              : 'Ainda não há produtos disponíveis. Assim que a equipe cadastrar, eles aparecem aqui.'}
           </p>
+
+          {filtroAtivo && (
+            <button
+              onClick={limparFiltros}
+              className="inline-flex items-center justify-center gap-2 mt-6 px-5 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors"
+            >
+              <X className="w-4 h-4" />
+              Limpar filtros
+            </button>
+          )}
         </div>
       )}
 
