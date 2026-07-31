@@ -2,13 +2,15 @@
   <title>Mercado Livre</title>
 
   <!--
-    Representação do símbolo do Mercado Livre, usada para identificar a
-    integração dentro do FORNEXA. Desenhada à mão a partir da marca, é
-    aproximada e não substitui o arquivo oficial: basta sobrescrever este
-    arquivo com o oficial, mantendo o nome, que as telas passam a usá-lo.
+    Símbolo do Mercado Livre para os selos pequenos, de 18 a 24 pixels.
 
-    Fundo transparente de propósito, para funcionar sobre o claro do dashboard
-    e sobre o navy do Portal do Fornecedor.
+    Desenhado à mão, com fundo transparente: funciona sobre o claro do
+    dashboard e sobre o navy do Portal do Fornecedor.
+
+    O arquivo oficial da marca está em mercado-livre-completo.jpg e é usado em
+    Integrações, onde há espaço para a logo inteira com o texto. Aqui não
+    serve: em 18 pixels o texto ficaria ilegível, e o JPEG traz fundo branco,
+    que viraria um retângulo claro sobre o fundo escuro.
   -->
 
   <ellipse cx="100" cy="70" rx="92" ry="62" fill="#FFE600" stroke="#2D3277" stroke-width="11" />
