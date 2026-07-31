@@ -49,6 +49,8 @@ interface SupplierOrder {
   problema_relatado: boolean;
   /** Chamado mais recente do pedido, resolvido ou não. Null se nunca houve. */
   chamado_id: string | null;
+  /** Respostas do vendedor posteriores à última vez que o fornecedor leu. */
+  respostas_nao_lidas: number;
   marketplace: string;
   created_at: string;
 }
@@ -186,6 +188,10 @@ export default function SupplierPortal() {
     }
 
     setMensagens((data || []) as TicketMessage[]);
+
+    // Abrir é o mesmo que ler. Some o marcador de resposta nova.
+    await supabase.rpc('marcar_chamado_lido', { p_chamado_id: order.chamado_id });
+    await loadOrders({ silencioso: true });
   };
 
   const responder = async () => {
@@ -337,10 +343,19 @@ export default function SupplierPortal() {
    * Avisa no título da aba. É o único canal que alcança o fornecedor com o
    * portal aberto em segundo plano — enquanto não existe e-mail, é o que há.
    */
+  // Pedido novo e resposta não lida somam no mesmo contador: os dois pedem a
+  // mesma coisa do fornecedor, que é voltar ao portal.
+  const respostasNaoLidas = useMemo(
+    () => orders.reduce((total, order) => total + (order.respostas_nao_lidas || 0), 0),
+    [orders]
+  );
+
   useEffect(() => {
     const base = 'Portal do Fornecedor — FORNEXA';
-    document.title = pedidosNovos > 0 ? `(${pedidosNovos}) ${base}` : base;
-  }, [pedidosNovos]);
+    const pendencias = pedidosNovos + respostasNaoLidas;
+
+    document.title = pendencias > 0 ? `(${pendencias}) ${base}` : base;
+  }, [pedidosNovos, respostasNaoLidas]);
 
   // Devolve o título original ao sair, para a aba não continuar anunciando o
   // portal depois que o fornecedor faz logout.
@@ -809,6 +824,12 @@ export default function SupplierPortal() {
                           >
                             <MessageSquareWarning className="w-4 h-4" aria-hidden="true" />
                             {order.problema_relatado ? 'Problema relatado' : 'Ver conversa'}
+
+                            {order.respostas_nao_lidas > 0 && (
+                              <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-gold text-navy-900 font-mono text-[11px] font-semibold tabular-nums">
+                                {order.respostas_nao_lidas}
+                              </span>
+                            )}
                           </button>
                         ) : (
                           <button
