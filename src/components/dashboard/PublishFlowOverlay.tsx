@@ -1,4 +1,5 @@
 import MarketplaceBadge from '../ui/marketplace-badge';
+import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import { useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2,
@@ -47,6 +48,8 @@ export default function PublishFlowOverlay({
   onClose,
   permalink,
 }: PublishFlowOverlayProps) {
+  useTravaScrollDeFundo(true);
+
   const [progress, setProgress] = useState(0);
   const [showToast, setShowToast] = useState(false);
   const onDoneRef = useRef(onPublishingDone);
