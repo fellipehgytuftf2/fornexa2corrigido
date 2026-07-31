@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle,
+  ChevronDown,
   Copy,
   Download,
   FileSpreadsheet,
@@ -103,6 +104,9 @@ export default function Admin() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  /** Formulário começa fechado: quem abre o Admin quase sempre vem ver a lista. */
+  const [formAberto, setFormAberto] = useState(false);
 
   // --- Acesso do fornecedor ao Portal ---
   const [accessSupplierId, setAccessSupplierId] = useState<string | null>(null);
@@ -565,6 +569,8 @@ export default function Admin() {
 
   const handleEditProduct = (product: CatalogProduct) => {
     setEditingProductId(product.id);
+    // Sem isto, clicar em Editar rolaria para um formulário fechado.
+    setFormAberto(true);
 
     setForm({
       name: product.name || '',
@@ -1367,20 +1373,40 @@ export default function Admin() {
         onSubmit={handleSubmit}
         className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden"
       >
-        <div className="p-5 border-b border-gray-200 dark:border-navy-700">
-          <div className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-navy-900 dark:text-white" />
+        {/* O cabeçalho inteiro abre e fecha: o formulário é alto e fica no
+            caminho de quem só quer ver a lista de produtos. */}
+        <button
+          type="button"
+          onClick={() => setFormAberto((aberto) => !aberto)}
+          aria-expanded={formAberto}
+          className={`w-full p-5 flex items-start justify-between gap-4 text-left hover:bg-gray-50 dark:hover:bg-navy-700/50 transition-colors ${
+            formAberto ? 'border-b border-gray-200 dark:border-navy-700' : ''
+          }`}
+        >
+          <div>
+            <div className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-navy-900 dark:text-white" />
 
-            <h2 className="text-lg font-bold text-navy-900 dark:text-white">
-              {editingProductId ? 'Editar produto do catálogo' : 'Cadastrar produto no catálogo'}
-            </h2>
+              <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+                {editingProductId ? 'Editar produto do catálogo' : 'Cadastrar produto no catálogo'}
+              </h2>
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+              {formAberto
+                ? 'Preencha os dados do produto e escolha o fornecedor responsável.'
+                : 'Clique para abrir o formulário.'}
+            </p>
           </div>
 
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-            Preencha os dados do produto e escolha o fornecedor responsável.
-          </p>
-        </div>
+          <ChevronDown
+            className={`w-5 h-5 text-gray-500 dark:text-slate-400 shrink-0 mt-1 transition-transform ${
+              formAberto ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
 
+        <div className={`${formAberto ? '' : 'hidden'}`}>
         <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
@@ -1585,6 +1611,7 @@ export default function Admin() {
               </>
             )}
           </button>
+        </div>
         </div>
       </form>
 
