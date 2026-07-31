@@ -11,6 +11,7 @@ import {
   Sparkles,
   DollarSign,
   Rocket,
+  Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Product } from '../../types';
@@ -30,8 +31,28 @@ interface MlConnection {
 
 const MARGIN_PRESETS = [30, 50, 80, 100];
 
+/** Limite do Mercado Livre: acima disso o título é cortado no anúncio. */
+const MAX_TITULO = 60;
+
+/** O Mercado Livre recusa a publicação inteira se vierem mais de 10 fotos. */
+const MAX_FOTOS = 10;
+
 export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [marginPercentage, setMarginPercentage] = useState<string>('40');
+
+  /**
+   * Título e fotos do anúncio, editáveis. Começam no que veio do catálogo e o
+   * vendedor ajusta antes de publicar — o que sai daqui é o que vai para o
+   * Mercado Livre.
+   */
+  const [titulo, setTitulo] = useState(
+    `${product.name} Original com Pronta Entrega e Garantia`
+  );
+  const [fotos, setFotos] = useState<string[]>(() =>
+    [product.image, ...(product.images ?? [])].filter(Boolean)
+  );
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [erroFoto, setErroFoto] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [flowStage, setFlowStage] = useState<'idle' | 'publishing' | 'success'>('idle');
 
@@ -93,43 +114,76 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
 
   const hasLinkedSupplier = Boolean(product.supplierId);
 
-  const supplierLocation =
-    product.supplierCity || product.supplierState
-      ? `${product.supplierCity || ''}${
-          product.supplierCity && product.supplierState ? '/' : ''
-        }${product.supplierState || ''}`
-      : 'Local não informado';
-
   const formatCurrency = (value: number) => {
     return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
   };
 
-  const formatPercent = (value: number) => {
-    return `${Number(value || 0).toFixed(0)}%`;
+  /**
+   * Envia as fotos escolhidas para o Storage e devolve as URLs públicas.
+   * Mesmo bucket que o Admin usa para as imagens do catálogo.
+   */
+  const adicionarFotos = async (arquivos: File[]) => {
+    setEnviandoFoto(true);
+    setErroFoto('');
+
+    const espaco = MAX_FOTOS - fotos.length;
+    const aceitos = arquivos.slice(0, espaco);
+    const novas: string[] = [];
+
+    for (const arquivo of aceitos) {
+      const extensao = arquivo.name.split('.').pop() || 'jpg';
+      const nome = `anuncio/${crypto.randomUUID()}.${extensao}`;
+
+      const { error } = await supabase.storage
+        .from('product-images')
+        .upload(nome, arquivo, { cacheControl: '3600', upsert: false });
+
+      if (error) {
+        setEnviandoFoto(false);
+        setErroFoto(
+          `Não foi possível enviar a foto: ${error.message}. Se o erro for de permissão, sua conta não pode gravar imagens.`
+        );
+        return;
+      }
+
+      const { data } = supabase.storage.from('product-images').getPublicUrl(nome);
+      novas.push(data.publicUrl);
+    }
+
+    setFotos((atuais) => [...atuais, ...novas]);
+    setEnviandoFoto(false);
+
+    if (arquivos.length > espaco) {
+      setErroFoto(`O anúncio aceita até ${MAX_FOTOS} fotos. As excedentes foram ignoradas.`);
+    }
   };
 
-  const generatedTitle = `${product.name} Original com Pronta Entrega e Garantia`;
+  const removerFoto = (url: string) => {
+    setFotos((atuais) => atuais.filter((foto) => foto !== url));
+    setErroFoto('');
+  };
 
+  /**
+   * ATENÇÃO ao editar: este texto é publicado no anúncio, visível a qualquer
+   * comprador ou concorrente.
+   *
+   * Já trouxe nome, empresa, cidade e WhatsApp do fornecedor, além do preço de
+   * custo, da margem e do lucro. Na prática entregava a quem abrisse o anúncio
+   * o contato para comprar direto na fonte e o número exato para cobrir a
+   * oferta. Nada disso volta aqui.
+   *
+   * Regra: só entra o que ajuda quem vai comprar.
+   */
   const generatedDescription = `
 ${product.description}
 
-Principais informações do produto:
+Sobre este produto:
 - Produto: ${product.name}
 - Categoria: ${product.category}
-- Estoque disponível: ${product.stock} unidade(s)
-- Fornecedor responsável: ${product.supplierName || 'Fornecedor não vinculado'}
-- Empresa: ${product.supplierCompanyName || 'Empresa não informada'}
-- Local do fornecedor: ${supplierLocation}
-- WhatsApp do fornecedor: ${product.supplierWhatsapp || 'Não informado'}
-- Prazo médio de envio: ${product.supplierShippingTime || 'Não informado'}
+- Prazo médio de envio: ${product.supplierShippingTime || 'Consulte o prazo no anúncio'}
+- Produto novo, com garantia e pronta entrega
 
-Condição comercial:
-- Preço do fornecedor: ${formatCurrency(supplierPrice)}
-- Margem aplicada: ${formatPercent(marginPercentValue)}
-- Lucro estimado: ${formatCurrency(profitAmount)}
-- Preço final de venda: ${formatCurrency(finalPrice)}
-
-Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, com título, descrição, preço e fornecedor organizados em um único painel.`;
+Compre com segurança: enviamos com código de rastreio e acompanhamento até a entrega.`;
 
   const canSaveProduct =
     mercadoLivreConnected && hasLinkedSupplier && !loadingMercadoLivre;
@@ -163,15 +217,18 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
         catalog_product_id: product.id ?? null,
         supplier_id: product.supplierId,
         name: product.name,
-        image_url: product.image,
+        image_url: fotos[0] || product.image,
         supplier_price: supplierPrice,
         sale_price: finalPrice,
         margin: profitAmount,
-        announcement_title: generatedTitle,
+        // O que vai para o anúncio é o que o vendedor revisou na tela, não o
+        // texto gerado: ele pode ter ajustado título e fotos.
+        announcement_title: titulo.trim().slice(0, MAX_TITULO),
         announcement_description: generatedDescription,
         announcement_category: product.category,
         announcement_price: finalPrice,
-        announcement_image_url: product.image,
+        announcement_image_url: fotos[0] || product.image,
+        announcement_image_urls: fotos.slice(1),
       },
     });
 
@@ -231,7 +288,7 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div
-          className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fade-in"
+          className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-navy-700 sticky top-0 bg-white dark:bg-navy-800 z-10">
@@ -346,35 +403,9 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
                   </div>
                 </div>
 
-                {hasLinkedSupplier && (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-5">
-                    <div className="flex items-start gap-3">
-                      <Truck className="w-5 h-5 text-green-700 dark:text-green-400 mt-0.5" />
-
-                      <div>
-                        <p className="text-green-700 dark:text-green-400 text-sm font-medium">
-                          Fornecedor vinculado ao produto
-                        </p>
-
-                        <h3 className="text-navy-900 dark:text-white font-semibold mt-2">
-                          {product.supplierName || 'Fornecedor sem nome'}
-                        </h3>
-
-                        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                          {product.supplierCompanyName || 'Empresa não informada'} · {supplierLocation}
-                        </p>
-
-                        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                          Prazo médio de envio: {product.supplierShippingTime || 'Não informado'}
-                        </p>
-
-                        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                          WhatsApp: {product.supplierWhatsapp || 'Não informado'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* O quadro com nome, empresa, cidade e WhatsApp do fornecedor
+                    saiu daqui: são dados de bastidor, e a tela é sobre o
+                    anúncio. O vínculo continua valendo — só não é exibido. */}
 
                 <div className="bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 rounded-xl overflow-hidden">
                   <div className="px-5 py-4 border-b border-gray-200 dark:border-navy-700 flex items-center gap-2">
@@ -393,31 +424,123 @@ Anúncio preparado pelo FORNEXA para facilitar a publicação em marketplace, co
 
                   <div className="p-5 space-y-4">
                     <div className="flex items-start gap-3">
-                      <Image className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5" />
+                      <Image className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5 shrink-0" />
 
-                      <div>
-                        <p className="text-sm font-medium text-navy-900 dark:text-white">
-                          Imagem do anúncio
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="text-sm font-medium text-navy-900 dark:text-white">
+                            Fotos do anúncio
+                          </p>
 
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-20 h-20 object-cover rounded-lg mt-2"
-                        />
+                          <p className="text-xs text-gray-500 dark:text-slate-400">
+                            {fotos.length} de {MAX_FOTOS} · a primeira é a capa
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-3 mt-3">
+                          {fotos.map((foto, indice) => (
+                            <div key={foto} className="relative group">
+                              <img
+                                src={foto}
+                                alt=""
+                                className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-navy-600"
+                              />
+
+                              {indice === 0 && (
+                                <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-medium">
+                                  Capa
+                                </span>
+                              )}
+
+                              {fotos.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removerFoto(foto)}
+                                  aria-label="Remover foto"
+                                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+
+                          {fotos.length < MAX_FOTOS && (
+                            <label
+                              className={`w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-navy-600 flex flex-col items-center justify-center gap-1 cursor-pointer hover:border-gray-400 dark:hover:border-navy-500 transition-colors ${
+                                enviandoFoto ? 'opacity-60 pointer-events-none' : ''
+                              }`}
+                            >
+                              {enviandoFoto ? (
+                                <span className="w-5 h-5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                              ) : (
+                                <>
+                                  <Upload className="w-5 h-5 text-gray-400" />
+                                  <span className="text-[10px] text-gray-500 dark:text-slate-400">
+                                    Adicionar
+                                  </span>
+                                </>
+                              )}
+
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                disabled={enviandoFoto}
+                                onChange={(event) => {
+                                  const arquivos = Array.from(event.target.files || []);
+                                  if (arquivos.length) {
+                                    adicionarFotos(arquivos);
+                                  }
+                                  event.target.value = '';
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {erroFoto && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                            {erroFoto}
+                          </p>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5" />
+                      <FileText className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5 shrink-0" />
 
-                      <div>
-                        <p className="text-sm font-medium text-navy-900 dark:text-white">
-                          Título gerado
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <label
+                            htmlFor="titulo-do-anuncio"
+                            className="text-sm font-medium text-navy-900 dark:text-white"
+                          >
+                            Título do anúncio
+                          </label>
 
-                        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                          {generatedTitle}
+                          <span
+                            className={`text-xs ${
+                              titulo.length > MAX_TITULO
+                                ? 'text-red-600 dark:text-red-400 font-medium'
+                                : 'text-gray-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {titulo.length}/{MAX_TITULO}
+                          </span>
+                        </div>
+
+                        <textarea
+                          id="titulo-do-anuncio"
+                          value={titulo}
+                          onChange={(event) => setTitulo(event.target.value)}
+                          rows={2}
+                          className="w-full mt-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-sm text-navy-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                        />
+
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
+                          O Mercado Livre corta títulos acima de {MAX_TITULO} caracteres.
                         </p>
                       </div>
                     </div>

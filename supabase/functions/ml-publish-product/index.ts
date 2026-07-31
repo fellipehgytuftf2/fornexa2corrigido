@@ -40,6 +40,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Monta a lista de fotos do anúncio: a principal primeiro, depois as
+ * adicionais, sem repetir e sem entradas vazias.
+ *
+ * O Mercado Livre aceita no máximo 10 por anúncio; acima disso recusa a
+ * publicação inteira, então cortamos aqui em vez de perder o anúncio.
+ */
+function montarFotos(body: PublishBody): { source: string }[] {
+  const urls = [body.announcement_image_url, ...(body.announcement_image_urls ?? [])]
+    .map((url) => (url || "").trim())
+    .filter((url) => url.length > 0);
+
+  const semRepetir = [...new Set(urls)].slice(0, 10);
+
+  return semRepetir.map((source) => ({ source }));
+}
+
 interface PublishBody {
   catalog_product_id?: string;
   supplier_id: string;
@@ -53,6 +70,12 @@ interface PublishBody {
   announcement_category?: string;
   announcement_price: number;
   announcement_image_url: string;
+  /**
+   * Fotos adicionais, na ordem. A principal continua em
+   * announcement_image_url e não se repete aqui. Opcional: anúncio antigo e
+   * produto com uma foto só seguem funcionando sem este campo.
+   */
+  announcement_image_urls?: string[];
 }
 
 // Traduz erros conhecidos e recorrentes da API do Mercado Livre em mensagens
@@ -420,7 +443,7 @@ Deno.serve(async (req: Request) => {
       buying_mode: "buy_it_now",
       listing_type_id: listingTypeId,
       condition: "new",
-      pictures: [{ source: body.announcement_image_url }],
+      pictures: montarFotos(body),
       attributes: itemAttributes,
     };
 
