@@ -15,27 +15,29 @@ import { Handshake, ShoppingBag, Store } from 'lucide-react';
  */
 
 interface MarcaConhecida {
-  logo: string;
+  /**
+   * Arquivos em ordem de preferência. O componente desce a lista quando um
+   * falha, então o PNG oficial pode ser adicionado depois sem tocar em código,
+   * e enquanto não existe vale o símbolo desenhado.
+   */
+  logos: string[];
   fundo: string;
   cor: string;
   icone: typeof Handshake;
 }
 
+const mercadoLivre: MarcaConhecida = {
+  logos: ['/mercado-livre.png', '/mercado-livre.svg'],
+  fundo: '#FFE600',
+  cor: '#2D3277',
+  icone: Handshake,
+};
+
 const marcas: Record<string, MarcaConhecida> = {
-  'mercado livre': {
-    logo: '/mercado-livre.svg',
-    fundo: '#FFE600',
-    cor: '#2D3277',
-    icone: Handshake,
-  },
-  mercadolivre: {
-    logo: '/mercado-livre.svg',
-    fundo: '#FFE600',
-    cor: '#2D3277',
-    icone: Handshake,
-  },
+  'mercado livre': mercadoLivre,
+  mercadolivre: mercadoLivre,
   shopee: {
-    logo: '/shopee.svg',
+    logos: ['/shopee.png', '/shopee.svg'],
     fundo: '#EE4D2D',
     cor: '#FFFFFF',
     icone: ShoppingBag,
@@ -62,22 +64,25 @@ export default function MarketplaceBadge({
   size = 'sm',
   className = '',
 }: MarketplaceBadgeProps) {
-  const [semArquivo, setSemArquivo] = useState(false);
+  /** Índice do arquivo em uso. Avança a cada falha até acabarem as opções. */
+  const [tentativa, setTentativa] = useState(0);
 
   const nome = marketplace?.trim() || 'Marketplace';
   const marca = marcas[nome.toLowerCase()];
   const medida = dimensoes[size];
 
   const Icone = marca?.icone ?? Store;
+  const arquivo = marca?.logos[tentativa];
 
   return (
     <span className={`inline-flex items-center gap-1.5 ${className}`}>
-      {marca && !semArquivo ? (
+      {arquivo ? (
         <img
-          src={marca.logo}
+          key={arquivo}
+          src={arquivo}
           alt=""
           className={`${medida.caixa} object-contain shrink-0`}
-          onError={() => setSemArquivo(true)}
+          onError={() => setTentativa((atual) => atual + 1)}
           draggable={false}
         />
       ) : (
