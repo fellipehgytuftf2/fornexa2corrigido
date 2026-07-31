@@ -21,6 +21,8 @@ interface SupportTicket {
   /** Preenchidos quando o chamado veio do Portal do Fornecedor. */
   order_id: string | null;
   supplier_id: string | null;
+  /** Última vez que o vendedor abriu esta conversa. */
+  lido_vendedor_em: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -46,6 +48,8 @@ export default function Tickets() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  /** Respostas do fornecedor ainda não lidas, por chamado. */
+  const [naoLidas, setNaoLidas] = useState<Record<string, number>>({});
 
   // Conversa do chamado aberto.
   const [chamadoAberto, setChamadoAberto] = useState<SupportTicket | null>(null);
@@ -76,6 +80,10 @@ export default function Tickets() {
     }
 
     setMensagens((data || []) as TicketMessage[]);
+
+    // Abrir é o mesmo que ler.
+    await supabase.rpc('marcar_chamado_lido', { p_chamado_id: ticket.id });
+    setNaoLidas((atual) => ({ ...atual, [ticket.id]: 0 }));
   };
 
   const responder = async () => {
@@ -154,7 +162,38 @@ export default function Tickets() {
       return;
     }
 
-    setTickets((data || []) as SupportTicket[]);
+    const carregados = (data || []) as SupportTicket[];
+    setTickets(carregados);
+
+    if (carregados.length === 0) {
+      setNaoLidas({});
+      return;
+    }
+
+    // Uma consulta só para todos os chamados. A contagem é feita aqui em vez
+    // de no banco porque a tela lê `tickets` direto, sem view própria.
+    const { data: mensagensData } = await supabase
+      .from('ticket_messages')
+      .select('ticket_id, autor, created_at')
+      .eq('autor', 'fornecedor');
+
+    const porChamado: Record<string, number> = {};
+
+    (mensagensData || []).forEach((mensagem) => {
+      const chamado = carregados.find((t) => t.id === mensagem.ticket_id);
+
+      if (!chamado) {
+        return;
+      }
+
+      const lidoEm = chamado.lido_vendedor_em ? new Date(chamado.lido_vendedor_em) : null;
+
+      if (!lidoEm || new Date(mensagem.created_at) > lidoEm) {
+        porChamado[mensagem.ticket_id] = (porChamado[mensagem.ticket_id] || 0) + 1;
+      }
+    });
+
+    setNaoLidas(porChamado);
   };
 
   useEffect(() => {
@@ -332,9 +371,14 @@ export default function Tickets() {
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => abrirConversa(ticket)}
-                            className="px-3 py-1.5 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors"
                           >
                             Conversa
+                            {(naoLidas[ticket.id] || 0) > 0 && (
+                              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold">
+                                {naoLidas[ticket.id]}
+                              </span>
+                            )}
                           </button>
 
                           {(
