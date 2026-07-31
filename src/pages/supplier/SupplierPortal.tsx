@@ -7,6 +7,7 @@ import {
   Loader2,
   LogOut,
   MapPin,
+  MessageSquareWarning,
   PackageSearch,
   Phone,
   RefreshCw,
@@ -44,6 +45,8 @@ interface SupplierOrder {
   etiqueta_disponivel: boolean;
   /** Comprador cancelou no marketplace. Independe do andamento interno. */
   cancelado_no_marketplace: boolean;
+  /** Já existe chamado aberto deste fornecedor para este pedido. */
+  problema_relatado: boolean;
   marketplace: string;
   created_at: string;
 }
@@ -134,6 +137,11 @@ export default function SupplierPortal() {
 
   /** Quantos pedidos entraram desde a última vez que o fornecedor olhou. */
   const [pedidosNovos, setPedidosNovos] = useState(0);
+
+  /** Pedido com o formulário de problema aberto, e o texto digitado. */
+  const [problemaPedidoId, setProblemaPedidoId] = useState<string | null>(null);
+  const [mensagemProblema, setMensagemProblema] = useState('');
+  const [enviandoProblema, setEnviandoProblema] = useState(false);
 
   /**
    * Ids já vistos. Fica em ref, e não em estado, porque serve só de comparação
@@ -338,6 +346,34 @@ export default function SupplierPortal() {
 
     // Libera a memória depois que o navegador teve tempo de carregar o PDF.
     setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+
+  /**
+   * Abre chamado sobre o pedido. Vai por função, e não por insert: o
+   * fornecedor não tem permissão em `tickets`, e o chamado precisa nascer no
+   * nome do vendedor para aparecer na tela de quem resolve.
+   */
+  const enviarProblema = async (order: SupplierOrder) => {
+    setEnviandoProblema(true);
+    setErrorMessage('');
+
+    const { error } = await supabase.rpc('fornecedor_relata_problema', {
+      p_pedido_id: order.id,
+      p_mensagem: mensagemProblema,
+    });
+
+    setEnviandoProblema(false);
+
+    if (error) {
+      console.error('Erro ao relatar problema:', error);
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setProblemaPedidoId(null);
+    setMensagemProblema('');
+    await loadOrders();
+    showSuccess('Problema enviado. O vendedor foi avisado e vai responder por aqui.');
   };
 
   const updateStatus = async (order: SupplierOrder, nextStatus: OrderStatus) => {
@@ -690,7 +726,74 @@ export default function SupplierPortal() {
                             Marcar como enviado
                           </button>
                         )}
+
+                        {order.problema_relatado ? (
+                          <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-500/25 bg-orange-500/10 px-4 py-3 text-sm font-medium text-orange-300">
+                            <MessageSquareWarning className="w-4 h-4" aria-hidden="true" />
+                            Problema relatado
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setProblemaPedidoId(order.id);
+                              setMensagemProblema('');
+                            }}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+                          >
+                            <MessageSquareWarning className="w-4 h-4" aria-hidden="true" />
+                            Tenho um problema
+                          </button>
+                        )}
                       </div>
+                      )}
+
+                      {problemaPedidoId === order.id && (
+                        <div className="mt-4 rounded-xl border border-white/10 bg-navy-900/60 p-4">
+                          <label
+                            htmlFor={`problema-${order.id}`}
+                            className="block font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-2.5"
+                          >
+                            O que aconteceu com este pedido?
+                          </label>
+
+                          <textarea
+                            id={`problema-${order.id}`}
+                            value={mensagemProblema}
+                            onChange={(event) => setMensagemProblema(event.target.value)}
+                            rows={3}
+                            placeholder="Ex: produto sem estoque, endereço incompleto, quantidade errada."
+                            className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white placeholder:text-slate-600 transition-colors hover:border-white/20 focus:border-gold focus:bg-white/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
+                            disabled={enviandoProblema}
+                          />
+
+                          <p className="text-xs text-slate-500 mt-2">
+                            O vendedor recebe isto na tela de Chamados, já ligado a este
+                            pedido.
+                          </p>
+
+                          <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                            <button
+                              onClick={() => enviarProblema(order)}
+                              disabled={
+                                enviandoProblema || mensagemProblema.trim().length < 10
+                              }
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {enviandoProblema ? (
+                                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                              ) : null}
+                              Enviar ao vendedor
+                            </button>
+
+                            <button
+                              onClick={() => setProblemaPedidoId(null)}
+                              disabled={enviandoProblema}
+                              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </li>
