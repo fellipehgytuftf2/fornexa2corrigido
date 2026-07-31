@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Plus, Ticket, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
+type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
 interface SupportTicket {
   id: string;
   user_id: string;
   subject: string;
   message: string;
-  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  status: TicketStatus;
   created_at: string;
   /** Preenchidos quando o chamado veio do Portal do Fornecedor. */
   order_id: string | null;
@@ -36,6 +38,7 @@ export default function Tickets() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -82,6 +85,34 @@ export default function Tickets() {
   useEffect(() => {
     loadTickets();
   }, []);
+
+  /**
+   * Só admin muda status — é o que a policy "Admins can manage all tickets"
+   * permite. Sem isto todo chamado ficava `open` para sempre, e no Portal o
+   * selo "Problema relatado" nunca saía do pedido, impedindo o fornecedor de
+   * relatar de novo.
+   */
+  const alterarStatus = async (ticket: SupportTicket, novoStatus: TicketStatus) => {
+    setUpdatingId(ticket.id);
+    setErrorMessage('');
+
+    const { error } = await supabase
+      .from('tickets')
+      .update({ status: novoStatus })
+      .eq('id', ticket.id);
+
+    setUpdatingId(null);
+
+    if (error) {
+      console.error('Erro ao mudar status do chamado:', error);
+      setErrorMessage(`Não foi possível mudar o status: ${error.message}`);
+      return;
+    }
+
+    await loadTickets();
+    setSuccessMessage(`Chamado marcado como ${statusLabels[novoStatus].toLowerCase()}.`);
+    setTimeout(() => setSuccessMessage(''), 4000);
+  };
 
   const handleSubmitTicket = async () => {
     if (!subject.trim() || !message.trim()) {
@@ -184,6 +215,12 @@ export default function Tickets() {
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                     Data
                   </th>
+
+                  {isAdmin && (
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Ações
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-navy-700">
@@ -214,6 +251,31 @@ export default function Tickets() {
                     <td className="px-5 py-4 text-sm text-gray-500 dark:text-slate-400">
                       {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
                     </td>
+
+                    {isAdmin && (
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {(
+                            [
+                              ['in_progress', 'Em andamento'],
+                              ['resolved', 'Resolver'],
+                              ['closed', 'Fechar'],
+                            ] as [TicketStatus, string][]
+                          )
+                            .filter(([valor]) => valor !== ticket.status)
+                            .map(([valor, rotulo]) => (
+                              <button
+                                key={valor}
+                                onClick={() => alterarStatus(ticket, valor)}
+                                disabled={updatingId === ticket.id}
+                                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-xs font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-50"
+                              >
+                                {rotulo}
+                              </button>
+                            ))}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
