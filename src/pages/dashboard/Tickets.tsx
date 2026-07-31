@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle, Plus, Ticket } from 'lucide-react';
+import { AlertCircle, CheckCircle, Plus, Ticket, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface SupportTicket {
@@ -9,6 +9,9 @@ interface SupportTicket {
   message: string;
   status: 'open' | 'in_progress' | 'resolved' | 'closed';
   created_at: string;
+  /** Preenchidos quando o chamado veio do Portal do Fornecedor. */
+  order_id: string | null;
+  supplier_id: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -188,6 +191,15 @@ export default function Tickets() {
                   <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-navy-700/50">
                     <td className="px-5 py-4 text-sm text-navy-900 dark:text-white font-medium">
                       {ticket.subject}
+
+                      {/* Chamado aberto pelo fornecedor no Portal, e não pelo
+                          vendedor sobre a plataforma. Muda quem precisa agir. */}
+                      {ticket.supplier_id && (
+                        <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 align-middle">
+                          <Truck className="w-3 h-3" />
+                          Do fornecedor
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-500 dark:text-slate-400 max-w-md truncate">
                       {ticket.message}
