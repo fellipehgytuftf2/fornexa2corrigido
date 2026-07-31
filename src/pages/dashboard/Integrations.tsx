@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle,
   Link2,
   Plug,
+  RefreshCw,
   Store,
+  Unplug,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
@@ -180,6 +183,20 @@ export default function Integrations() {
   // e não deve mais liberar funcionalidades que dependem da API do ML.
   const mercadoLivreConnected = connection?.status === 'connected';
 
+  const formatarData = (valor?: string | null) => {
+    if (!valor) {
+      return '—';
+    }
+
+    return new Date(valor).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -222,125 +239,202 @@ export default function Integrations() {
         </div>
       ) : (
         <>
-          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
-            <div className="p-5">
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
-                <div className="flex gap-4">
-                  <div className="w-14 h-14 flex items-center justify-center shrink-0">
+          {/* ------------------------------------------------------------
+              Resumo da conexão
+             ------------------------------------------------------------ */}
+          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
+            <div className="flex items-start gap-4">
+              <div
+                className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                  mercadoLivreConnected
+                    ? 'bg-green-100 dark:bg-green-900/30'
+                    : 'bg-gray-100 dark:bg-navy-700'
+                }`}
+              >
+                <RefreshCw
+                  className={`w-6 h-6 ${
+                    mercadoLivreConnected
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-gray-500 dark:text-slate-400'
+                  }`}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <h2 className="text-navy-900 dark:text-white font-semibold">
+                  Status da integração
+                </h2>
+
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                  {mercadoLivreConnected
+                    ? `Conectada desde ${formatarData(connection?.connected_at)}. Pedidos e anúncios usam esta conta.`
+                    : 'Nenhum marketplace conectado. Conecte para publicar anúncios e receber pedidos.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ------------------------------------------------------------
+              Lojas conectadas
+             ------------------------------------------------------------ */}
+          {mercadoLivreConnected && (
+            <div>
+              <h2 className="text-lg font-bold text-navy-900 dark:text-white mb-3">
+                Lojas conectadas
+              </h2>
+
+              <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
+                <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-navy-700">
+                  <div className="flex items-center gap-3 min-w-0">
                     <MarketplaceBadge
                       marketplace="Mercado Livre"
                       showName={false}
                       size="lg"
                     />
-                  </div>
 
-                  <div>
-                    <h2 className="text-lg font-bold text-navy-900 dark:text-white">
-                      Mercado Livre
-                    </h2>
+                    <div className="min-w-0">
+                      <h3 className="text-navy-900 dark:text-white font-semibold truncate">
+                        {connection?.account_name || 'Conta do Mercado Livre'}
+                      </h3>
 
-                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-2 max-w-2xl">
-                      Conecte sua conta do Mercado Livre para que o FORNEXA
-                      possa publicar anúncios e sincronizar pedidos pela API
-                      oficial.
-                    </p>
-
-                    <div className="mt-4">
-                      <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-1.5">
-                        Status
+                      <p className="text-sm text-gray-500 dark:text-slate-400">
+                        Mercado Livre
                       </p>
-
-                      <div
-                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold ${
-                          mercadoLivreConnected
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            mercadoLivreConnected ? 'bg-green-500' : 'bg-red-500'
-                          }`}
-                        />
-                        {mercadoLivreConnected ? 'Conectada' : 'Desconectada'}
-                      </div>
-
-                      {mercadoLivreConnected && connection?.account_name && (
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
-                          Conta: <span className="font-medium">{connection.account_name}</span>
-                        </p>
-                      )}
                     </div>
                   </div>
+
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    Conectada
+                  </span>
                 </div>
 
-                <div className="flex flex-col gap-3 shrink-0">
-                  {mercadoLivreConnected ? (
-                    <button
-                      onClick={handleDisconnectMercadoLivre}
-                      disabled={saving}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium transition-colors disabled:opacity-60"
+                <dl className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-5">
+                  {[
+                    ['Conta', connection?.account_name || '—'],
+                    ['Identificador do vendedor', connection?.external_account_id || '—'],
+                    ['Conectada em', formatarData(connection?.connected_at)],
+                  ].map(([rotulo, valor]) => (
+                    <div key={rotulo} className="min-w-0">
+                      <dt className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide">
+                        {rotulo}
+                      </dt>
+
+                      <dd className="text-sm font-medium text-navy-900 dark:text-white mt-1.5 break-all">
+                        {valor}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+
+                <div className="px-5 pb-5">
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+                    Para sincronizar pedidos, use o botão em{' '}
+                    <Link
+                      to="/dashboard/orders"
+                      className="font-medium text-navy-900 dark:text-white hover:underline"
                     >
-                      Desconectar
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleConnectMercadoLivre}
-                      disabled={saving}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-medium transition-colors disabled:opacity-60"
-                    >
-                      <Link2 className="w-4 h-4" />
-                      {saving ? 'Redirecionando...' : 'Conectar Mercado Livre'}
-                    </button>
-                  )}
+                      Pedidos
+                    </Link>
+                    .
+                  </p>
+
+                  <button
+                    onClick={handleDisconnectMercadoLivre}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    <Unplug className="w-4 h-4" />
+                    Desconectar
+                  </button>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-navy-700 flex items-center justify-center">
-                  <Store className="w-6 h-6 text-gray-600 dark:text-slate-400" />
+          {/* ------------------------------------------------------------
+              Marketplaces disponíveis
+             ------------------------------------------------------------ */}
+          <div>
+            <h2 className="text-lg font-bold text-navy-900 dark:text-white mb-3">
+              Marketplaces disponíveis
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm flex flex-col">
+                <div className="flex items-start gap-3">
+                  <MarketplaceBadge
+                    marketplace="Mercado Livre"
+                    showName={false}
+                    size="lg"
+                  />
+
+                  <div className="min-w-0">
+                    <h3 className="text-navy-900 dark:text-white font-semibold">
+                      Mercado Livre
+                    </h3>
+
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                      {mercadoLivreConnected
+                        ? '1 loja conectada'
+                        : 'Nenhuma loja conectada'}
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <h3 className="text-navy-900 dark:text-white font-semibold">
-                    Shopee
-                  </h3>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-4 flex-1">
+                  Publique anúncios e receba os pedidos automaticamente pela API
+                  oficial.
+                </p>
 
-                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                    Integração futura para expansão em novos marketplaces.
+                {!mercadoLivreConnected && (
+                  <button
+                    onClick={handleConnectMercadoLivre}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 mt-4 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    {saving ? 'Redirecionando...' : 'Conectar'}
+                  </button>
+                )}
+              </div>
+
+              {[
+                {
+                  titulo: 'Shopee',
+                  descricao: 'Integração futura para expansão em novos marketplaces.',
+                  icone: Store,
+                },
+                {
+                  titulo: 'ERP e estoque',
+                  descricao:
+                    'Tiny, Bling e controle de estoque de fornecedores poderão entrar em uma próxima fase.',
+                  icone: Plug,
+                },
+              ].map(({ titulo, descricao, icone: Icone }) => (
+                <div
+                  key={titulo}
+                  className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm flex flex-col"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-navy-700 flex items-center justify-center shrink-0">
+                      <Icone className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+                    </div>
+
+                    <h3 className="text-navy-900 dark:text-white font-semibold">
+                      {titulo}
+                    </h3>
+                  </div>
+
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-4 flex-1">
+                    {descricao}
                   </p>
 
-                  <span className="inline-flex items-center mt-4 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                  <span className="inline-flex items-center self-start mt-4 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300">
                     Em breve
                   </span>
                 </div>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-navy-700 flex items-center justify-center">
-                  <Plug className="w-6 h-6 text-gray-600 dark:text-slate-400" />
-                </div>
-
-                <div>
-                  <h3 className="text-navy-900 dark:text-white font-semibold">
-                    ERP e estoque
-                  </h3>
-
-                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                    Tiny, Bling e controle de estoque de fornecedores poderão entrar em uma próxima fase.
-                  </p>
-
-                  <span className="inline-flex items-center mt-4 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                    Em breve
-                  </span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </>
