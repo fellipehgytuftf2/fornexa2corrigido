@@ -1,3 +1,4 @@
+import MarketplaceBadge from '../ui/marketplace-badge';
 import { useEffect, useRef, useState } from 'react';
 import {
   CheckCircle2,
@@ -117,7 +118,13 @@ export default function PublishFlowOverlay({
             Publicando em
           </p>
 
-          <h2 className="text-white text-lg font-bold mb-8">{marketplace}</h2>
+          <div className="flex items-center justify-center mb-8">
+            <MarketplaceBadge
+              marketplace={marketplace}
+              size="md"
+              className="text-white text-lg font-bold"
+            />
+          </div>
 
           <div className="bg-[#11212D] border border-[#253745] rounded-2xl p-6 text-left">
             <div className="flex items-center justify-between mb-2">
@@ -178,9 +185,8 @@ export default function PublishFlowOverlay({
 
           <div className="bg-[#11212D] border border-[#253745] rounded-2xl p-5 mb-6">
             <div className="flex items-center gap-2 mb-4 pb-4 border-b border-[#253745]">
-              <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
-                <span className="text-[10px]">{'\u{1F91D}'}</span>
-              </div>
+              <MarketplaceBadge marketplace={marketplace} showName={false} size="md" />
+
               <div>
                 <p className="text-white text-sm font-semibold">{marketplace}</p>
                 <p className="text-[#9BA8AB] text-xs">Publicação imediata</p>
