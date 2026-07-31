@@ -13,6 +13,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 type OrderStatus =
   | 'pending'
@@ -49,6 +50,7 @@ interface Order {
   status: OrderStatus;
   tracking_code: string | null;
   ml_shipment_id: string | null;
+  marketplace: string;
   created_at: string;
   suppliers?: Supplier | Supplier[] | null;
 }
@@ -237,6 +239,7 @@ export default function Orders() {
         status,
         tracking_code,
         ml_shipment_id,
+        marketplace,
         created_at,
         suppliers (
           id,
@@ -517,7 +520,11 @@ export default function Orders() {
             disabled={syncingMl}
             className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold hover:bg-gold-hover text-black text-sm font-semibold transition-colors disabled:opacity-60"
           >
-            <Link2 className={`w-4 h-4 ${syncingMl ? 'animate-spin' : ''}`} />
+            {syncingMl ? (
+              <Link2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <MarketplaceBadge marketplace="Mercado Livre" showName={false} />
+            )}
             {syncingMl ? 'Sincronizando...' : 'Sincronizar com Mercado Livre'}
           </button>
         </div>
@@ -670,6 +677,11 @@ export default function Orders() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
+                          <MarketplaceBadge
+                            marketplace={order.marketplace}
+                            className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300"
+                          />
+
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusStyle(order.status)}`}
                           >

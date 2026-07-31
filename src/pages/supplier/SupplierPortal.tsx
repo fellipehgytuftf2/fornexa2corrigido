@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { fetchSupplierAccount, type SupplierAccount } from '../../lib/supplierAuth';
+import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 type OrderStatus =
   | 'pending'
@@ -714,9 +715,10 @@ export default function SupplierPortal() {
 
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                              {order.marketplace}
-                            </p>
+                            <MarketplaceBadge
+                              marketplace={order.marketplace}
+                              className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400"
+                            />
 
                             <p className="font-mono text-[11px] text-slate-600">
                               {formatDate(order.created_at)}
