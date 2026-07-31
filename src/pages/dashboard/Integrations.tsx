@@ -4,10 +4,10 @@ import {
   CheckCircle,
   Link2,
   Plug,
-  ShoppingBag,
   Store,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 interface MlConnection {
   id: string;
@@ -26,8 +26,6 @@ export default function Integrations() {
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  /** Cai no ícone genérico se o arquivo da logo não estiver em public/. */
-  const [logoFalhou, setLogoFalhou] = useState(false);
 
   const loadConnection = async () => {
     setLoading(true);
@@ -228,18 +226,12 @@ export default function Integrations() {
             <div className="p-5">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
                 <div className="flex gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center shrink-0 overflow-hidden">
-                    {logoFalhou ? (
-                      <ShoppingBag className="w-7 h-7 text-yellow-700 dark:text-yellow-400" />
-                    ) : (
-                      <img
-                        src="/mercado-livre.svg"
-                        alt=""
-                        className="w-10 h-10 object-contain"
-                        onError={() => setLogoFalhou(true)}
-                        draggable={false}
-                      />
-                    )}
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0">
+                    <MarketplaceBadge
+                      marketplace="Mercado Livre"
+                      showName={false}
+                      size="lg"
+                    />
                   </div>
 
                   <div>
