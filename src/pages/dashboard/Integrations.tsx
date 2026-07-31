@@ -7,6 +7,7 @@ import {
   Store,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 interface MlConnection {
   id: string;
@@ -225,17 +226,11 @@ export default function Integrations() {
             <div className="p-5">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
                 <div className="flex gap-4">
-                  {/* Logo oficial da marca. Vive numa caixa branca de
-                      propósito: o arquivo é JPEG, não tem transparência, e sem
-                      isso ficaria um retângulo claro solto no tema escuro.
-                      object-cover numa caixa larga corta a margem branca que o
-                      arquivo traz em volta. */}
-                  <div className="h-14 w-[132px] rounded-2xl bg-white flex items-center justify-center shrink-0 overflow-hidden border border-gray-200">
-                    <img
-                      src="/mercado-livre-completo.jpg"
-                      alt="Mercado Livre"
-                      className="w-full h-full object-cover"
-                      draggable={false}
+                  <div className="w-14 h-14 flex items-center justify-center shrink-0">
+                    <MarketplaceBadge
+                      marketplace="Mercado Livre"
+                      showName={false}
+                      size="lg"
                     />
                   </div>
 
