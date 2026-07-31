@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   DollarSign,
-  GraduationCap,
   LayoutDashboard,
   LifeBuoy,
   Link2,
@@ -16,7 +15,6 @@ import {
   Store,
   Sun,
   Truck,
-  Wrench,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -66,16 +64,9 @@ const navigationItems: NavigationItem[] = [
     label: 'Chamados',
     icon: LifeBuoy,
   },
-  {
-    path: '/dashboard/tutorials',
-    label: 'Tutoriais',
-    icon: GraduationCap,
-  },
-  {
-    path: '/dashboard/tools',
-    label: 'Ferramentas',
-    icon: Wrench,
-  },
+  // Tutoriais (/dashboard/tutorials) e Ferramentas (/dashboard/tools) estão
+  // fora do menu por decisão do produto. As rotas continuam de pé e as telas
+  // seguem acessíveis pela URL — para voltarem, basta reinserir aqui.
   {
     path: '/dashboard/settings',
     label: 'Configurações',
