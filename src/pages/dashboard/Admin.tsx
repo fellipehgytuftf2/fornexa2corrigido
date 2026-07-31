@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   FileSpreadsheet,
+  Globe,
   Edit,
   Image,
   KeyRound,
@@ -156,6 +157,78 @@ export default function Admin() {
     URL.revokeObjectURL(url);
   };
 
+  // --- Importação pelo site do fornecedor ---
+  const [importLink, setImportLink] = useState('');
+  const [lendoSite, setLendoSite] = useState(false);
+  const [resumoDoSite, setResumoDoSite] = useState('');
+
+  /**
+   * Lê o catálogo direto do site do fornecedor. A função do servidor procura
+   * dados estruturados no padrão que o Google exige — por isso funciona em
+   * lojas diferentes sem código específico para cada uma.
+   */
+  const lerSiteDoFornecedor = async () => {
+    setLendoSite(true);
+    setErrorMessage('');
+    setResumoDoSite('');
+    setImportProdutos([]);
+    setImportErros([]);
+
+    const { data, error } = await supabase.functions.invoke<{
+      produtos?: ProdutoImportado[];
+      paginas_lidas?: number;
+      sem_preco?: number;
+      aviso?: string | null;
+      error?: string;
+    }>('importar-catalogo-por-link', {
+      body: { url: importLink.trim() },
+    });
+
+    setLendoSite(false);
+
+    if (error || !data) {
+      let mensagem: string | undefined = data?.error;
+
+      const contexto = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!mensagem && contexto?.json) {
+        try {
+          const corpo = await contexto.json();
+          mensagem = corpo?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setErrorMessage(mensagem ?? 'Não foi possível ler o site do fornecedor.');
+      return;
+    }
+
+    const encontrados = data.produtos ?? [];
+
+    setImportProdutos(encontrados);
+    setImportArquivo('');
+
+    if (data.aviso) {
+      setImportErros([{ linha: 0, motivo: data.aviso }]);
+      return;
+    }
+
+    const partes = [
+      `${encontrados.length} produto(s) encontrados em ${data.paginas_lidas ?? 0} página(s)`,
+    ];
+
+    if (data.sem_preco) {
+      partes.push(`${data.sem_preco} sem preço, ignorados`);
+    }
+
+    partes.push('estoque vem zerado: o site não informa quantidade');
+
+    setResumoDoSite(`${partes.join(' · ')}.`);
+  };
+
   const lerArquivoDaPlanilha = async (arquivo: File) => {
     setErrorMessage('');
     setImportArquivo(arquivo.name);
@@ -175,8 +248,16 @@ export default function Admin() {
     setImportando(true);
     setErrorMessage('');
 
+    // Campo a campo, não espalhando: a leitura pelo site devolve extras como
+    // sku e origem, que não são colunas da tabela e fariam o insert falhar.
     const payload = importProdutos.map((produto) => ({
-      ...produto,
+      name: produto.name,
+      description: produto.description,
+      category: produto.category,
+      supplier_price: produto.supplier_price,
+      stock: produto.stock,
+      image_url: produto.image_url,
+      images: produto.images,
       supplier_id: importFornecedor,
       status: 'active' as const,
     }));
@@ -1107,7 +1188,7 @@ export default function Admin() {
 
               <div>
                 <span className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
-                  Arquivo
+                  Planilha
                 </span>
 
                 <label className="inline-flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl border border-dashed border-gray-300 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors cursor-pointer">
@@ -1128,6 +1209,59 @@ export default function Admin() {
                   />
                 </label>
               </div>
+            </div>
+
+            {/* Caminho alternativo: em vez de planilha, o site do fornecedor. */}
+            <div className="rounded-xl border border-gray-200 dark:border-navy-700 p-4">
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-navy-900 dark:text-white" />
+
+                <p className="text-sm font-medium text-navy-900 dark:text-white">
+                  Ou leia direto do site do fornecedor
+                </p>
+              </div>
+
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
+                Funciona quando a loja publica os dados no padrão que o Google exige
+                para mostrar preço na busca — o caso da maioria. Se não publicar, o
+                sistema avisa em vez de inventar produto.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-3">
+                <input
+                  type="url"
+                  value={importLink}
+                  onChange={(event) => setImportLink(event.target.value)}
+                  placeholder="https://loja-do-fornecedor.com.br"
+                  className="flex-1 px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                  disabled={lendoSite}
+                />
+
+                <button
+                  type="button"
+                  onClick={lerSiteDoFornecedor}
+                  disabled={lendoSite || !importLink.trim()}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {lendoSite ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      Lendo o site...
+                    </>
+                  ) : (
+                    <>
+                      <Globe className="w-4 h-4" />
+                      Ler catálogo
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {resumoDoSite && (
+                <p className="text-sm text-green-700 dark:text-green-400 mt-3">
+                  {resumoDoSite}
+                </p>
+              )}
             </div>
 
             {importErros.length > 0 && (
