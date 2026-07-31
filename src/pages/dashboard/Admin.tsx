@@ -4,6 +4,8 @@ import {
   AlertCircle,
   CheckCircle,
   Copy,
+  Download,
+  FileSpreadsheet,
   Edit,
   Image,
   KeyRound,
@@ -19,6 +21,13 @@ import {
   Upload,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import {
+  CSV_MODELO,
+  lerArquivo,
+  lerPlanilha,
+  type ErroDeLinha,
+  type ProdutoImportado,
+} from '../../lib/importarCatalogo';
 
 interface Supplier {
   id: string;
@@ -123,6 +132,74 @@ export default function Admin() {
     } catch {
       setErrorMessage('Não foi possível copiar. Selecione o texto e copie manualmente.');
     }
+  };
+
+  // --- Importação de catálogo por planilha ---
+  const [importAberto, setImportAberto] = useState(false);
+  const [importFornecedor, setImportFornecedor] = useState('');
+  const [importArquivo, setImportArquivo] = useState('');
+  const [importProdutos, setImportProdutos] = useState<ProdutoImportado[]>([]);
+  const [importErros, setImportErros] = useState<ErroDeLinha[]>([]);
+  const [importando, setImportando] = useState(false);
+
+  const baixarModelo = () => {
+    // BOM na frente para o Excel abrir com os acentos certos em vez de
+    // interpretar o arquivo como ANSI.
+    const blob = new Blob(['﻿', CSV_MODELO], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'modelo-catalogo-fornexa.csv';
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  const lerArquivoDaPlanilha = async (arquivo: File) => {
+    setErrorMessage('');
+    setImportArquivo(arquivo.name);
+
+    const texto = await lerArquivo(arquivo);
+    const { produtos, erros } = lerPlanilha(texto);
+
+    setImportProdutos(produtos);
+    setImportErros(erros);
+  };
+
+  const confirmarImportacao = async () => {
+    if (!importFornecedor || importProdutos.length === 0) {
+      return;
+    }
+
+    setImportando(true);
+    setErrorMessage('');
+
+    const payload = importProdutos.map((produto) => ({
+      ...produto,
+      supplier_id: importFornecedor,
+      status: 'active' as const,
+    }));
+
+    const { error } = await supabase.from('catalog_products').insert(payload);
+
+    setImportando(false);
+
+    if (error) {
+      console.error('Erro ao importar catálogo:', error);
+      setErrorMessage(`Não foi possível importar: ${error.message}`);
+      return;
+    }
+
+    const total = importProdutos.length;
+
+    setImportProdutos([]);
+    setImportErros([]);
+    setImportArquivo('');
+    setImportAberto(false);
+
+    await loadData();
+    showSuccess(`${total} produto(s) importado(s) para o catálogo.`);
   };
 
   const handleRevokeAccess = async (supplier: Supplier) => {
@@ -938,6 +1015,217 @@ export default function Admin() {
               );
             })}
           </ul>
+        )}
+      </div>
+
+      {/* --------------------------------------------------------------
+          Importar catálogo por planilha
+         -------------------------------------------------------------- */}
+      <div className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-gray-200 dark:border-navy-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-navy-900 dark:text-white" />
+
+              <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+                Importar catálogo por planilha
+              </h2>
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+              Cadastre o catálogo inteiro de um fornecedor de uma vez, em vez de
+              produto por produto.
+            </p>
+          </div>
+
+          <div className="flex gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={baixarModelo}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Modelo
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setImportAberto((aberto) => !aberto)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              {importAberto ? 'Fechar' : 'Importar'}
+            </button>
+          </div>
+        </div>
+
+        {importAberto && (
+          <div className="p-5 space-y-5">
+            <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                Baixe o modelo e mande para o fornecedor preencher. Aceita CSV do
+                Excel, com ponto e vírgula ou vírgula, e preço com vírgula decimal.
+              </p>
+
+              <p className="text-sm text-blue-700 dark:text-blue-400 mt-2">
+                Colunas: <strong>nome</strong> e <strong>preco</strong> são
+                obrigatórias. Descrição, categoria, estoque, foto e fotos são
+                opcionais. Em <strong>fotos</strong>, separe várias URLs por{' '}
+                <code>|</code>.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="import-fornecedor"
+                  className="block text-sm font-medium text-navy-900 dark:text-white mb-2"
+                >
+                  Fornecedor de todos os produtos da planilha
+                </label>
+
+                <select
+                  id="import-fornecedor"
+                  value={importFornecedor}
+                  onChange={(event) => setImportFornecedor(event.target.value)}
+                  className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                >
+                  <option value="">Escolha um fornecedor</option>
+
+                  {activeSuppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name} — {supplier.company_name}
+                    </option>
+                  ))}
+                </select>
+
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                  Vale para a planilha inteira, então não precisa repetir em cada
+                  linha.
+                </p>
+              </div>
+
+              <div>
+                <span className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+                  Arquivo
+                </span>
+
+                <label className="inline-flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl border border-dashed border-gray-300 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-medium transition-colors cursor-pointer">
+                  <Upload className="w-4 h-4" />
+                  {importArquivo || 'Escolher planilha (.csv)'}
+
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(event) => {
+                      const arquivo = event.target.files?.[0];
+                      if (arquivo) {
+                        lerArquivoDaPlanilha(arquivo);
+                      }
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {importErros.length > 0 && (
+              <div className="rounded-xl border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 p-4">
+                <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-400">
+                  {importErros.length} linha(s) não serão importadas
+                </p>
+
+                <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                  {importErros.map((erro, indice) => (
+                    <li
+                      key={`${erro.linha}-${indice}`}
+                      className="text-sm text-yellow-700 dark:text-yellow-500"
+                    >
+                      {erro.linha > 0 ? `Linha ${erro.linha}: ` : ''}
+                      {erro.motivo}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {importProdutos.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-navy-900 dark:text-white mb-3">
+                  {importProdutos.length} produto(s) prontos para importar
+                </p>
+
+                <div className="rounded-xl border border-gray-200 dark:border-navy-700 overflow-hidden">
+                  <div className="max-h-72 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 dark:bg-navy-700 sticky top-0">
+                        <tr>
+                          {['Produto', 'Categoria', 'Preço', 'Estoque', 'Fotos'].map(
+                            (coluna) => (
+                              <th
+                                key={coluna}
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase"
+                              >
+                                {coluna}
+                              </th>
+                            )
+                          )}
+                        </tr>
+                      </thead>
+
+                      <tbody className="divide-y divide-gray-200 dark:divide-navy-700">
+                        {importProdutos.map((produto, indice) => (
+                          <tr key={`${produto.name}-${indice}`}>
+                            <td className="px-4 py-2.5 text-navy-900 dark:text-white">
+                              {produto.name}
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
+                              {produto.category}
+                            </td>
+                            <td className="px-4 py-2.5 text-navy-900 dark:text-white">
+                              {formatCurrency(produto.supplier_price)}
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
+                              {produto.stock}
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
+                              {(produto.image_url ? 1 : 0) + produto.images.length}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={confirmarImportacao}
+                  disabled={importando || !importFornecedor}
+                  className="mt-4 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {importando ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Importando...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4" />
+                      Importar {importProdutos.length} produto(s)
+                    </>
+                  )}
+                </button>
+
+                {!importFornecedor && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                    Escolha o fornecedor antes de importar.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
