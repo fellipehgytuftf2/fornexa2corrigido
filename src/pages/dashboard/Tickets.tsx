@@ -4,6 +4,13 @@ import { supabase } from '../../lib/supabase';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
+interface TicketMessage {
+  id: string;
+  autor: 'vendedor' | 'fornecedor';
+  corpo: string;
+  created_at: string;
+}
+
 interface SupportTicket {
   id: string;
   user_id: string;
@@ -39,6 +46,74 @@ export default function Tickets() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Conversa do chamado aberto.
+  const [chamadoAberto, setChamadoAberto] = useState<SupportTicket | null>(null);
+  const [mensagens, setMensagens] = useState<TicketMessage[]>([]);
+  const [carregandoConversa, setCarregandoConversa] = useState(false);
+  const [resposta, setResposta] = useState('');
+  const [enviandoResposta, setEnviandoResposta] = useState(false);
+
+  const abrirConversa = async (ticket: SupportTicket) => {
+    setChamadoAberto(ticket);
+    setMensagens([]);
+    setResposta('');
+    setCarregandoConversa(true);
+    setErrorMessage('');
+
+    const { data, error } = await supabase
+      .from('ticket_messages')
+      .select('id, autor, corpo, created_at')
+      .eq('ticket_id', ticket.id)
+      .order('created_at', { ascending: true });
+
+    setCarregandoConversa(false);
+
+    if (error) {
+      console.error('Erro ao carregar a conversa:', error);
+      setErrorMessage(`Não foi possível carregar a conversa: ${error.message}`);
+      return;
+    }
+
+    setMensagens((data || []) as TicketMessage[]);
+  };
+
+  const responder = async () => {
+    if (!chamadoAberto) {
+      return;
+    }
+
+    setEnviandoResposta(true);
+    setErrorMessage('');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setEnviandoResposta(false);
+      setErrorMessage('Faça login novamente.');
+      return;
+    }
+
+    const { error } = await supabase.from('ticket_messages').insert({
+      ticket_id: chamadoAberto.id,
+      autor: 'vendedor',
+      autor_user_id: user.id,
+      corpo: resposta.trim(),
+    });
+
+    setEnviandoResposta(false);
+
+    if (error) {
+      console.error('Erro ao responder:', error);
+      setErrorMessage(`Não foi possível enviar a resposta: ${error.message}`);
+      return;
+    }
+
+    setResposta('');
+    await abrirConversa(chamadoAberto);
+  };
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -255,6 +330,13 @@ export default function Tickets() {
                     {isAdmin && (
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => abrirConversa(ticket)}
+                            className="px-3 py-1.5 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors"
+                          >
+                            Conversa
+                          </button>
+
                           {(
                             [
                               ['in_progress', 'Em andamento'],
@@ -346,6 +428,110 @@ export default function Tickets() {
               >
                 {submitting ? 'Enviando...' : 'Enviar chamado'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conversa do chamado. O fornecedor lê e responde pelo Portal. */}
+      {chamadoAberto && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setChamadoAberto(null)}
+          />
+
+          <div className="relative w-full sm:max-w-2xl max-h-[90vh] flex flex-col bg-white dark:bg-navy-800 rounded-t-2xl sm:rounded-2xl border border-gray-200 dark:border-navy-700 shadow-xl">
+            <div className="p-5 border-b border-gray-200 dark:border-navy-700">
+              <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+                {chamadoAberto.subject}
+              </h2>
+
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                {chamadoAberto.supplier_id
+                  ? 'Chamado aberto pelo fornecedor'
+                  : 'Chamado aberto por você'}
+                {' · '}
+                {statusLabels[chamadoAberto.status]}
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {/* O relato original não é mensagem: mora no próprio chamado. */}
+              <div className="rounded-xl bg-gray-50 dark:bg-navy-700 p-4">
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
+                  Relato inicial ·{' '}
+                  {new Date(chamadoAberto.created_at).toLocaleString('pt-BR')}
+                </p>
+
+                <p className="text-sm text-navy-900 dark:text-white whitespace-pre-wrap">
+                  {chamadoAberto.message}
+                </p>
+              </div>
+
+              {carregandoConversa ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Carregando conversa...
+                </p>
+              ) : mensagens.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Nenhuma resposta ainda.
+                </p>
+              ) : (
+                mensagens.map((mensagem) => {
+                  const doVendedor = mensagem.autor === 'vendedor';
+
+                  return (
+                    <div
+                      key={mensagem.id}
+                      className={`flex ${doVendedor ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-xl p-4 ${
+                          doVendedor
+                            ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                            : 'bg-gray-100 dark:bg-navy-700 text-navy-900 dark:text-white'
+                        }`}
+                      >
+                        <p className="text-xs opacity-70 mb-1.5">
+                          {doVendedor ? 'Você' : 'Fornecedor'} ·{' '}
+                          {new Date(mensagem.created_at).toLocaleString('pt-BR')}
+                        </p>
+
+                        <p className="text-sm whitespace-pre-wrap">{mensagem.corpo}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-5 border-t border-gray-200 dark:border-navy-700">
+              <textarea
+                value={resposta}
+                onChange={(event) => setResposta(event.target.value)}
+                rows={3}
+                placeholder="Escreva sua resposta ao fornecedor..."
+                className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white resize-none"
+                disabled={enviandoResposta}
+              />
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-4 justify-end">
+                <button
+                  onClick={() => setChamadoAberto(null)}
+                  className="px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors"
+                >
+                  Fechar
+                </button>
+
+                <button
+                  onClick={responder}
+                  disabled={enviandoResposta || resposta.trim().length < 2}
+                  className="px-5 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {enviandoResposta ? 'Enviando...' : 'Responder'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

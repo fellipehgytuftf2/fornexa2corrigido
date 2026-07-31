@@ -47,7 +47,16 @@ interface SupplierOrder {
   cancelado_no_marketplace: boolean;
   /** Já existe chamado aberto deste fornecedor para este pedido. */
   problema_relatado: boolean;
+  /** Chamado mais recente do pedido, resolvido ou não. Null se nunca houve. */
+  chamado_id: string | null;
   marketplace: string;
+  created_at: string;
+}
+
+interface TicketMessage {
+  id: string;
+  autor: 'vendedor' | 'fornecedor';
+  corpo: string;
   created_at: string;
 }
 
@@ -142,6 +151,68 @@ export default function SupplierPortal() {
   const [problemaPedidoId, setProblemaPedidoId] = useState<string | null>(null);
   const [mensagemProblema, setMensagemProblema] = useState('');
   const [enviandoProblema, setEnviandoProblema] = useState(false);
+
+  /** Conversa do chamado que o fornecedor abriu. */
+  const [conversaPedido, setConversaPedido] = useState<SupplierOrder | null>(null);
+  const [mensagens, setMensagens] = useState<TicketMessage[]>([]);
+  const [carregandoConversa, setCarregandoConversa] = useState(false);
+  const [resposta, setResposta] = useState('');
+  const [enviandoResposta, setEnviandoResposta] = useState(false);
+
+  const abrirConversa = async (order: SupplierOrder) => {
+    if (!order.chamado_id) {
+      return;
+    }
+
+    setConversaPedido(order);
+    setMensagens([]);
+    setResposta('');
+    setCarregandoConversa(true);
+    setErrorMessage('');
+
+    // Lê da view, nunca de `ticket_messages`. Mesma regra de `orders`.
+    const { data, error } = await supabase
+      .from('mensagens_do_fornecedor')
+      .select('id, autor, corpo, created_at')
+      .eq('ticket_id', order.chamado_id)
+      .order('created_at', { ascending: true });
+
+    setCarregandoConversa(false);
+
+    if (error) {
+      console.error('Erro ao carregar a conversa:', error);
+      setErrorMessage('Não foi possível carregar a conversa.');
+      return;
+    }
+
+    setMensagens((data || []) as TicketMessage[]);
+  };
+
+  const responder = async () => {
+    if (!conversaPedido?.chamado_id) {
+      return;
+    }
+
+    setEnviandoResposta(true);
+    setErrorMessage('');
+
+    const { error } = await supabase.rpc('fornecedor_responde_chamado', {
+      p_chamado_id: conversaPedido.chamado_id,
+      p_mensagem: resposta,
+    });
+
+    setEnviandoResposta(false);
+
+    if (error) {
+      console.error('Erro ao responder:', error);
+      setErrorMessage(error.message);
+      return;
+    }
+
+    setResposta('');
+    await abrirConversa(conversaPedido);
+    await loadOrders();
+  };
 
   /**
    * Ids já vistos. Fica em ref, e não em estado, porque serve só de comparação
@@ -727,11 +798,18 @@ export default function SupplierPortal() {
                           </button>
                         )}
 
-                        {order.problema_relatado ? (
-                          <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-orange-500/25 bg-orange-500/10 px-4 py-3 text-sm font-medium text-orange-300">
+                        {order.chamado_id ? (
+                          <button
+                            onClick={() => abrirConversa(order)}
+                            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 ${
+                              order.problema_relatado
+                                ? 'border border-orange-500/25 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20'
+                                : 'border border-white/10 text-slate-400 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
                             <MessageSquareWarning className="w-4 h-4" aria-hidden="true" />
-                            Problema relatado
-                          </span>
+                            {order.problema_relatado ? 'Problema relatado' : 'Ver conversa'}
+                          </button>
                         ) : (
                           <button
                             onClick={() => {
@@ -803,6 +881,96 @@ export default function SupplierPortal() {
           )}
         </div>
       </main>
+
+      {/* Conversa do chamado */}
+      {conversaPedido && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setConversaPedido(null)}
+          />
+
+          <div className="relative w-full sm:max-w-2xl max-h-[90vh] flex flex-col bg-navy-900 rounded-t-2xl sm:rounded-2xl border border-white/10">
+            <div className="p-5 border-b border-white/10">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                Conversa sobre o pedido
+              </p>
+
+              <h2 className="font-display text-lg font-semibold mt-2 leading-snug">
+                {conversaPedido.product_name}
+              </h2>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {carregandoConversa ? (
+                <p className="text-slate-400">Carregando conversa...</p>
+              ) : mensagens.length === 0 ? (
+                <p className="text-slate-400 leading-relaxed">
+                  Você relatou o problema e o vendedor ainda não respondeu. Assim que
+                  ele escrever, a resposta aparece aqui.
+                </p>
+              ) : (
+                mensagens.map((mensagem) => {
+                  const meu = mensagem.autor === 'fornecedor';
+
+                  return (
+                    <div
+                      key={mensagem.id}
+                      className={`flex ${meu ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-xl p-4 ${
+                          meu
+                            ? 'bg-gold text-navy-900'
+                            : 'bg-white/[0.06] text-white border border-white/10'
+                        }`}
+                      >
+                        <p className="text-xs opacity-70 mb-1.5">
+                          {meu ? 'Você' : 'Vendedor'} ·{' '}
+                          {new Date(mensagem.created_at).toLocaleString('pt-BR')}
+                        </p>
+
+                        <p className="text-sm whitespace-pre-wrap">{mensagem.corpo}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="p-5 border-t border-white/10">
+              <textarea
+                value={resposta}
+                onChange={(event) => setResposta(event.target.value)}
+                rows={3}
+                placeholder="Escreva para o vendedor..."
+                className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white placeholder:text-slate-600 transition-colors hover:border-white/20 focus:border-gold focus:bg-white/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
+                disabled={enviandoResposta}
+              />
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-4 justify-end">
+                <button
+                  onClick={() => setConversaPedido(null)}
+                  className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5"
+                >
+                  Fechar
+                </button>
+
+                <button
+                  onClick={responder}
+                  disabled={enviandoResposta || resposta.trim().length < 2}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {enviandoResposta ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : null}
+                  Enviar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
