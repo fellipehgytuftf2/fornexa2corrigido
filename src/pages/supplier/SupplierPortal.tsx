@@ -17,6 +17,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { fetchSupplierAccount, type SupplierAccount } from '../../lib/supplierAuth';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
+import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 
 type OrderStatus =
   | 'pending'
@@ -405,6 +406,9 @@ export default function SupplierPortal() {
       document.title = tituloOriginal;
     };
   }, []);
+
+  // Vale para os dois modais do portal: conversa e troca de senha.
+  useTravaScrollDeFundo(Boolean(conversaPedido) || contaAberta);
 
   const handleRefresh = async () => {
     setRefreshing(true);

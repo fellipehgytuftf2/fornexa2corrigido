@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle, Plus, Ticket, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
@@ -57,6 +58,9 @@ export default function Tickets() {
   const [carregandoConversa, setCarregandoConversa] = useState(false);
   const [resposta, setResposta] = useState('');
   const [enviandoResposta, setEnviandoResposta] = useState(false);
+
+  // Vale para os dois modais desta tela: abrir chamado e conversa.
+  useTravaScrollDeFundo(showModal || Boolean(chamadoAberto));
 
   const abrirConversa = async (ticket: SupportTicket) => {
     setChamadoAberto(ticket);

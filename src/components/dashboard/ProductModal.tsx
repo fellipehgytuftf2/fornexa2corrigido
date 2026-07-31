@@ -17,6 +17,7 @@ import { Link } from 'react-router-dom';
 import { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import PublishFlowOverlay from './PublishFlowOverlay';
+import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 
 interface ProductModalProps {
   product: Product;
@@ -38,6 +39,9 @@ const MAX_TITULO = 60;
 const MAX_FOTOS = 10;
 
 export default function ProductModal({ product, onClose }: ProductModalProps) {
+  // O modal existe só enquanto está aberto, então a trava vale sempre.
+  useTravaScrollDeFundo(true);
+
   const [marginPercentage, setMarginPercentage] = useState<string>('40');
 
   /**
