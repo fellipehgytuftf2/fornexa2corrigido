@@ -4,6 +4,7 @@ import {
   AlertCircle,
   CheckCircle,
   FileText,
+  KeyRound,
   Loader2,
   LogOut,
   MapPin,
@@ -153,6 +154,43 @@ export default function SupplierPortal() {
   const [problemaPedidoId, setProblemaPedidoId] = useState<string | null>(null);
   const [mensagemProblema, setMensagemProblema] = useState('');
   const [enviandoProblema, setEnviandoProblema] = useState(false);
+
+  /** Troca de senha. O fornecedor tem conta no Auth, então muda direto. */
+  const [contaAberta, setContaAberta] = useState(false);
+  const [novaSenha, setNovaSenha] = useState('');
+  const [confirmaSenha, setConfirmaSenha] = useState('');
+  const [salvandoSenha, setSalvandoSenha] = useState(false);
+
+  const trocarSenha = async () => {
+    setErrorMessage('');
+
+    if (novaSenha.length < 8) {
+      setErrorMessage('A senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+
+    if (novaSenha !== confirmaSenha) {
+      setErrorMessage('As duas senhas não são iguais.');
+      return;
+    }
+
+    setSalvandoSenha(true);
+
+    const { error } = await supabase.auth.updateUser({ password: novaSenha });
+
+    setSalvandoSenha(false);
+
+    if (error) {
+      console.error('Erro ao trocar senha:', error);
+      setErrorMessage(`Não foi possível trocar a senha: ${error.message}`);
+      return;
+    }
+
+    setNovaSenha('');
+    setConfirmaSenha('');
+    setContaAberta(false);
+    showSuccess('Senha alterada. Use a nova no próximo acesso.');
+  };
 
   /** Conversa do chamado que o fornecedor abriu. */
   const [conversaPedido, setConversaPedido] = useState<SupplierOrder | null>(null);
@@ -546,6 +584,19 @@ export default function SupplierPortal() {
             </button>
 
             <button
+              onClick={() => {
+                setContaAberta(true);
+                setNovaSenha('');
+                setConfirmaSenha('');
+                setErrorMessage('');
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 sm:px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            >
+              <KeyRound className="w-4 h-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Minha senha</span>
+            </button>
+
+            <button
               onClick={handleLogout}
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 sm:px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
             >
@@ -902,6 +953,87 @@ export default function SupplierPortal() {
           )}
         </div>
       </main>
+
+      {/* Troca de senha. Sem isto, fornecedor que esquece a senha depende do
+          admin apagar e recriar o acesso. */}
+      {contaAberta && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setContaAberta(false)}
+          />
+
+          <div className="relative w-full sm:max-w-md bg-navy-900 rounded-t-2xl sm:rounded-2xl border border-white/10 p-6">
+            <h2 className="font-display text-lg font-semibold">Trocar minha senha</h2>
+
+            <p className="text-sm text-slate-400 mt-2 leading-relaxed">
+              A senha nova vale no próximo acesso. Esta sessão continua aberta.
+            </p>
+
+            <div className="mt-6 space-y-4">
+              <div>
+                <label
+                  htmlFor="senha-nova"
+                  className="block font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-2.5"
+                >
+                  Nova senha
+                </label>
+
+                <input
+                  id="senha-nova"
+                  type="password"
+                  autoComplete="new-password"
+                  value={novaSenha}
+                  onChange={(event) => setNovaSenha(event.target.value)}
+                  placeholder="Pelo menos 8 caracteres"
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white placeholder:text-slate-600 transition-colors hover:border-white/20 focus:border-gold focus:bg-white/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
+                  disabled={salvandoSenha}
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="senha-confirma"
+                  className="block font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400 mb-2.5"
+                >
+                  Repita a nova senha
+                </label>
+
+                <input
+                  id="senha-confirma"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmaSenha}
+                  onChange={(event) => setConfirmaSenha(event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white placeholder:text-slate-600 transition-colors hover:border-white/20 focus:border-gold focus:bg-white/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
+                  disabled={salvandoSenha}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-6 justify-end">
+              <button
+                onClick={() => setContaAberta(false)}
+                disabled={salvandoSenha}
+                className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={trocarSenha}
+                disabled={salvandoSenha || !novaSenha || !confirmaSenha}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {salvandoSenha ? (
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                ) : null}
+                Trocar senha
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Conversa do chamado */}
       {conversaPedido && (
