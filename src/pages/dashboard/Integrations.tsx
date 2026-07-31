@@ -4,9 +4,7 @@ import {
   AlertCircle,
   CheckCircle,
   Link2,
-  Plug,
   RefreshCw,
-  Store,
   Unplug,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -360,7 +358,7 @@ export default function Integrations() {
               Marketplaces disponíveis
             </h2>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm flex flex-col">
                 <div className="flex items-start gap-3">
                   <MarketplaceBadge
@@ -399,42 +397,27 @@ export default function Integrations() {
                 )}
               </div>
 
-              {[
-                {
-                  titulo: 'Shopee',
-                  descricao: 'Integração futura para expansão em novos marketplaces.',
-                  icone: Store,
-                },
-                {
-                  titulo: 'ERP e estoque',
-                  descricao:
-                    'Tiny, Bling e controle de estoque de fornecedores poderão entrar em uma próxima fase.',
-                  icone: Plug,
-                },
-              ].map(({ titulo, descricao, icone: Icone }) => (
-                <div
-                  key={titulo}
-                  className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm flex flex-col"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-navy-700 flex items-center justify-center shrink-0">
-                      <Icone className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-                    </div>
+              <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm flex flex-col">
+                <div className="flex items-start gap-3">
+                  <MarketplaceBadge marketplace="Shopee" showName={false} size="lg" />
 
-                    <h3 className="text-navy-900 dark:text-white font-semibold">
-                      {titulo}
-                    </h3>
+                  <div className="min-w-0">
+                    <h3 className="text-navy-900 dark:text-white font-semibold">Shopee</h3>
+
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+                      Nenhuma loja conectada
+                    </p>
                   </div>
-
-                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-4 flex-1">
-                    {descricao}
-                  </p>
-
-                  <span className="inline-flex items-center self-start mt-4 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300">
-                    Em breve
-                  </span>
                 </div>
-              ))}
+
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-4 flex-1">
+                  Integração futura para expansão em novos marketplaces.
+                </p>
+
+                <span className="inline-flex items-center self-start mt-4 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300">
+                  Em breve
+                </span>
+              </div>
             </div>
           </div>
         </>
