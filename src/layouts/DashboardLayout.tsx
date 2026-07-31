@@ -3,16 +3,20 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   DollarSign,
+  GraduationCap,
   LayoutDashboard,
+  LifeBuoy,
   Link2,
   LogOut,
   Menu,
   Moon,
   Package,
+  Settings,
   ShoppingCart,
   Store,
   Sun,
   Truck,
+  Wrench,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -56,6 +60,26 @@ const navigationItems: NavigationItem[] = [
     path: '/dashboard/integrations',
     label: 'Integrações',
     icon: Link2,
+  },
+  {
+    path: '/dashboard/tickets',
+    label: 'Chamados',
+    icon: LifeBuoy,
+  },
+  {
+    path: '/dashboard/tutorials',
+    label: 'Tutoriais',
+    icon: GraduationCap,
+  },
+  {
+    path: '/dashboard/tools',
+    label: 'Ferramentas',
+    icon: Wrench,
+  },
+  {
+    path: '/dashboard/settings',
+    label: 'Configurações',
+    icon: Settings,
   },
   {
     path: '/dashboard/suppliers',
