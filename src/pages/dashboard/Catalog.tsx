@@ -21,6 +21,7 @@ interface CatalogProductFromSupabase {
   description: string;
   category: string;
   image_url: string;
+  images: string[] | null;
   supplier_price: number;
   stock: number;
   status: string;
@@ -49,6 +50,7 @@ export default function Catalog() {
         description,
         category,
         image_url,
+        images,
         supplier_price,
         stock,
         status,
@@ -88,6 +90,7 @@ export default function Catalog() {
           description: product.description,
           category: product.category,
           image: product.image_url,
+          images: product.images ?? [],
           supplierPrice: Number(product.supplier_price || 0),
           stock: Number(product.stock || 0),
 

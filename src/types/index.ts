@@ -15,6 +15,9 @@ export interface Product {
   supplierCity?: string | null;
   supplierState?: string | null;
   supplierShippingTime?: string | null;
+
+  /** Fotos adicionais do catálogo. A principal continua em `image`. */
+  images?: string[];
 }
 
 export interface UserProduct {
@@ -29,6 +32,9 @@ export interface UserProduct {
   supplierWhatsapp?: string | null;
   supplierEmail?: string | null;
   supplierShippingTime?: string | null;
+
+  /** Fotos adicionais do catálogo. A principal continua em `image`. */
+  images?: string[];
   supplierLocation?: string | null;
 
   supplierPrice: number;
