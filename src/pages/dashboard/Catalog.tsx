@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Package, Search, X } from 'lucide-react';
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Package,
+  Search,
+  X,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Product } from '../../types';
 import ProductModal from '../../components/dashboard/ProductModal';
@@ -30,6 +37,8 @@ interface CatalogProductFromSupabase {
   suppliers?: SupplierFromSupabase | SupplierFromSupabase[] | null;
 }
 
+const PRODUTOS_POR_PAGINA = 12;
+
 export default function Catalog() {
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -39,6 +48,7 @@ export default function Catalog() {
   const [ordem, setOrdem] = useState<'recentes' | 'preco-asc' | 'preco-desc' | 'nome'>(
     'recentes'
   );
+  const [paginaAtual, setPaginaAtual] = useState(1);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -169,6 +179,47 @@ export default function Catalog() {
     setSelectedSupplier('Todos');
   };
 
+  const totalPaginas = Math.max(1, Math.ceil(filteredProducts.length / PRODUTOS_POR_PAGINA));
+
+  // Volta para a primeira sempre que o resultado muda: sem isso, filtrar
+  // estando na página 3 mostraria uma lista vazia sem explicação.
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [searchTerm, selectedCategory, selectedSupplier, ordem]);
+
+  const produtosDaPagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * PRODUTOS_POR_PAGINA;
+    return filteredProducts.slice(inicio, inicio + PRODUTOS_POR_PAGINA);
+  }, [filteredProducts, paginaAtual]);
+
+  /**
+   * Números a exibir: sempre a primeira e a última, a atual e as vizinhas, com
+   * reticências no lugar do que foi omitido. Evita uma fileira de 60 botões
+   * quando o catálogo crescer.
+   */
+  const paginasVisiveis = useMemo(() => {
+    if (totalPaginas <= 7) {
+      return Array.from({ length: totalPaginas }, (_, i) => i + 1);
+    }
+
+    const paginas = new Set([1, totalPaginas, paginaAtual]);
+
+    if (paginaAtual - 1 > 1) paginas.add(paginaAtual - 1);
+    if (paginaAtual + 1 < totalPaginas) paginas.add(paginaAtual + 1);
+
+    const ordenadas = [...paginas].sort((a, b) => a - b);
+    const comLacunas: (number | 'lacuna')[] = [];
+
+    ordenadas.forEach((pagina, indice) => {
+      if (indice > 0 && pagina - ordenadas[indice - 1] > 1) {
+        comLacunas.push('lacuna');
+      }
+      comLacunas.push(pagina);
+    });
+
+    return comLacunas;
+  }, [totalPaginas, paginaAtual]);
+
   const formatCurrency = (value: number) => {
     return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
   };
@@ -195,29 +246,46 @@ export default function Catalog() {
         </button>
       </div>
 
-      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-4 shadow-sm space-y-4">
-        <div className="flex flex-col lg:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+      {/* Barra única, sem cartão em volta: é ferramenta, não conteúdo. Os
+          filtros são seletores em vez de botões porque a lista de categorias
+          cresce com o catálogo, e uma fileira de botões estoura a linha. */}
+      <div className="flex flex-col lg:flex-row gap-3">
+        <div className="relative flex-1 min-w-0">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
 
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar por produto, descrição, categoria ou fornecedor..."
-              aria-label="Buscar no catálogo"
-              className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-            />
-          </div>
+          <input
+            type="search"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Buscar produto, categoria ou fornecedor"
+            aria-label="Buscar no catálogo"
+            className="w-full h-11 pl-10 pr-4 rounded-lg bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-sm text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+          />
+        </div>
 
-          {/* Fornecedor só aparece quando há mais de um: com um fornecedor só,
-              o seletor não filtra nada e vira ruído. */}
+        <div className="flex flex-wrap gap-3">
+          {categorias.length > 2 && (
+            <select
+              value={selectedCategory}
+              onChange={(event) => setSelectedCategory(event.target.value)}
+              aria-label="Filtrar por categoria"
+              className="h-11 px-3 rounded-lg bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+            >
+              {categorias.map((categoria) => (
+                <option key={categoria} value={categoria}>
+                  {categoria === 'Todos' ? 'Todas as categorias' : categoria}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Só com mais de um fornecedor: com um só, não filtra nada. */}
           {fornecedores.length > 2 && (
             <select
               value={selectedSupplier}
               onChange={(event) => setSelectedSupplier(event.target.value)}
               aria-label="Filtrar por fornecedor"
-              className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+              className="h-11 px-3 rounded-lg bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
             >
               {fornecedores.map((fornecedor) => (
                 <option key={fornecedor} value={fornecedor}>
@@ -231,7 +299,7 @@ export default function Catalog() {
             value={ordem}
             onChange={(event) => setOrdem(event.target.value as typeof ordem)}
             aria-label="Ordenar catálogo"
-            className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+            className="h-11 px-3 rounded-lg bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
           >
             <option value="recentes">Mais recentes</option>
             <option value="preco-asc">Menor preço</option>
@@ -239,47 +307,25 @@ export default function Catalog() {
             <option value="nome">Nome (A-Z)</option>
           </select>
         </div>
+      </div>
 
-        {categorias.length > 2 && (
-          <div className="flex flex-wrap gap-2">
-            {categorias.map((categoria) => {
-              const ativa = categoria === selectedCategory;
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 -mt-2">
+        <p className="text-sm text-gray-500 dark:text-slate-400">
+          {filteredProducts.length === products.length
+            ? `${products.length} produto${products.length === 1 ? '' : 's'}`
+            : `${filteredProducts.length} de ${products.length} produtos`}
+          {totalPaginas > 1 && ` · página ${paginaAtual} de ${totalPaginas}`}
+        </p>
 
-              return (
-                <button
-                  key={categoria}
-                  onClick={() => setSelectedCategory(categoria)}
-                  aria-pressed={ativa}
-                  className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    ativa
-                      ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-navy-700 dark:text-slate-300 dark:hover:bg-navy-600'
-                  }`}
-                >
-                  {categoria}
-                </button>
-              );
-            })}
-          </div>
+        {filtroAtivo && (
+          <button
+            onClick={limparFiltros}
+            className="inline-flex items-center gap-1 text-sm font-medium text-navy-900 dark:text-white hover:underline"
+          >
+            <X className="w-3.5 h-3.5" />
+            Limpar
+          </button>
         )}
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-gray-500 dark:text-slate-400">
-            {filteredProducts.length === products.length
-              ? `${products.length} produto(s) no catálogo`
-              : `${filteredProducts.length} de ${products.length} produto(s)`}
-          </p>
-
-          {filtroAtivo && (
-            <button
-              onClick={limparFiltros}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-900 dark:text-white hover:underline"
-            >
-              <X className="w-4 h-4" />
-              Limpar filtros
-            </button>
-          )}
-        </div>
       </div>
 
       {errorMessage && (
@@ -301,8 +347,9 @@ export default function Catalog() {
           </p>
         </div>
       ) : filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3">
-          {filteredProducts.map((product) => (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3">
+          {produtosDaPagina.map((product) => (
             <button
               key={product.id}
               onClick={() => setSelectedProduct(product)}
@@ -357,7 +404,57 @@ export default function Catalog() {
               </div>
             </button>
           ))}
-        </div>
+          </div>
+
+          {totalPaginas > 1 && (
+            <nav
+              aria-label="Páginas do catálogo"
+              className="flex flex-wrap items-center justify-center gap-1.5 pt-2"
+            >
+              <button
+                onClick={() => setPaginaAtual((atual) => Math.max(1, atual - 1))}
+                disabled={paginaAtual === 1}
+                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Anterior
+              </button>
+
+              {paginasVisiveis.map((pagina, indice) =>
+                pagina === 'lacuna' ? (
+                  <span
+                    key={`lacuna-${indice}`}
+                    className="w-9 h-9 flex items-center justify-center text-gray-400"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={pagina}
+                    onClick={() => setPaginaAtual(pagina)}
+                    aria-current={pagina === paginaAtual ? 'page' : undefined}
+                    className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
+                      pagina === paginaAtual
+                        ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                        : 'border border-gray-200 dark:border-navy-700 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700'
+                    }`}
+                  >
+                    {pagina}
+                  </button>
+                )
+              )}
+
+              <button
+                onClick={() => setPaginaAtual((atual) => Math.min(totalPaginas, atual + 1))}
+                disabled={paginaAtual === totalPaginas}
+                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Próxima
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </nav>
+          )}
+        </>
       ) : (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
           <Package className="w-12 h-12 text-gray-300 dark:text-navy-600 mx-auto mb-4" />
