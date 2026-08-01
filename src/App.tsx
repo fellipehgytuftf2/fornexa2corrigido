@@ -5,6 +5,8 @@ import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SupplierLogin from './pages/SupplierLogin';
+import EsqueciSenha from './pages/EsqueciSenha';
+import RedefinirSenha from './pages/RedefinirSenha';
 import SupplierPortal from './pages/supplier/SupplierPortal';
 
 import DashboardLayout from './layouts/DashboardLayout';
@@ -213,6 +215,10 @@ function App() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Recuperação de senha, comum a vendedor e fornecedor */}
+        <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+        <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
         {/* Portal do Fornecedor — área separada, não usa o DashboardLayout */}
         <Route path="/fornecedor/login" element={<SupplierLogin />} />

@@ -362,6 +362,15 @@ export default function Login() {
               </div>
             </div>
 
+            <div className="-mt-2">
+              <Link
+                to="/esqueci-senha"
+                className="text-sm text-slate-400 transition-colors hover:text-white"
+              >
+                Esqueci minha senha
+              </Link>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
