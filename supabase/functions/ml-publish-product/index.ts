@@ -41,6 +41,35 @@ const corsHeaders = {
 };
 
 /**
+ * Deixa a descrição no formato que o Mercado Livre chama de texto puro.
+ *
+ * Ele recusa com "The description must be in plain text" quando encontra
+ * marcação. Como a descrição do catálogo pode ter vindo do site do fornecedor,
+ * onde HTML é comum, a limpeza acontece aqui em vez de confiar na origem.
+ */
+function limparParaTextoPuro(texto: string): string {
+  return texto
+    // <br> e </p> viram quebra de linha antes de as tags sumirem, senão o
+    // texto ficaria todo grudado numa linha só.
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    // Entidades mais comuns. O resto vira espaço em vez de ficar como "&nbsp;".
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#\d+;/g, " ")
+    // Caracteres de controle passam despercebidos e quebram validação.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 50000);
+}
+
+/**
  * Monta a lista de fotos do anúncio: a principal primeiro, depois as
  * adicionais, sem repetir e sem entradas vazias.
  *
@@ -487,17 +516,34 @@ Deno.serve(async (req: Request) => {
 
     // 6. Enviar a descrição (endpoint separado na API do Mercado Livre)
     if (body.announcement_description) {
-      const descriptionResponse = await fetch(
-        `https://api.mercadolibre.com/items/${mlItemId}/description`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ plain_text: body.announcement_description.slice(0, 50000) }),
-        }
-      );
+      const descricao = limparParaTextoPuro(body.announcement_description);
+
+      // O Mercado Livre recusa POST quando o anúncio já nasce com uma
+      // descrição, e nesse caso o caminho é PUT. Como não dá para saber de
+      // fora qual é o caso, tenta POST e cai para PUT.
+      //
+      // api_version=2 em ambos: sem ele o erro vem genérico, e foi
+      // justamente isso que dificultou descobrir a causa da primeira vez.
+      const enviarDescricao = (metodo: "POST" | "PUT") =>
+        fetch(
+          `https://api.mercadolibre.com/items/${mlItemId}/description?api_version=2`,
+          {
+            method: metodo,
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ plain_text: descricao }),
+          }
+        );
+
+      let descriptionResponse = await enviarDescricao("POST");
+      let metodoUsado = "POST";
+
+      if (!descriptionResponse.ok) {
+        descriptionResponse = await enviarDescricao("PUT");
+        metodoUsado = "PUT";
+      }
 
       if (!descriptionResponse.ok) {
         // Não é crítico o bastante pra reverter o anúncio já criado — só
@@ -506,7 +552,14 @@ Deno.serve(async (req: Request) => {
         await supabase.from("log_integracao_ml").insert({
           contexto: "ml-publish-product",
           mensagem: `Anúncio ${mlItemId} criado, mas falhou ao salvar descrição`,
-          detalhes: descriptionError,
+          detalhes: {
+            erro: descriptionError,
+            metodo_final: metodoUsado,
+            tamanho_enviado: descricao.length,
+            // Os primeiros caracteres ajudam a identificar conteúdo recusado
+            // sem despejar a descrição inteira no log.
+            inicio_do_texto: descricao.slice(0, 120),
+          },
         });
       }
     }
