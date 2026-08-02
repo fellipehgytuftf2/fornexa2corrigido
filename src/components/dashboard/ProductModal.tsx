@@ -38,6 +38,35 @@ const MAX_TITULO = 60;
 /** O Mercado Livre recusa a publicação inteira se vierem mais de 10 fotos. */
 const MAX_FOTOS = 10;
 
+/**
+ * Título sugerido, já dentro do limite do Mercado Livre.
+ *
+ * O complemento "Original com Pronta Entrega e Garantia" só entra se couber.
+ * Antes ele era sempre acrescentado, e nomes de produto longos nasciam com o
+ * contador em vermelho — o vendedor tinha que apagar texto antes de publicar.
+ *
+ * Passando do limite mesmo assim, corta no último espaço em vez de no meio da
+ * palavra: título cortado no meio atrapalha a busca por categoria e fica feio
+ * no anúncio.
+ */
+function montarTitulo(nome: string): string {
+  const base = (nome || '').trim();
+  const complemento = ' Original com Pronta Entrega e Garantia';
+
+  if (base.length + complemento.length <= MAX_TITULO) {
+    return base + complemento;
+  }
+
+  if (base.length <= MAX_TITULO) {
+    return base;
+  }
+
+  const cortado = base.slice(0, MAX_TITULO);
+  const ultimoEspaco = cortado.lastIndexOf(' ');
+
+  return ultimoEspaco > 30 ? cortado.slice(0, ultimoEspaco) : cortado;
+}
+
 export default function ProductModal({ product, onClose }: ProductModalProps) {
   // O modal existe só enquanto está aberto, então a trava vale sempre.
   useTravaScrollDeFundo(true);
@@ -49,9 +78,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
    * vendedor ajusta antes de publicar — o que sai daqui é o que vai para o
    * Mercado Livre.
    */
-  const [titulo, setTitulo] = useState(
-    `${product.name} Original com Pronta Entrega e Garantia`
-  );
+  const [titulo, setTitulo] = useState(() => montarTitulo(product.name));
   const [fotos, setFotos] = useState<string[]>(() =>
     [product.image, ...(product.images ?? [])].filter(Boolean)
   );

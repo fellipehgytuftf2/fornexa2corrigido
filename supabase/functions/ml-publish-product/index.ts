@@ -307,27 +307,49 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Descobrir a categoria automaticamente a partir do título
-    const domainResponse = await fetch(
-      `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?q=${encodeURIComponent(
-        body.announcement_title
-      )}&limit=1`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
+    // 3. Descobrir a categoria automaticamente
+    //
+    // A busca usa o NOME do produto, não o título do anúncio. O título é
+    // cortado em 60 caracteres, que é o limite do Mercado Livre, e o corte cai
+    // no meio de uma palavra — "...100 Mm Nf P" não casa com categoria
+    // nenhuma. O nome vem inteiro e é o que descreve o produto de verdade.
+    const termoDeBusca = (body.name || body.announcement_title || "").trim();
 
-    const domainData = await domainResponse.json();
-    const categoryId = domainData?.[0]?.category_id;
+    const buscarCategoria = (termo: string) =>
+      fetch(
+        `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?q=${encodeURIComponent(
+          termo
+        )}&limit=1`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
 
-    if (!domainResponse.ok || !categoryId) {
+    let domainResponse = await buscarCategoria(termoDeBusca);
+    let domainData = await domainResponse.json();
+    let categoryId = domainData?.[0]?.category_id;
+
+    // Segunda tentativa com as primeiras palavras: nome muito específico às
+    // vezes não casa, enquanto "Caixa De Passagem De Agua" casa.
+    if (!categoryId) {
+      const termoCurto = termoDeBusca.split(/\s+/).slice(0, 5).join(" ");
+
+      if (termoCurto && termoCurto !== termoDeBusca) {
+        domainResponse = await buscarCategoria(termoCurto);
+        domainData = await domainResponse.json();
+        categoryId = domainData?.[0]?.category_id;
+      }
+    }
+
+    if (!categoryId) {
       console.error("Falha ao identificar categoria do Mercado Livre:", domainData);
       await supabase.from("log_integracao_ml").insert({
         contexto: "ml-publish-product",
         mensagem: "Falha ao identificar categoria do Mercado Livre",
-        detalhes: domainData,
+        detalhes: { resposta: domainData, termo_buscado: termoDeBusca },
       });
       return new Response(
         JSON.stringify({
-          error: "Não foi possível identificar automaticamente a categoria do Mercado Livre para este título.",
+          error:
+            "Não foi possível identificar automaticamente a categoria do Mercado Livre para este produto. Tente ajustar o nome do produto no catálogo para algo mais comum, como \"Caixa de Passagem PVC\".",
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
