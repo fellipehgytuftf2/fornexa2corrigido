@@ -23,6 +23,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import AssinaturasAdmin from '../../components/dashboard/AssinaturasAdmin';
 import {
   CSV_MODELO,
   lerArquivo,
@@ -1790,6 +1791,8 @@ export default function Admin() {
           </p>
         </div>
       )}
+
+      <AssinaturasAdmin />
     </div>
   );
 }

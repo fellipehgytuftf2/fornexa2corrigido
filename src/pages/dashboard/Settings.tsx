@@ -9,11 +9,40 @@ interface SettingsProps {
 
 const planoLabels: Record<string, string> = {
   free: 'Gratuito',
+  basico: 'Básico',
   start: 'Start',
   pro: 'Pro',
   premium: 'Premium',
   enterprise: 'Enterprise',
   lifetime: 'Vitalício',
+};
+
+/**
+ * O nome do plano diz o que a pessoa comprou; o status diz se ela pode usar
+ * hoje. Mostrar só o nome esconderia justamente a informação que ela procura
+ * quando vem parar nesta tela.
+ */
+const statusLabels: Record<string, { texto: string; cor: string }> = {
+  ativo: {
+    texto: 'Em dia',
+    cor: 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300',
+  },
+  vencido: {
+    texto: 'Vencido',
+    cor: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  },
+  cancelado: {
+    texto: 'Cancelado',
+    cor: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
+  },
+  reembolsado: {
+    texto: 'Reembolsado',
+    cor: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
+  },
+  inativo: {
+    texto: 'Sem assinatura',
+    cor: 'bg-gray-100 text-gray-600 dark:bg-navy-600 dark:text-slate-300',
+  },
 };
 
 export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
@@ -22,6 +51,9 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
   const [nomeOriginal, setNomeOriginal] = useState('');
   const [email, setEmail] = useState('');
   const [plano, setPlano] = useState('free');
+  const [statusPlano, setStatusPlano] = useState('inativo');
+  const [expiraEm, setExpiraEm] = useState<string | null>(null);
+  const [origemPlano, setOrigemPlano] = useState('nenhum');
 
   const [salvandoNome, setSalvandoNome] = useState(false);
   const [novaSenha, setNovaSenha] = useState('');
@@ -51,15 +83,24 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
       const { data: perfil } = await supabase
         .from('profiles')
-        .select('name, plan')
+        .select('name, plan, plan_status, plan_expira_em, plan_origem')
         .eq('id', user.id)
-        .maybeSingle<{ name: string | null; plan: string | null }>();
+        .maybeSingle<{
+          name: string | null;
+          plan: string | null;
+          plan_status: string | null;
+          plan_expira_em: string | null;
+          plan_origem: string | null;
+        }>();
 
       const nomeAtual = perfil?.name || user.user_metadata?.name || '';
 
       setNome(nomeAtual);
       setNomeOriginal(nomeAtual);
       setPlano(perfil?.plan || 'free');
+      setStatusPlano(perfil?.plan_status || 'inativo');
+      setExpiraEm(perfil?.plan_expira_em || null);
+      setOrigemPlano(perfil?.plan_origem || 'nenhum');
       setCarregando(false);
     };
 
@@ -287,7 +328,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-4">Plano atual</h2>
 
-        <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 rounded-lg">
+        <div className="flex items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 rounded-lg">
           <div className="flex items-center gap-3">
             <CreditCard className="w-5 h-5 text-gray-600 dark:text-slate-400" />
 
@@ -297,10 +338,24 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
               </p>
 
               <p className="text-sm text-gray-500 dark:text-slate-400">
-                Plano registrado na sua conta
+                {origemPlano === 'cortesia'
+                  ? 'Acesso de cortesia, sem data para acabar'
+                  : expiraEm
+                    ? `Renova em ${new Date(expiraEm).toLocaleDateString('pt-BR')}`
+                    : statusPlano === 'ativo'
+                      ? 'Pagamento único, sem mensalidade'
+                      : 'Plano registrado na sua conta'}
               </p>
             </div>
           </div>
+
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+              (statusLabels[statusPlano] || statusLabels.inativo).cor
+            }`}
+          >
+            {(statusLabels[statusPlano] || statusLabels.inativo).texto}
+          </span>
         </div>
       </div>
 

@@ -1,7 +1,16 @@
 import { Check, Shield, Star, Headphones } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { PLANOS, montarCheckout } from '../../lib/planos';
 
 export default function Plans() {
+  const [basico, premium] = PLANOS;
+
+  // Visitante da landing ainda não tem conta, então o checkout vai sem e-mail:
+  // quem digita é ele, no formulário da Applyfy. Depois de pagar, a plataforma
+  // devolve para /register e o cadastro reencontra a compra por esse e-mail.
+  const linkBasico = montarCheckout(basico);
+  const linkPremium = montarCheckout(premium);
+
   return (
     <section id="planos" className="bg-navy-900 py-24">
       <div className="max-w-3xl mx-auto px-6">
@@ -13,13 +22,13 @@ export default function Plans() {
         <div className="grid md:grid-cols-2 gap-6 items-stretch justify-items-center">
           {/* Basic plan */}
           <div className="bg-navy-700 rounded-2xl border border-navy-600 p-10 w-full max-w-sm h-full flex flex-col">
-            <h3 className="text-white font-semibold text-xl mb-3">Plano Básico</h3>
+            <h3 className="text-white font-semibold text-xl mb-3">{basico.nome}</h3>
             <div className="mb-8">
-              <span className="text-white text-4xl font-bold">R$ 139,00</span>
-              <span className="text-slate-400">/mês</span>
+              <span className="text-white text-4xl font-bold">{basico.preco}</span>
+              <span className="text-slate-400">{basico.periodo}</span>
             </div>
             <ul className="space-y-4 mb-10">
-              {['Acesso aos fornecedores', 'Mercado Livre', 'Suporte', 'Curso completo'].map((feature) => (
+              {basico.beneficios.map((feature) => (
                 <li key={feature} className="flex items-center gap-3 text-slate-300 text-sm">
                   <Check className="w-4 h-4 text-gold flex-shrink-0" />
                   {feature}
@@ -28,10 +37,11 @@ export default function Plans() {
             </ul>
 
             <div className="mt-auto">
-              <a href="#"
+              <a
+                href={linkBasico || '/register'}
                 className="block w-full py-3 rounded-lg border border-slate-600 text-white font-medium hover:bg-slate-800 transition-colors text-center"
               >
-                Começar agora
+                {basico.chamada}
               </a>
             </div>
           </div>
@@ -40,24 +50,18 @@ export default function Plans() {
           <div className="relative w-full max-w-sm premium-card h-full">
             <div className="relative bg-navy-700 rounded-2xl border-2 border-gold p-10 h-full flex flex-col">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold text-black text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
-                🏆 MAIS ESCOLHIDO
+                {premium.destaque}
               </div>
-              <h3 className="text-white font-semibold text-xl mb-3">Plano Premium</h3>
+              <h3 className="text-white font-semibold text-xl mb-3">{premium.nome}</h3>
               <div className="mb-8">
                 <span className="text-slate-400 text-lg line-through block mb-1">
-                  De R$ 497,00
+                  {premium.precoAntigo}
                 </span>
-                <span className="text-white text-4xl font-bold">R$ 229,00</span>
-                <span className="text-slate-400 block text-sm mt-1">Investimento único</span>
+                <span className="text-white text-4xl font-bold">{premium.preco}</span>
+                <span className="text-slate-400 block text-sm mt-1">{premium.periodo}</span>
               </div>
               <ul className="space-y-4 mb-10">
-                {[
-                  'Catálogo completo dos fornecedores',
-                  'Ferramentas premium inclusas',
-                  'Suporte prioritário',
-                  'Pagamento único sem mensalidades',
-                  'Integrações futuras inclusas',
-                ].map((feature) => (
+                {premium.beneficios.map((feature) => (
                   <li key={feature} className="flex items-center gap-3 text-slate-300 text-sm">
                     <Check className="w-4 h-4 text-gold flex-shrink-0" />
                     {feature}
@@ -66,10 +70,11 @@ export default function Plans() {
               </ul>
 
               <div className="mt-auto">
-                <a href="#"
+                <a
+                  href={linkPremium || '/register'}
                   className="block w-full py-3 rounded-lg bg-white text-black font-semibold hover:bg-slate-100 transition-colors text-center"
                 >
-                  Quero o melhor custo-benefício
+                  {premium.chamada}
                 </a>
               </div>
             </div>
