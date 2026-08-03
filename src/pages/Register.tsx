@@ -43,8 +43,10 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('A senha precisa ter pelo menos 6 caracteres.');
+    // Mesmo mínimo da tela de redefinição. Exigir 6 aqui e 8 lá deixava a
+    // pessoa criar uma senha que ela não conseguiria recadastrar depois.
+    if (password.length < 8) {
+      setErrorMessage('A senha precisa ter pelo menos 8 caracteres.');
       return;
     }
 
@@ -63,12 +65,60 @@ export default function Register() {
     setLoading(false);
 
     if (error) {
-      setErrorMessage(error.message || 'Não foi possível criar sua conta.');
+      console.error('Erro ao criar conta:', error);
+
+      const jaExiste = /already registered|already exists|user_exists/i.test(
+        error.message || ''
+      );
+
+      if (jaExiste) {
+        setErrorMessage(
+          'Já existe uma conta com este e-mail. Entre por "Já tem uma conta?" ou use "Esqueci minha senha".'
+        );
+        return;
+      }
+
+      // O Supabase às vezes devolve a falha sem texto legível — foi o que
+      // aconteceu quando um gatilho do banco quebrou e a tela mostrou "{}".
+      // Nesses casos a mensagem crua confunde mais do que ajuda.
+      const legivel = (error.message || '').trim();
+      const util = legivel.length > 2 && legivel !== '{}';
+
+      setErrorMessage(
+        util
+          ? legivel
+          : 'Não foi possível criar sua conta agora. Tente de novo em alguns instantes.'
+      );
       return;
     }
 
     if (!data.user) {
       setErrorMessage('Não foi possível criar sua conta. Tente novamente.');
+      return;
+    }
+
+    // Com confirmação de e-mail ligada, o Supabase devolve o usuário sem
+    // `identities` quando o e-mail já pertence a alguém — de propósito, para
+    // não revelar quais contas existem. Sem tratar isso, a pessoa acharia que
+    // criou a conta e ficaria presa na tela de login.
+    if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setErrorMessage(
+        'Já existe uma conta com este e-mail. Use "Esqueci minha senha" se não lembrar dela.'
+      );
+      return;
+    }
+
+    // Sem sessão, a confirmação por e-mail está ligada: não adianta mandar
+    // para o painel, porque nenhuma tela interna vai abrir.
+    if (!data.session) {
+      setSuccessMessage(
+        'Conta criada. Confirme o e-mail que enviamos para você e depois entre.'
+      );
+
+      setTimeout(() => {
+        navigate('/login');
+      }, 2500);
+
       return;
     }
 
@@ -82,11 +132,15 @@ export default function Register() {
       })
     );
 
-    setSuccessMessage('Conta criada com sucesso. Entrando no painel...');
+    setSuccessMessage('Conta criada com sucesso.');
 
+    // Para /planos, não /dashboard. Quem acabou de se cadastrar quase nunca
+    // tem plano, e mandar para o painel só para ser rebatido produzia duas
+    // trocas de tela e a promessa falsa de "entrando no painel". Quem já pagou
+    // antes de criar a conta é reconhecido em /planos e segue direto.
     setTimeout(() => {
-      navigate('/dashboard');
-    }, 900);
+      navigate('/planos', { replace: true });
+    }, 700);
   };
 
   return (
@@ -182,7 +236,7 @@ export default function Register() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
                   className="w-full pl-10 pr-12 py-3 bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600 rounded-xl text-navy-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
                   disabled={loading}
                 />
@@ -202,7 +256,7 @@ export default function Register() {
               </div>
 
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-                Use uma senha com pelo menos 6 caracteres.
+                Use uma senha com pelo menos 8 caracteres.
               </p>
             </div>
 

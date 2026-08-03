@@ -88,6 +88,17 @@ const navigationItems: NavigationItem[] = [
 
 const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
 
+/** Nome do plano em português. O banco guarda o identificador, não o rótulo. */
+const rotulosDePlano: Record<string, string> = {
+  free: 'Gratuito',
+  basico: 'Básico',
+  premium: 'Premium',
+  start: 'Start',
+  pro: 'Pro',
+  enterprise: 'Enterprise',
+  lifetime: 'Vitalício',
+};
+
 interface SavedUser {
   id?: string;
   name?: string;
@@ -118,6 +129,8 @@ export default function DashboardLayout() {
   const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
+  const [plano, setPlano] = useState<string | null>(null);
+  const [statusPlano, setStatusPlano] = useState<string | null>(null);
   const [checkingRole, setCheckingRole] = useState(true);
 
   useEffect(() => {
@@ -146,11 +159,18 @@ export default function DashboardLayout() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, plan, plan_status')
         .eq('id', user.id)
-        .maybeSingle();
+        .maybeSingle<{ role: string | null; plan: string | null; plan_status: string | null }>();
 
       setUserRole(data?.role || 'user');
+
+      // Lido do banco, não do localStorage. O que está guardado no navegador
+      // é de quando a pessoa entrou; quem pagou depois disso continuaria
+      // vendo o plano antigo até sair e entrar de novo.
+      setPlano(data?.plan || null);
+      setStatusPlano(data?.plan_status || null);
+
       setCheckingRole(false);
     };
 
@@ -302,7 +322,8 @@ const isDashboardHome = location.pathname === '/dashboard';
             </p>
 
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-              Plano: {savedUser?.plan || 'free'}
+              Plano: {rotulosDePlano[plano || ''] || plano || '—'}
+              {statusPlano === 'ativo' ? '' : ' (inativo)'}
             </p>
 
             {userRole === 'admin' && (

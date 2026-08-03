@@ -3,11 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchSupplierAccount } from '../lib/supplierAuth';
+import { planoEmDia } from '../lib/planos';
 
 interface Profile {
   name: string;
   email: string;
   plan: string;
+  plan_status: string | null;
+  plan_expira_em: string | null;
   role: string;
 }
 
@@ -130,7 +133,7 @@ export default function Login() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('name, email, plan, role')
+      .select('name, email, plan, plan_status, plan_expira_em, role')
       .eq('id', data.user.id)
       .maybeSingle<Profile>();
 
@@ -151,7 +154,11 @@ export default function Login() {
     );
 
     setLoading(false);
-    navigate('/dashboard');
+
+    // Manda direto para o lugar certo. Cair no painel e ser rebatido pelo
+    // guarda funcionava, mas mostrava um pedaço do dashboard antes de trocar
+    // de tela — parecia falha.
+    navigate(planoEmDia(profile) ? '/dashboard' : '/planos');
   };
 
   const fieldClass =

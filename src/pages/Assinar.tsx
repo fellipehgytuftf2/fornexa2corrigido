@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Loader2, LogOut, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fetchSupplierAccount } from '../lib/supplierAuth';
 import {
   PLANOS,
   montarCheckout,
@@ -36,6 +37,15 @@ export default function Assinar() {
       return null;
     }
 
+    // Fornecedor não compra plano: quem paga o FORNEXA é o vendedor. Sem isto
+    // ele veria uma tela de venda que não faz sentido para ele.
+    const fornecedor = await fetchSupplierAccount(usuario.id);
+
+    if (fornecedor) {
+      navigate('/fornecedor', { replace: true });
+      return null;
+    }
+
     const { data: linha } = await supabase
       .from('profiles')
       .select('name, email, plan, plan_status, plan_expira_em, role')
@@ -63,7 +73,21 @@ export default function Assinar() {
   };
 
   useEffect(() => {
-    carregarPerfil().finally(() => setCarregando(false));
+    const abrir = async () => {
+      const atual = await carregarPerfil();
+
+      // Quem já paga não tem o que escolher aqui. Sem esta saída, um cliente
+      // ativo que voltasse pelo histórico do navegador veria "Escolha seu
+      // plano" e concluiria que perdeu o acesso.
+      if (atual && planoEmDia(atual)) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+
+      setCarregando(false);
+    };
+
+    abrir();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
