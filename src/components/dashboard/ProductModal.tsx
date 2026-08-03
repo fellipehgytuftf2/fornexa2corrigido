@@ -18,6 +18,11 @@ import { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import PublishFlowOverlay from './PublishFlowOverlay';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
+import {
+  LIMITE_FRETE_GRATIS,
+  calcularVenda,
+  margemMinimaSemPrejuizo,
+} from '../../lib/taxasDoMercadoLivre';
 
 interface ProductModalProps {
   product: Product;
@@ -142,6 +147,12 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const marginPercentValue = Number(marginPercentage) || 0;
   const profitAmount = supplierPrice * (marginPercentValue / 100);
   const finalPrice = supplierPrice + profitAmount;
+
+  // A margem escolhida é sobre o custo; ela não sabe nada sobre o que o
+  // marketplace retém. Estas duas linhas traduzem a escolha em dinheiro que
+  // sobra de verdade, antes de o anúncio ir ao ar.
+  const contaDaVenda = calcularVenda(finalPrice, supplierPrice);
+  const margemMinima = margemMinimaSemPrejuizo(supplierPrice);
 
   const hasLinkedSupplier = Boolean(product.supplierId);
 
@@ -688,10 +699,10 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     <div className="grid grid-cols-1 gap-3">
                       <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600">
                         <p className="text-xs text-gray-500 dark:text-slate-400">
-                          Lucro calculado
+                          Sua margem sobre o custo
                         </p>
 
-                        <p className="text-xl font-bold text-green-600 dark:text-green-400 mt-1">
+                        <p className="text-xl font-bold text-navy-900 dark:text-white mt-1">
                           {formatCurrency(profitAmount)}
                         </p>
                       </div>
@@ -703,6 +714,69 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
                         <p className="text-2xl font-bold text-white dark:text-navy-900 mt-1">
                           {formatCurrency(finalPrice)}
+                        </p>
+                      </div>
+
+                      {/* O que sobra de verdade.
+                          Sem este bloco a tela mostrava "lucro" ignorando a
+                          comissão do Mercado Livre e o frete grátis, e uma
+                          margem de 40% podia ser prejuízo sem ninguém notar. */}
+                      <div
+                        className={`rounded-xl p-4 border ${
+                          contaDaVenda.lucro < 0
+                            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                            : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-600 dark:text-slate-400">
+                          O que sobra depois do Mercado Livre
+                        </p>
+
+                        <p
+                          className={`text-2xl font-bold mt-1 ${
+                            contaDaVenda.lucro < 0
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-green-600 dark:text-green-400'
+                          }`}
+                        >
+                          {formatCurrency(contaDaVenda.lucro)}
+                          <span className="text-sm font-medium ml-2">
+                            ({contaDaVenda.margemReal.toFixed(0)}% do preço)
+                          </span>
+                        </p>
+
+                        <div className="text-xs text-gray-600 dark:text-slate-400 mt-3 space-y-1">
+                          <p>
+                            Comissão estimada: −{formatCurrency(contaDaVenda.comissao)}
+                          </p>
+
+                          {contaDaVenda.temFreteGratis && (
+                            <p>
+                              Sua parte do frete grátis: −
+                              {formatCurrency(contaDaVenda.frete)}
+                            </p>
+                          )}
+                        </div>
+
+                        {contaDaVenda.lucro < 0 && (
+                          <p className="text-xs font-semibold text-red-700 dark:text-red-300 mt-3 leading-relaxed">
+                            Nesta margem você vende no prejuízo.
+                            {margemMinima
+                              ? ` Suba para pelo menos ${margemMinima}% para empatar.`
+                              : ''}
+                          </p>
+                        )}
+
+                        {contaDaVenda.lucro >= 0 && contaDaVenda.temFreteGratis && (
+                          <p className="text-xs text-gray-600 dark:text-slate-400 mt-3 leading-relaxed">
+                            Acima de R$ {LIMITE_FRETE_GRATIS} o Mercado Livre exige
+                            frete grátis e você banca parte dele.
+                          </p>
+                        )}
+
+                        <p className="text-[11px] text-gray-500 dark:text-slate-500 mt-3 leading-relaxed">
+                          Estimativa. A comissão muda por categoria e o valor exato
+                          só sai depois da venda — o Financeiro mostra o real.
                         </p>
                       </div>
                     </div>

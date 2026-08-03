@@ -272,6 +272,65 @@ Deno.serve(async (req: Request) => {
         const salePrice = Number(firstItem?.unit_price ?? userProduct.sale_price ?? 0);
         const profit = salePrice - Number(userProduct.supplier_price ?? 0);
 
+        // ------------------------------------------------------------------
+        // Custos reais do Mercado Livre
+        // ------------------------------------------------------------------
+        // Sem isto o lucro exibido é bruto: preço de venda menos preço do
+        // fornecedor, ignorando o que o ML retém. Num anúncio acima de R$ 79,
+        // onde o frete grátis entra e o vendedor banca parte dele, a diferença
+        // entre o lucro exibido e o real chega a virar prejuízo.
+        //
+        // `sale_fee` vem por unidade em cada item, então multiplica pela
+        // quantidade. O frete vem de uma chamada separada, porque o objeto do
+        // envio não traz quanto o VENDEDOR paga — só `/costs` traz, em
+        // `senders[].cost`.
+
+        let taxaMarketplace: number | null = null;
+        let custoFrete: number | null = null;
+
+        const itens = Array.isArray(mlOrder?.order_items) ? mlOrder.order_items : [];
+
+        if (itens.length > 0) {
+          taxaMarketplace = itens.reduce(
+            (soma: number, item: Record<string, unknown>) =>
+              soma + Number(item?.sale_fee ?? 0) * Number(item?.quantity ?? 1),
+            0
+          );
+        }
+
+        if (shippingId) {
+          try {
+            const custosResposta = await fetch(
+              `https://api.mercadolibre.com/shipments/${shippingId}/costs`,
+              { headers: { Authorization: `Bearer ${accessToken}` } }
+            );
+
+            if (custosResposta.ok) {
+              const custos = await custosResposta.json();
+
+              const remetentes = Array.isArray(custos?.senders) ? custos.senders : [];
+
+              custoFrete = remetentes.reduce(
+                (soma: number, r: Record<string, unknown>) => soma + Number(r?.cost ?? 0),
+                0
+              );
+            } else if (custosResposta.status === 404) {
+              // Envio por conta do comprador não gera custo para o vendedor.
+              // Zero é resposta legítima, diferente de "não perguntamos".
+              custoFrete = 0;
+            }
+          } catch (erroCusto) {
+            // Custo é informação contábil, não operacional: falhar aqui não
+            // pode impedir o pedido de chegar ao fornecedor.
+            console.error("Falha ao buscar custo de frete:", erroCusto);
+          }
+        }
+
+        const custosApurados =
+          taxaMarketplace !== null || custoFrete !== null
+            ? new Date().toISOString()
+            : null;
+
         // Status do lado do Mercado Livre. Não se confunde com orders.status,
         // que é o andamento interno controlado por vendedor e fornecedor.
         // O portal do fornecedor só mostra pedido pago, então pagamento
@@ -293,6 +352,11 @@ Deno.serve(async (req: Request) => {
               customer_phone: customerPhone,
               customer_address: customerAddress,
               customer_email: customerEmail,
+              // Os custos só chegam depois que o ML fecha a cobrança, então
+              // pedido antigo ganha o valor numa sincronização seguinte.
+              taxa_marketplace: taxaMarketplace,
+              custo_frete: custoFrete,
+              custos_apurados_em: custosApurados,
               updated_at: new Date().toISOString(),
             })
             .eq("id", existingOrder.id);
@@ -333,6 +397,9 @@ Deno.serve(async (req: Request) => {
             ml_order_status: mlOrderStatus,
             ml_order_status_detail: mlOrderStatusDetail,
             quantidade,
+            taxa_marketplace: taxaMarketplace,
+            custo_frete: custoFrete,
+            custos_apurados_em: custosApurados,
           });
 
           if (insertError) {

@@ -54,6 +54,8 @@ interface SupplierOrder {
   chamado_id: string | null;
   /** Respostas do vendedor posteriores à última vez que o fornecedor leu. */
   respostas_nao_lidas: number;
+  /** Quando o vendedor declarou ter repassado o valor. Null = em aberto. */
+  pago_em: string | null;
   marketplace: string;
   created_at: string;
 }
@@ -744,8 +746,26 @@ export default function SupplierPortal() {
                             <p className="font-mono text-sm text-slate-400 tabular-nums">
                               Seu valor{' '}
                               <span className="text-gold text-base">
-                                {formatCurrency(order.supplier_price)}
+                                {formatCurrency(
+                                  order.supplier_price * (order.quantidade ?? 1)
+                                )}
                               </span>
+                            </p>
+
+                            {/* Só a data do repasse. O fornecedor não precisa
+                                saber quanto o vendedor lucrou para saber se já
+                                recebeu — e essa linha evita a pergunta "você já
+                                me pagou aquele pedido?" toda semana. */}
+                            <p className="font-mono text-sm text-slate-400 tabular-nums">
+                              Pagamento{' '}
+                              {order.pago_em ? (
+                                <span className="text-green-400 text-base">
+                                  recebido em{' '}
+                                  {new Date(order.pago_em).toLocaleDateString('pt-BR')}
+                                </span>
+                              ) : (
+                                <span className="text-amber-400 text-base">em aberto</span>
+                              )}
                             </p>
                           </div>
                         </div>

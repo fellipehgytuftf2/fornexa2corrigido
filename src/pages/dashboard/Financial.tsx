@@ -6,6 +6,7 @@ import {
   Clock,
   DollarSign,
   Package,
+  Percent,
   RefreshCw,
   Search,
   TrendingUp,
@@ -24,6 +25,12 @@ interface Order {
   supplier_price: number;
   sale_price: number;
   profit: number;
+  quantidade: number | null;
+  receita_total: number | null;
+  taxa_marketplace: number | null;
+  custo_frete: number | null;
+  custos_apurados_em: string | null;
+  lucro_liquido: number | null;
   status: 'pending' | 'sent_to_supplier' | 'shipped' | 'delivered' | 'cancelled';
   marketplace: string;
   created_at: string;
@@ -71,6 +78,12 @@ export default function Financial() {
         supplier_price,
         sale_price,
         profit,
+        quantidade,
+        receita_total,
+        taxa_marketplace,
+        custo_frete,
+        custos_apurados_em,
+        lucro_liquido,
         status,
         marketplace,
         created_at
@@ -111,20 +124,53 @@ export default function Financial() {
   const financialSummary = useMemo(() => {
     const validOrders = orders.filter((order) => order.status !== 'cancelled');
 
+    const quantidadeDe = (order: Order) => Number(order.quantidade || 1);
+
+    // `receita_total` e `lucro_liquido` são colunas calculadas pelo banco. A
+    // queda para a conta manual cobre pedidos antigos, gravados antes de elas
+    // existirem.
     const totalRevenue = validOrders.reduce(
-      (total, order) => total + Number(order.sale_price || 0),
+      (total, order) =>
+        total +
+        Number(order.receita_total ?? Number(order.sale_price || 0) * quantidadeDe(order)),
       0
     );
 
     const supplierCost = validOrders.reduce(
-      (total, order) => total + Number(order.supplier_price || 0),
+      (total, order) => total + Number(order.supplier_price || 0) * quantidadeDe(order),
+      0
+    );
+
+    // Comissão do marketplace e frete bancado pelo vendedor. Antes não
+    // entravam em lugar nenhum, e o "lucro" da tela era o que sobrava antes de
+    // o Mercado Livre cobrar a parte dele.
+    const taxasMarketplace = validOrders.reduce(
+      (total, order) => total + Number(order.taxa_marketplace || 0),
+      0
+    );
+
+    const custosFrete = validOrders.reduce(
+      (total, order) => total + Number(order.custo_frete || 0),
       0
     );
 
     const totalProfit = validOrders.reduce(
-      (total, order) => total + Number(order.profit || 0),
+      (total, order) =>
+        total +
+        Number(
+          order.lucro_liquido ??
+            (Number(order.sale_price || 0) - Number(order.supplier_price || 0)) *
+              quantidadeDe(order)
+        ),
       0
     );
+
+    // Quantos pedidos ainda não tiveram os custos apurados no Mercado Livre.
+    // Enquanto houver algum, o lucro mostrado está otimista, e a tela precisa
+    // dizer isso em vez de deixar o vendedor concluir sozinho.
+    const semCustoApurado = validOrders.filter(
+      (order) => !order.custos_apurados_em
+    ).length;
 
     const averageTicket =
       validOrders.length > 0 ? totalRevenue / validOrders.length : 0;
@@ -144,6 +190,9 @@ export default function Financial() {
       totalOrders: validOrders.length,
       totalRevenue,
       supplierCost,
+      taxasMarketplace,
+      custosFrete,
+      semCustoApurado,
       totalProfit,
       averageTicket,
       averageMargin,
@@ -272,6 +321,21 @@ export default function Financial() {
         </div>
       ) : (
         <>
+          {financialSummary.semCustoApurado > 0 && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3.5 mb-4">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                {financialSummary.semCustoApurado === 1
+                  ? '1 pedido ainda está sem a comissão e o frete do marketplace. '
+                  : `${financialSummary.semCustoApurado} pedidos ainda estão sem a comissão e o frete do marketplace. `}
+                O lucro abaixo está otimista para eles. O Mercado Livre só fecha
+                esses valores depois da venda — sincronize de novo em algumas
+                horas.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
               <div className="flex items-center justify-between">
@@ -309,15 +373,56 @@ export default function Financial() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500 dark:text-slate-400">
-                    Lucro
+                    Taxas do marketplace
                   </p>
 
-                  <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                    {formatCurrency(financialSummary.totalProfit)}
+                  <p className="text-2xl font-bold text-navy-900 dark:text-white mt-1">
+                    {formatCurrency(
+                      financialSummary.taxasMarketplace + financialSummary.custosFrete
+                    )}
+                  </p>
+
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                    Comissão {formatCurrency(financialSummary.taxasMarketplace)} · frete{' '}
+                    {formatCurrency(financialSummary.custosFrete)}
                   </p>
                 </div>
 
-                <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
+                <Percent className="w-6 h-6 text-gray-500 dark:text-slate-400" />
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
+                    Lucro líquido
+                  </p>
+
+                  {/* Vermelho quando negativo. Prejuízo pintado de verde é
+                      pior do que não mostrar número nenhum. */}
+                  <p
+                    className={`text-2xl font-bold mt-1 ${
+                      financialSummary.totalProfit < 0
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-green-600 dark:text-green-400'
+                    }`}
+                  >
+                    {formatCurrency(financialSummary.totalProfit)}
+                  </p>
+
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                    Depois de fornecedor, comissão e frete
+                  </p>
+                </div>
+
+                <TrendingUp
+                  className={`w-6 h-6 ${
+                    financialSummary.totalProfit < 0
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-green-600 dark:text-green-400'
+                  }`}
+                />
               </div>
             </div>
 

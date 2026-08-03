@@ -47,6 +47,10 @@ interface Order {
   supplier_price: number;
   sale_price: number;
   profit: number;
+  quantidade: number | null;
+  lucro_liquido: number | null;
+  custos_apurados_em: string | null;
+  pago_ao_fornecedor_em: string | null;
   status: OrderStatus;
   tracking_code: string | null;
   ml_shipment_id: string | null;
@@ -87,6 +91,7 @@ interface PendingIssue {
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [marcandoPagamentoId, setMarcandoPagamentoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -236,6 +241,10 @@ export default function Orders() {
         supplier_price,
         sale_price,
         profit,
+        quantidade,
+        lucro_liquido,
+        custos_apurados_em,
+        pago_ao_fornecedor_em,
         status,
         tracking_code,
         ml_shipment_id,
@@ -284,6 +293,42 @@ export default function Orders() {
     }
 
     return order.suppliers || null;
+  };
+
+  /**
+   * Registra que o fornecedor foi pago, ou desfaz o registro.
+   *
+   * O dinheiro sai por fora do FORNEXA — PIX, transferência, o que os dois
+   * combinarem. O que o sistema guarda é a declaração de quem pagou, para os
+   * dois lados pararem de contar de cabeça o que já foi quitado.
+   */
+  const alternarPagamentoAoFornecedor = async (order: Order) => {
+    setMarcandoPagamentoId(order.id);
+
+    const pago = !order.pago_ao_fornecedor_em;
+
+    const { error } = await supabase.rpc('marcar_pago_ao_fornecedor', {
+      p_order_id: order.id,
+      p_pago: pago,
+    });
+
+    setMarcandoPagamentoId(null);
+
+    if (error) {
+      console.error('Erro ao marcar pagamento ao fornecedor:', error);
+      setErrorMessage(`Não foi possível salvar: ${error.message}`);
+      return;
+    }
+
+    // Atualiza só a linha mexida em vez de recarregar tudo: a lista pode ser
+    // longa e o retrabalho apagaria a rolagem de quem está conferindo pedidos.
+    setOrders((atuais) =>
+      atuais.map((atual) =>
+        atual.id === order.id
+          ? { ...atual, pago_ao_fornecedor_em: pago ? new Date().toISOString() : null }
+          : atual
+      )
+    );
   };
 
   const formatCurrency = (value: number) => {
@@ -732,13 +777,70 @@ export default function Orders() {
 
                       <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-3">
                         <p className="text-xs text-gray-500 dark:text-slate-400">
-                          Lucro
+                          Lucro líquido
                         </p>
 
-                        <p className="text-sm font-bold text-green-600 dark:text-green-400 mt-1">
-                          {formatCurrency(order.profit)}
+                        {/* O lucro líquido já desconta comissão e frete. Enquanto
+                            o Mercado Livre não fecha esses valores, cai no bruto
+                            e a tela avisa, em vez de mostrar número otimista sem
+                            ressalva. */}
+                        <p
+                          className={`text-sm font-bold mt-1 ${
+                            Number(order.lucro_liquido ?? order.profit) < 0
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-green-600 dark:text-green-400'
+                          }`}
+                        >
+                          {formatCurrency(order.lucro_liquido ?? order.profit)}
+                        </p>
+
+                        {!order.custos_apurados_em && (
+                          <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                            sem taxas ainda
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Acerto com o fornecedor. A venda cair na conta do vendedor
+                        não paga ninguém: o repasse é feito por fora, e sem
+                        registro os dois lados perdem a conta do que já foi
+                        quitado. */}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-navy-600 p-3">
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">
+                          Repasse ao fornecedor
+                        </p>
+
+                        <p className="text-sm font-semibold text-navy-900 dark:text-white mt-0.5">
+                          {formatCurrency(
+                            Number(order.supplier_price || 0) * Number(order.quantidade || 1)
+                          )}
+
+                          {order.pago_ao_fornecedor_em ? (
+                            <span className="ml-2 text-xs font-medium text-green-600 dark:text-green-400">
+                              pago em{' '}
+                              {new Date(order.pago_ao_fornecedor_em).toLocaleDateString('pt-BR')}
+                            </span>
+                          ) : (
+                            <span className="ml-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                              em aberto
+                            </span>
+                          )}
                         </p>
                       </div>
+
+                      <button
+                        onClick={() => alternarPagamentoAoFornecedor(order)}
+                        disabled={marcandoPagamentoId === order.id}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${
+                          order.pago_ao_fornecedor_em
+                            ? 'border border-gray-200 dark:border-navy-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-navy-700'
+                            : 'bg-navy-900 dark:bg-gold text-white dark:text-navy-900 hover:opacity-90'
+                        }`}
+                      >
+                        {order.pago_ao_fornecedor_em ? 'Desmarcar' : 'Marcar como pago'}
+                      </button>
                     </div>
                   </div>
 
