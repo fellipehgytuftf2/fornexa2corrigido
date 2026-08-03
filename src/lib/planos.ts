@@ -35,18 +35,32 @@ export interface Plano {
 const checkoutBasico = import.meta.env.VITE_CHECKOUT_BASICO || '';
 const checkoutPremium = import.meta.env.VITE_CHECKOUT_PREMIUM || '';
 
+/**
+ * Os dois planos dão o MESMO acesso. A diferença é só a forma de pagar.
+ *
+ * Isto está escrito aqui porque a versão anterior desta lista prometia coisas
+ * que o sistema não entregava: "catálogo completo" só no Premium, quando o
+ * Básico também vê tudo; "ferramentas premium", numa aba que foi removida do
+ * menu; "suporte prioritário", sem nenhum mecanismo de prioridade. Vender
+ * diferença que não existe rende reclamação com razão — e no Brasil é
+ * propaganda enganosa, não só cliente insatisfeito.
+ *
+ * Se um dia os planos passarem a se distinguir de verdade, o lugar de começar
+ * é aqui: mudar o texto junto com o código que cria a distinção, nunca antes.
+ */
 export const PLANOS: Plano[] = [
   {
     id: 'basico',
     nome: 'Plano Básico',
     preco: 'R$ 139,00',
     periodo: '/mês',
-    chamada: 'Começar agora',
+    chamada: 'Assinar mensal',
     beneficios: [
-      'Acesso aos fornecedores',
-      'Mercado Livre',
-      'Suporte',
-      'Curso completo',
+      'Catálogo completo dos fornecedores',
+      'Integração com o Mercado Livre',
+      'Anúncios sem limite',
+      'Suporte e curso completo',
+      'Cancele quando quiser',
     ],
     checkout: checkoutBasico,
   },
@@ -55,15 +69,15 @@ export const PLANOS: Plano[] = [
     nome: 'Plano Premium',
     preco: 'R$ 229,00',
     precoAntigo: 'De R$ 497,00',
-    periodo: 'Investimento único',
-    destaque: '🏆 MAIS ESCOLHIDO',
-    chamada: 'Quero o melhor custo-benefício',
+    periodo: 'Pagamento único',
+    destaque: '💎 MELHOR VALOR',
+    chamada: 'Pagar uma vez e pronto',
     beneficios: [
-      'Catálogo completo dos fornecedores',
-      'Ferramentas premium inclusas',
-      'Suporte prioritário',
-      'Pagamento único sem mensalidades',
-      'Integrações futuras inclusas',
+      'Tudo o que tem no Básico',
+      'Pagamento único, sem mensalidade',
+      'Acesso vitalício à plataforma',
+      'Você nunca paga reajuste',
+      'Se paga em menos de dois meses',
     ],
     checkout: checkoutPremium,
   },

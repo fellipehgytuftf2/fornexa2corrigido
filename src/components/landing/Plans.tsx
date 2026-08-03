@@ -16,7 +16,11 @@ export default function Plans() {
       <div className="max-w-3xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-white text-4xl font-bold mb-4">Escolha seu plano</h2>
-          <p className="text-slate-400 text-lg">Acesso completo ao catálogo e ferramentas.</p>
+
+          <p className="text-slate-400 text-lg">
+            Os dois dão acesso completo ao sistema. Você escolhe só como prefere
+            pagar.
+          </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 items-stretch justify-items-center">
@@ -103,9 +107,10 @@ export default function Plans() {
               <Star className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="text-white font-semibold text-base mb-2">Satisfação garantida</h4>
+              <h4 className="text-white font-semibold text-base mb-2">7 dias de garantia</h4>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Milhares de vendedores já usam a FORNEXA para escalar suas operações.
+                Não gostou? Peça o reembolso em até 7 dias e receba tudo de volta,
+                sem precisar justificar.
               </p>
             </div>
           </motion.div>
