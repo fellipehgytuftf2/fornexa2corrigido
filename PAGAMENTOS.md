@@ -73,13 +73,18 @@ Em Edge Functions → Secrets, adicione três:
 
 | Segredo | Valor |
 |---|---|
-| `APPLYFY_WEBHOOK_TOKEN` | uma senha longa inventada por você |
-| `APPLYFY_PRODUTO_BASICO` | o identificador do produto Básico |
-| `APPLYFY_PRODUTO_PREMIUM` | o identificador do produto Premium |
+| `APPLYFY_WEBHOOK_TOKEN` | o token que a Applyfy mostra ao cadastrar o webhook |
+| `APPLYFY_OFERTA_BASICO` | o `offerCode` da oferta do Básico |
+| `APPLYFY_OFERTA_PREMIUM` | o `offerCode` da oferta do Premium |
 
-A senha do webhook é o que impede qualquer pessoa na internet de liberar acesso
-pago mandando um POST. Sem ela configurada, a função **recusa tudo** — falha
-fechada de propósito.
+O token não é inventado por você: a Applyfy envia um campo `token` dentro de
+cada aviso, e a função compara com este segredo. É o que impede qualquer pessoa
+na internet de liberar acesso pago mandando um POST. Sem ele configurado, a
+função **recusa tudo** — falha fechada de propósito.
+
+Os dois `offerCode` aparecem na aba **Ofertas** de cada produto. Se ficarem
+vazios, a função ainda acerta pela via reserva: cobrança recorrente é Básico,
+cobrança única é Premium.
 
 ---
 
@@ -100,16 +105,27 @@ código.
 Procure no painel por **Webhook**, **Postback** ou **Integrações**. Cadastre:
 
 ```
-https://qsldlfuajwkmelrbpern.supabase.co/functions/v1/applyfy-webhook?token=SUA_SENHA
+https://qsldlfuajwkmelrbpern.supabase.co/functions/v1/applyfy-webhook
 ```
 
-Marque os eventos de compra aprovada, reembolso e cancelamento, se ela deixar
-escolher.
+Marque todos os eventos de transação. Vale receber inclusive os que não mexem
+em acesso — ficam registrados em `pagamentos` e ajudam a entender o que houve
+quando alguém reclamar.
 
-**Se o painel não tiver essa opção**, fale com o suporte deles pelo WhatsApp e
-pergunte: *"vocês têm webhook ou postback para avisar meu sistema quando uma
-venda é aprovada?"*. Sem isso, o acesso não libera sozinho — teria que ser na
-mão pela tela de Assinaturas no Admin, o que funciona mas não escala.
+| Evento | O que faz |
+|---|---|
+| `TRANSACTION_PAID` | libera o acesso |
+| `TRANSACTION_REFUNDED` | encerra o acesso |
+| `TRANSACTION_CHARGED_BACK` | encerra o acesso |
+| `TRANSACTION_CANCELED` | só registra |
+| `TRANSACTION_CREATED` | só registra |
+
+Os dois últimos não mexem em acesso de propósito. `CREATED` é cobrança gerada e
+ainda não paga — se liberasse, bastaria gerar um PIX e nunca pagar. `CANCELED` é
+cobrança que não vingou, não é dinheiro devolvido; bloquear ali derrubaria, no
+meio do mês já pago, quem só teve uma tentativa de renovação falhar.
+
+Copie o **token** que a Applyfy mostrar e guarde em `APPLYFY_WEBHOOK_TOKEN`.
 
 ---
 

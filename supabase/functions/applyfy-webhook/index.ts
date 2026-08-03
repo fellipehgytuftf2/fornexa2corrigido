@@ -3,34 +3,44 @@
 // ============================================================================
 // Recebe o aviso de pagamento da Applyfy e libera o acesso do comprador.
 //
-// PORQUE ESTA FUNÇÃO É TOLERANTE DE PROPÓSITO:
-//   A Applyfy não publica documentação de webhook — não há página de
-//   desenvolvedor nem artigo na central de ajuda. Então o formato exato do
-//   aviso é desconhecido até o primeiro pagamento chegar.
+// Formato conforme a documentação em https://app.applyfy.com.br/docs/webhooks
+// (visível só depois de logar no painel).
 //
-//   Em vez de adivinhar um formato e quebrar em produção, a função:
-//     1. grava o aviso CRU em `pagamentos.payload`, sempre, aconteça o que
-//        acontecer com a interpretação;
-//     2. procura cada informação numa lista de nomes prováveis, cobrindo as
-//        convenções usadas pelas plataformas do ramo;
-//     3. responde 200 mesmo quando não entende, para a Applyfy não ficar
-//        reenviando em laço.
+// O aviso chega assim:
 //
-//   Depois do primeiro pagamento de teste, `select payload from pagamentos`
-//   mostra o formato de verdade e o mapeamento vira exato.
+//   {
+//     "event": "TRANSACTION_PAID",
+//     "token": "...",                      // autenticidade, vem no corpo
+//     "offerCode": "...",                  // qual oferta foi comprada
+//     "checkoutUrl": "...",
+//     "client":       { "id", "name", "email", "phone", "cpf", "cnpj" },
+//     "transaction":  { "id", "identifier", "status", "paymentMethod",
+//                       "amount", "installments", "payedAt", ... },
+//     "subscription": null | { "id", "cycle", "intervalType",
+//                              "intervalCount", "status", ... },
+//     "orderItems":   [ ... ],
+//     "trackProps":   { ... }
+//   }
+//
+// DUAS REGRAS QUE MERECEM ATENÇÃO:
+//
+//   TRANSACTION_CREATED não é venda. É cobrança gerada — PIX emitido, boleto
+//   impresso. Tratar como pagamento deixaria qualquer pessoa entrar de graça:
+//   bastaria gerar um PIX e nunca pagar.
+//
+//   TRANSACTION_CANCELED não tira acesso. Transação cancelada não é dinheiro
+//   devolvido; é cobrança que não vingou. Bloquear aqui derrubaria, no meio do
+//   mês já pago, quem apenas teve uma tentativa de renovação falhar. Só
+//   REFUNDED e CHARGED_BACK encerram o acesso, que é quando o dinheiro volta.
 //
 // CONFIGURAÇÃO NO SUPABASE:
-//   Deploy com "Verify JWT" DESLIGADO — quem chama é a Applyfy, que não tem
-//   token de usuário nenhum.
+//   Deploy com "Verify JWT" DESLIGADO — quem chama é a Applyfy, sem token de
+//   usuário.
 //
-//   Segredos necessários:
-//     APPLYFY_WEBHOOK_TOKEN   senha combinada, conferida a cada chamada
-//     APPLYFY_PRODUTO_BASICO  identificador ou nome do produto do plano básico
-//     APPLYFY_PRODUTO_PREMIUM idem, do premium
-//
-// CONFIGURAÇÃO NA APPLYFY:
-//   Cadastre como URL de webhook, com o token no endereço:
-//     https://<projeto>.supabase.co/functions/v1/applyfy-webhook?token=<senha>
+//   Segredos:
+//     APPLYFY_WEBHOOK_TOKEN   o mesmo token que a Applyfy envia no corpo
+//     APPLYFY_OFERTA_BASICO   offerCode da oferta do plano Básico
+//     APPLYFY_OFERTA_PREMIUM  offerCode da oferta do plano Premium
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -39,143 +49,117 @@ import { chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-applyfy-token, x-webhook-token",
+    "authorization, x-client-info, apikey, content-type",
 };
 
-type Json = Record<string, unknown>;
-
-/**
- * Busca um valor percorrendo vários nomes possíveis, inclusive aninhados.
- *
- * Aceita caminho com ponto ("customer.email") para alcançar o que costuma vir
- * dentro de um objeto de comprador ou de transação.
- */
-function pegar(objeto: Json, caminhos: string[]): unknown {
-  for (const caminho of caminhos) {
-    let atual: unknown = objeto;
-
-    for (const parte of caminho.split(".")) {
-      if (atual && typeof atual === "object" && parte in (atual as Json)) {
-        atual = (atual as Json)[parte];
-      } else {
-        atual = undefined;
-        break;
-      }
-    }
-
-    if (atual !== undefined && atual !== null && atual !== "") {
-      return atual;
-    }
-  }
-
-  return undefined;
+interface Cliente {
+  id?: string;
+  name?: string;
+  email?: string;
 }
 
-function texto(valor: unknown): string | null {
-  if (valor === undefined || valor === null) return null;
-  if (typeof valor === "string") return valor.trim() || null;
-  if (typeof valor === "number" || typeof valor === "boolean") return String(valor);
-  return null;
+interface Transacao {
+  id?: string;
+  identifier?: string | null;
+  status?: string;
+  paymentMethod?: string;
+  amount?: number;
+  originalAmount?: number;
 }
 
-/**
- * Traduz o status da plataforma para o vocabulário do FORNEXA.
- *
- * A lista cobre as palavras usadas pelas plataformas de infoproduto em
- * português e inglês. O que não for reconhecido vira 'desconhecido' e NÃO
- * libera acesso — na dúvida, o sistema não dá o que não tem certeza.
- */
-function traduzirStatus(bruto: string | null): string {
-  const s = (bruto || "").toLowerCase().trim();
-
-  const pagos = [
-    "paid", "approved", "aprovado", "pago", "completed", "complete",
-    "concluido", "concluído", "purchase_approved", "compra_aprovada",
-    "authorized", "autorizado", "succeeded", "success", "sucesso",
-  ];
-
-  const reembolsados = [
-    "refunded", "reembolsado", "estornado", "chargeback", "refund",
-    "purchase_refunded", "reembolso",
-  ];
-
-  const cancelados = [
-    "canceled", "cancelled", "cancelado", "expired", "expirado",
-    "subscription_canceled", "assinatura_cancelada", "overdue", "atrasado",
-  ];
-
-  const recusados = [
-    "refused", "recusado", "declined", "rejected", "rejeitado", "failed",
-    "falhou", "pending", "pendente", "waiting_payment", "aguardando_pagamento",
-    "abandoned", "abandonado",
-  ];
-
-  if (pagos.includes(s)) return "pago";
-  if (reembolsados.includes(s)) return "reembolsado";
-  if (cancelados.includes(s)) return "cancelado";
-  if (recusados.includes(s)) return "recusado";
-
-  return "desconhecido";
+interface Assinatura {
+  id?: string;
+  cycle?: number;
+  intervalType?: "DAYS" | "WEEKS" | "MONTHS" | "YEARS";
+  intervalCount?: number;
+  status?: "ACTIVE" | "INACTIVE" | "CANCELED";
 }
 
-/**
- * Decide se a compra foi do básico ou do premium.
- *
- * Primeiro tenta pelo identificador do produto configurado nos segredos, que é
- * o caminho confiável. Se não bater, cai no preço — R$ 139 é mensal, R$ 229 é
- * único —, e só então no nome do produto.
- */
-function descobrirPlano(corpo: Json, valor: number | null): string | null {
-  const idBasico = (Deno.env.get("APPLYFY_PRODUTO_BASICO") || "").toLowerCase().trim();
-  const idPremium = (Deno.env.get("APPLYFY_PRODUTO_PREMIUM") || "").toLowerCase().trim();
-
-  const identificadores = [
-    texto(pegar(corpo, [
-      "product_id", "productId", "product.id", "produto_id",
-      "offer_id", "offerId", "plan_id", "planId",
-    ])),
-    texto(pegar(corpo, [
-      "product_name", "productName", "product.name", "produto",
-      "product.title", "offer_name", "plan", "plano", "product",
-    ])),
-  ].filter(Boolean).map((v) => v!.toLowerCase());
-
-  for (const id of identificadores) {
-    if (idBasico && id.includes(idBasico)) return "basico";
-    if (idPremium && id.includes(idPremium)) return "premium";
-  }
-
-  if (valor !== null) {
-    if (Math.abs(valor - 139) < 1) return "basico";
-    if (Math.abs(valor - 229) < 1) return "premium";
-  }
-
-  for (const id of identificadores) {
-    if (id.includes("premium")) return "premium";
-    if (id.includes("basic") || id.includes("básic")) return "basico";
-  }
-
-  return null;
+interface AvisoApplyfy {
+  event?: string;
+  token?: string;
+  offerCode?: string | null;
+  client?: Cliente;
+  transaction?: Transacao;
+  subscription?: Assinatura | null;
 }
 
-/**
- * Converte o valor recebido para reais.
- *
- * Muitas plataformas mandam centavos como inteiro. A regra prática: inteiro
- * grande e redondo em centavos vira dividido por cem.
- */
-function normalizarValor(bruto: unknown): number | null {
-  const n = typeof bruto === "number" ? bruto : Number(texto(bruto));
+/** O que cada evento faz com o acesso. */
+const EFEITO_DO_EVENTO: Record<string, string> = {
+  TRANSACTION_PAID: "pago",
+  TRANSACTION_REFUNDED: "reembolsado",
+  TRANSACTION_CHARGED_BACK: "reembolsado",
+  TRANSACTION_CANCELED: "cancelado",
+  TRANSACTION_CREATED: "criado",
+};
 
-  if (!Number.isFinite(n) || n <= 0) {
+const DIAS_POR_INTERVALO: Record<string, number> = {
+  DAYS: 1,
+  WEEKS: 7,
+  MONTHS: 30,
+  YEARS: 365,
+};
+
+/**
+ * Até quando o acesso vale.
+ *
+ * Sem assinatura, é compra única e não vence — devolve nulo. Com assinatura, o
+ * ciclo vem no próprio aviso, então não há o que adivinhar.
+ *
+ * Os três dias a mais existem porque cobrança recorrente atrasa: repasse
+ * demora, cartão é retentado. Sem essa folga, o cliente que paga em dia seria
+ * bloqueado nas horas entre o vencimento e a renovação.
+ */
+function calcularValidade(assinatura: Assinatura | null | undefined): string | null {
+  if (!assinatura) {
     return null;
   }
 
-  if (Number.isInteger(n) && n >= 1000) {
-    return n / 100;
+  const porUnidade = DIAS_POR_INTERVALO[assinatura.intervalType || "MONTHS"] ?? 30;
+  const quantidade = Number(assinatura.intervalCount) || 1;
+
+  const validade = new Date();
+  validade.setDate(validade.getDate() + porUnidade * quantidade + 3);
+
+  return validade.toISOString();
+}
+
+/**
+ * Qual plano foi comprado.
+ *
+ * O `offerCode` é o caminho confiável. A queda para a presença de assinatura
+ * cobre o caso de o segredo não ter sido configurado: cobrança recorrente é
+ * Básico, cobrança única é Premium.
+ */
+function descobrirPlano(
+  offerCode: string | null | undefined,
+  assinatura: Assinatura | null | undefined
+): string | null {
+  const basico = (Deno.env.get("APPLYFY_OFERTA_BASICO") || "").trim();
+  const premium = (Deno.env.get("APPLYFY_OFERTA_PREMIUM") || "").trim();
+  const codigo = (offerCode || "").trim();
+
+  if (codigo) {
+    if (basico && codigo === basico) return "basico";
+    if (premium && codigo === premium) return "premium";
   }
 
-  return n;
+  return assinatura ? "basico" : "premium";
+}
+
+/** Comparação de senha sem revelar, pelo tempo de resposta, onde ela difere. */
+function tokenConfere(recebido: string, esperado: string): boolean {
+  if (recebido.length !== esperado.length) {
+    return false;
+  }
+
+  let diferenca = 0;
+
+  for (let i = 0; i < recebido.length; i++) {
+    diferenca |= recebido.charCodeAt(i) ^ esperado.charCodeAt(i);
+  }
+
+  return diferenca === 0;
 }
 
 Deno.serve(async (req: Request) => {
@@ -183,30 +167,15 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  // Sem senha combinada, qualquer um na internet libera acesso pago mandando
-  // um POST. Falha fechada de propósito: se o segredo não estiver configurado,
-  // a função recusa tudo em vez de aceitar tudo.
   const esperado = Deno.env.get("APPLYFY_WEBHOOK_TOKEN");
 
+  // Sem o token configurado, qualquer um na internet libera acesso pago
+  // mandando um POST. Falha fechada de propósito.
   if (!esperado) {
     console.error("APPLYFY_WEBHOOK_TOKEN não configurado — recusando chamada.");
+
     return new Response(JSON.stringify({ erro: "webhook não configurado" }), {
       status: 503,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const url = new URL(req.url);
-  const recebido =
-    url.searchParams.get("token") ||
-    req.headers.get("x-applyfy-token") ||
-    req.headers.get("x-webhook-token") ||
-    "";
-
-  if (recebido !== esperado) {
-    console.warn("Chamada recusada: token inválido.");
-    return new Response(JSON.stringify({ erro: "não autorizado" }), {
-      status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -214,92 +183,49 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(urlDoProjeto()!, chaveSecreta()!);
 
   try {
-    // Nem toda plataforma manda JSON; algumas mandam formulário.
-    const tipo = req.headers.get("content-type") || "";
-    let corpo: Json = {};
+    const aviso = (await req.json().catch(() => ({}))) as AvisoApplyfy;
 
-    if (tipo.includes("application/json")) {
-      corpo = (await req.json().catch(() => ({}))) as Json;
-    } else {
-      const form = await req.formData().catch(() => null);
+    if (!tokenConfere(aviso.token || "", esperado)) {
+      console.warn("Chamada recusada: token inválido.");
 
-      if (form) {
-        for (const [chave, valor] of form.entries()) {
-          corpo[chave] = typeof valor === "string" ? valor : String(valor);
-        }
-      }
+      return new Response(JSON.stringify({ erro: "não autorizado" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Algumas plataformas embrulham tudo dentro de "data" ou "payload".
-    const interno = pegar(corpo, ["data", "payload", "body", "resource"]);
-    const dados: Json =
-      interno && typeof interno === "object" ? { ...corpo, ...(interno as Json) } : corpo;
+    const evento = aviso.event || "";
+    const efeito = EFEITO_DO_EVENTO[evento] || "desconhecido";
 
-    const email = texto(
-      pegar(dados, [
-        "email", "customer.email", "buyer.email", "cliente.email",
-        "customer_email", "buyer_email", "user.email", "comprador.email",
-        "contact.email", "subscriber.email",
-      ])
-    );
+    const cliente = aviso.client || {};
+    const transacao = aviso.transaction || {};
+    const assinatura = aviso.subscription || null;
 
-    const nome = texto(
-      pegar(dados, [
-        "name", "customer.name", "buyer.name", "cliente.nome",
-        "customer_name", "buyer_name", "full_name", "comprador.nome",
-      ])
-    );
+    const email = (cliente.email || "").trim().toLowerCase();
 
-    const evento = texto(
-      pegar(dados, ["event", "evento", "type", "event_type", "action", "topic"])
-    );
+    // Evento de pagamento aprovado precisa vir com a transação concluída. São
+    // duas informações independentes dizendo a mesma coisa; exigir as duas
+    // custa nada e impede liberar acesso por um aviso malformado.
+    const pagoDeVerdade =
+      efeito === "pago" && (transacao.status || "").toUpperCase() === "COMPLETED";
 
-    const statusBruto = texto(
-      pegar(dados, [
-        "status", "payment_status", "transaction_status", "situacao",
-        "order_status", "sale_status", "charge_status",
-      ])
-    );
+    const status = efeito === "pago" && !pagoDeVerdade ? "desconhecido" : efeito;
 
-    // O nome do evento às vezes carrega o status ("purchase_approved") e o
-    // campo status vem vazio. Vale tentar os dois.
-    let status = traduzirStatus(statusBruto);
-
-    if (status === "desconhecido") {
-      status = traduzirStatus(evento);
-    }
-
-    const valor = normalizarValor(
-      pegar(dados, [
-        "amount", "valor", "price", "total", "value", "preco",
-        "transaction_amount", "order_total", "payment.amount",
-      ])
-    );
-
-    const referencia = texto(
-      pegar(dados, [
-        "transaction_id", "transactionId", "order_id", "orderId", "id",
-        "sale_id", "reference", "referencia", "code", "codigo",
-        "payment_id", "charge_id", "subscription_id",
-      ])
-    );
-
-    const plano = descobrirPlano(dados, valor);
+    const plano = descobrirPlano(aviso.offerCode, assinatura);
+    const validade = status === "pago" ? calcularValidade(assinatura) : null;
 
     if (!email) {
-      // Sem e-mail não há como ligar o pagamento a uma conta. Guarda mesmo
-      // assim: é exatamente esse registro que revela o formato certo.
       await supabase.from("pagamentos").insert({
         email: "desconhecido@sem-email",
         gateway: "applyfy",
-        referencia_externa: referencia,
+        referencia_externa: transacao.id || null,
         evento,
         status: "desconhecido",
-        payload: dados,
-        observacao: "aviso sem e-mail identificável — conferir o formato em payload",
+        payload: aviso as unknown as Record<string, unknown>,
+        observacao: "aviso sem e-mail do cliente",
       });
 
-      console.error("Webhook sem e-mail. Corpo:", JSON.stringify(dados).slice(0, 2000));
+      console.error("Webhook sem client.email:", JSON.stringify(aviso).slice(0, 2000));
 
       return new Response(JSON.stringify({ recebido: true, interpretado: false }), {
         status: 200,
@@ -311,23 +237,25 @@ Deno.serve(async (req: Request) => {
       .from("pagamentos")
       .insert({
         email,
-        nome,
+        nome: cliente.name || null,
         gateway: "applyfy",
-        referencia_externa: referencia,
+        referencia_externa: transacao.id || null,
+        identificador_externo: transacao.identifier || null,
         evento,
         status,
         plano,
-        valor,
-        payload: dados,
+        valor: transacao.amount ?? null,
+        expira_em: validade,
+        payload: aviso as unknown as Record<string, unknown>,
       })
       .select("id")
       .single();
 
     if (erroGravar) {
-      // Índice único disparando significa aviso repetido: a Applyfy reenviando
-      // o que já foi processado. Não é erro, é o mecanismo funcionando.
+      // Índice único disparando é aviso repetido, não falha: a Applyfy
+      // reenviando algo que já foi processado.
       if (erroGravar.code === "23505") {
-        console.log("Aviso repetido, já processado:", referencia);
+        console.log("Aviso repetido, já processado:", transacao.id);
 
         return new Response(JSON.stringify({ recebido: true, repetido: true }), {
           status: 200,
@@ -347,26 +275,23 @@ Deno.serve(async (req: Request) => {
       throw erroAplicar;
     }
 
-    console.log("Pagamento processado:", { email, status, plano, resultado });
+    console.log("Pagamento processado:", { evento, email, status, plano, resultado });
 
     return new Response(
-      JSON.stringify({ recebido: true, status, plano, resultado }),
+      JSON.stringify({ recebido: true, evento, status, plano, resultado }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   } catch (erro) {
-    // Responder 200 evita o laço de reenvio. O que aconteceu fica no log e,
-    // quase sempre, também em `pagamentos`.
+    // Responder 200 evita o laço de reenvio. O que houve fica no log e, quase
+    // sempre, também em `pagamentos`.
     console.error("Falha ao processar webhook da Applyfy:", erro);
 
-    return new Response(
-      JSON.stringify({ recebido: true, erro: String(erro) }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ recebido: true, erro: String(erro) }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
