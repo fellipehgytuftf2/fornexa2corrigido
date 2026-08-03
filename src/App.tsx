@@ -7,6 +7,7 @@ import Register from './pages/Register';
 import SupplierLogin from './pages/SupplierLogin';
 import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
+import Assinar from './pages/Assinar';
 import SupplierPortal from './pages/supplier/SupplierPortal';
 
 import DashboardLayout from './layouts/DashboardLayout';
@@ -25,6 +26,7 @@ import Settings from './pages/dashboard/Settings';
 
 import { supabase } from './lib/supabase';
 import { fetchSupplierAccount } from './lib/supplierAuth';
+import { planoEmDia } from './lib/planos';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -34,6 +36,8 @@ interface Profile {
   name: string;
   email: string;
   plan: string;
+  plan_status: string | null;
+  plan_expira_em: string | null;
   role: string;
 }
 
@@ -111,6 +115,7 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   const [checkingSession, setCheckingSession] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [redirectToPortal, setRedirectToPortal] = useState(false);
+  const [semPlano, setSemPlano] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -146,7 +151,7 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('name, email, plan, role')
+        .select('name, email, plan, plan_status, plan_expira_em, role')
         .eq('id', user.id)
         .maybeSingle<Profile>();
 
@@ -165,6 +170,10 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
           loggedAt: new Date().toISOString(),
         })
       );
+
+      // Sessão válida não é o bastante: o painel inteiro depende de plano em
+      // dia. Quem não tem cai em /planos em vez de ver telas que não pode usar.
+      setSemPlano(!planoEmDia(profile));
 
       setAuthenticated(true);
       setCheckingSession(false);
@@ -187,6 +196,10 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!authenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (semPlano) {
+    return <Navigate to="/planos" replace />;
   }
 
   return children;
@@ -219,6 +232,10 @@ function App() {
         {/* Recuperação de senha, comum a vendedor e fornecedor */}
         <Route path="/esqueci-senha" element={<EsqueciSenha />} />
         <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+
+        {/* Escolha de plano: exige sessão, mas de propósito não passa pelo
+            ProtectedRoute — é justamente para onde ele manda quem não pagou. */}
+        <Route path="/planos" element={<Assinar />} />
 
         {/* Portal do Fornecedor — área separada, não usa o DashboardLayout */}
         <Route path="/fornecedor/login" element={<SupplierLogin />} />
