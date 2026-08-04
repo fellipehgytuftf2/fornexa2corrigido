@@ -56,6 +56,11 @@ interface SupplierOrder {
   respostas_nao_lidas: number;
   /** Quando o vendedor declarou ter repassado o valor. Null = em aberto. */
   pago_em: string | null;
+  /** Quem vendeu: empresa, ou o nome pessoal quando não houver empresa. */
+  vendedor_nome: string | null;
+  vendedor_responsavel: string | null;
+  vendedor_whatsapp: string | null;
+  vendedor_email: string | null;
   marketplace: string;
   created_at: string;
 }
@@ -770,6 +775,51 @@ export default function SupplierPortal() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Quem vendeu. Com vários vendedores comprando do mesmo
+                          fornecedor, sem isto os pedidos chegam sem dono: não dá
+                          para separar por cliente, cobrar quem está devendo, nem
+                          emitir nota contra quem comprou. */}
+                      {order.vendedor_nome && (
+                        <div className="mt-6 rounded-xl bg-navy-900/60 border border-white/5 p-4">
+                          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500 mb-3">
+                            Vendedor
+                          </p>
+
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                {order.vendedor_nome}
+                              </p>
+
+                              {order.vendedor_responsavel &&
+                                order.vendedor_responsavel !== order.vendedor_nome && (
+                                  <p className="text-sm text-slate-400 mt-0.5">
+                                    Falar com {order.vendedor_responsavel}
+                                  </p>
+                                )}
+
+                              {order.vendedor_email && (
+                                <p className="text-sm text-slate-400 mt-0.5">
+                                  {order.vendedor_email}
+                                </p>
+                              )}
+                            </div>
+
+                            {order.vendedor_whatsapp && (
+                              <a
+                                href={`https://wa.me/55${order.vendedor_whatsapp.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/5"
+                              >
+                                <Phone className="w-4 h-4" aria-hidden="true" />
+                                {order.vendedor_whatsapp}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Dados de entrega — o que o fornecedor precisa para
                           separar, embalar e postar. */}

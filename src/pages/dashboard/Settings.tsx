@@ -49,6 +49,10 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
   const [carregando, setCarregando] = useState(true);
   const [nome, setNome] = useState('');
   const [nomeOriginal, setNomeOriginal] = useState('');
+  const [empresa, setEmpresa] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [salvandoContato, setSalvandoContato] = useState(false);
+  const [contatoSalvo, setContatoSalvo] = useState(false);
   const [email, setEmail] = useState('');
   const [plano, setPlano] = useState('free');
   const [statusPlano, setStatusPlano] = useState('inativo');
@@ -83,10 +87,12 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
       const { data: perfil } = await supabase
         .from('profiles')
-        .select('name, plan, plan_status, plan_expira_em, plan_origem')
+        .select('name, empresa, whatsapp, plan, plan_status, plan_expira_em, plan_origem')
         .eq('id', user.id)
         .maybeSingle<{
           name: string | null;
+          empresa: string | null;
+          whatsapp: string | null;
           plan: string | null;
           plan_status: string | null;
           plan_expira_em: string | null;
@@ -97,6 +103,8 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
       setNome(nomeAtual);
       setNomeOriginal(nomeAtual);
+      setEmpresa(perfil?.empresa || '');
+      setWhatsapp(perfil?.whatsapp || '');
       setPlano(perfil?.plan || 'free');
       setStatusPlano(perfil?.plan_status || 'inativo');
       setExpiraEm(perfil?.plan_expira_em || null);
@@ -106,6 +114,53 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
     carregar();
   }, []);
+
+  /**
+   * Guarda como o vendedor quer ser encontrado pelo fornecedor.
+   *
+   * Separado do nome de propósito: o nome é identidade da conta, isto é dado
+   * comercial que aparece do outro lado, no pedido que chega ao fornecedor.
+   */
+  const salvarContato = async () => {
+    setSalvandoContato(true);
+    setErro('');
+    setContatoSalvo(false);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSalvandoContato(false);
+      setErro('Faça login novamente.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        empresa: empresa.trim() || null,
+        whatsapp: whatsapp.trim() || null,
+      })
+      .eq('id', user.id)
+      .select('id');
+
+    setSalvandoContato(false);
+
+    if (error) {
+      console.error('Erro ao salvar contato:', error);
+      setErro(`Não foi possível salvar: ${error.message}`);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setErro('Nada foi salvo. Recarregue a página e tente de novo.');
+      return;
+    }
+
+    setContatoSalvo(true);
+    setTimeout(() => setContatoSalvo(false), 3000);
+  };
 
   const salvarNome = async () => {
     setSalvandoNome(true);
@@ -322,6 +377,83 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           >
             {salvandoSenha ? 'Alterando...' : 'Alterar senha'}
           </button>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-1">
+          Como o fornecedor te encontra
+        </h2>
+
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">
+          Aparece em todo pedido que chega ao seu fornecedor. Sem isso ele vê a
+          venda, mas não sabe que foi você — e com vários vendedores no mesmo
+          fornecedor, os pedidos viram um monte sem dono.
+        </p>
+
+        <div className="space-y-4">
+          <div>
+            <label
+              htmlFor="empresa"
+              className="block text-sm font-medium text-navy-900 dark:text-white mb-2"
+            >
+              Nome da sua loja ou empresa
+            </label>
+
+            <input
+              id="empresa"
+              value={empresa}
+              onChange={(evento) => setEmpresa(evento.target.value)}
+              placeholder="Ex.: Teodoro Comércio"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+              disabled={carregando}
+            />
+
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
+              Deixe vazio para o fornecedor ver seu nome pessoal.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="whatsapp"
+              className="block text-sm font-medium text-navy-900 dark:text-white mb-2"
+            >
+              WhatsApp
+            </label>
+
+            <input
+              id="whatsapp"
+              value={whatsapp}
+              onChange={(evento) => setWhatsapp(evento.target.value)}
+              placeholder="(11) 90000-0000"
+              inputMode="tel"
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+              disabled={carregando}
+            />
+
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
+              Para urgência que não pode esperar chamado. O fornecedor vê este
+              número; o comprador nunca.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={salvarContato}
+              disabled={salvandoContato || carregando}
+              className="px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+            >
+              {salvandoContato ? 'Salvando...' : 'Salvar contato'}
+            </button>
+
+            {contatoSalvo && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                <CheckCircle className="w-4 h-4" />
+                Salvo
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
