@@ -158,6 +158,32 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // 2b. O pagamento foi confirmado?
+  //     A view já esconde a etiqueta nesse caso, mas esta função é outra porta:
+  //     quem souber chamá-la direto contornaria a trava sem esforço nenhum.
+  //     Regra de dinheiro precisa valer em todas as entradas, não só na tela.
+  const { data: liberado, error: erroLiberado } = await admin.rpc(
+    'pedido_liberado_para_despacho',
+    { p_order_id: pedidoId }
+  );
+
+  if (erroLiberado) {
+    return json(
+      { error: `Não foi possível conferir o pagamento: ${erroLiberado.message}` },
+      500
+    );
+  }
+
+  if (liberado === false) {
+    return json(
+      {
+        error:
+          'A etiqueta fica disponível depois que você confirmar o recebimento do pagamento deste pedido.',
+      },
+      409
+    );
+  }
+
   // 3. Token do VENDEDOR dono do pedido — nunca do fornecedor.
   const { data: connection, error: connectionError } = await admin
     .from('ml_connections')

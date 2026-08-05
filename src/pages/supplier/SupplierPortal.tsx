@@ -56,6 +56,12 @@ interface SupplierOrder {
   respostas_nao_lidas: number;
   /** Quando o vendedor declarou ter repassado o valor. Null = em aberto. */
   pago_em: string | null;
+  /** Quando o próprio fornecedor confirmou que o dinheiro chegou. */
+  recebimento_confirmado_em: string | null;
+  /** Endereço e etiqueta estão trancados esperando o pagamento. */
+  aguardando_pagamento: boolean;
+  /** Este fornecedor exige pagamento antes do despacho. */
+  exige_pagamento_antecipado: boolean;
   /** Quem vendeu: empresa, ou o nome pessoal quando não houver empresa. */
   vendedor_nome: string | null;
   vendedor_responsavel: string | null;
@@ -154,6 +160,7 @@ export default function SupplierPortal() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('novos');
   const [actionId, setActionId] = useState<string | null>(null);
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [labelId, setLabelId] = useState<string | null>(null);
 
   /** Quantos pedidos entraram desde a última vez que o fornecedor olhou. */
@@ -540,6 +547,42 @@ export default function SupplierPortal() {
     );
   };
 
+  /**
+   * Carimbo do fornecedor de que o dinheiro chegou.
+   *
+   * É o único registro de pagamento que não depende da palavra de quem deve.
+   * Quando o fornecedor exige pagamento antecipado, é também o que destranca
+   * endereço e etiqueta — por isso recarrega a lista em vez de só mexer na
+   * linha: os campos ocultos passam a vir preenchidos.
+   */
+  const alternarRecebimento = async (order: SupplierOrder) => {
+    setConfirmandoId(order.id);
+    setErrorMessage('');
+
+    const confirmar = !order.recebimento_confirmado_em;
+
+    const { error } = await supabase.rpc('fornecedor_confirma_recebimento', {
+      p_order_id: order.id,
+      p_confirmado: confirmar,
+    });
+
+    setConfirmandoId(null);
+
+    if (error) {
+      console.error('Erro ao confirmar recebimento:', error);
+      setErrorMessage(`Não foi possível salvar: ${error.message}`);
+      return;
+    }
+
+    await loadOrders();
+
+    showSuccess(
+      confirmar
+        ? 'Recebimento confirmado. O pedido está liberado para despacho.'
+        : 'Confirmação desfeita.'
+    );
+  };
+
   const currentTab = tabs.find((tab) => tab.id === activeTab) || tabs[0];
 
   const countByTab = useMemo(() => {
@@ -757,15 +800,21 @@ export default function SupplierPortal() {
                               </span>
                             </p>
 
-                            {/* Só a data do repasse. O fornecedor não precisa
-                                saber quanto o vendedor lucrou para saber se já
-                                recebeu — e essa linha evita a pergunta "você já
-                                me pagou aquele pedido?" toda semana. */}
+                            {/* Dois carimbos, não um. O de cima é declaração do
+                                vendedor; o de baixo é o seu. Quem só tem o
+                                primeiro não tem confirmação de nada. */}
                             <p className="font-mono text-sm text-slate-400 tabular-nums">
                               Pagamento{' '}
-                              {order.pago_em ? (
+                              {order.recebimento_confirmado_em ? (
                                 <span className="text-green-400 text-base">
-                                  recebido em{' '}
+                                  confirmado em{' '}
+                                  {new Date(
+                                    order.recebimento_confirmado_em
+                                  ).toLocaleDateString('pt-BR')}
+                                </span>
+                              ) : order.pago_em ? (
+                                <span className="text-amber-400 text-base">
+                                  vendedor declarou em{' '}
                                   {new Date(order.pago_em).toLocaleDateString('pt-BR')}
                                 </span>
                               ) : (
@@ -775,6 +824,60 @@ export default function SupplierPortal() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Confirmação de recebimento.
+                          Fica sempre visível, mesmo para quem não exige
+                          pagamento antecipado: o carimbo do fornecedor é o
+                          único registro que não depende da palavra de quem
+                          deve. */}
+                      <div className="mt-6 rounded-xl bg-navy-900/60 border border-white/5 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                              Recebimento
+                            </p>
+
+                            <p className="text-sm text-white mt-1.5">
+                              {order.recebimento_confirmado_em
+                                ? 'Você confirmou que recebeu este pagamento.'
+                                : order.aguardando_pagamento
+                                  ? 'Endereço e etiqueta liberam quando você confirmar.'
+                                  : 'Confirme quando o dinheiro cair na sua conta.'}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => alternarRecebimento(order)}
+                            disabled={confirmandoId === order.id}
+                            className={
+                              order.recebimento_confirmado_em
+                                ? 'rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-50'
+                                : 'rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover disabled:opacity-50'
+                            }
+                          >
+                            {order.recebimento_confirmado_em
+                              ? 'Desfazer'
+                              : 'Confirmar recebimento'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Trava de despacho. O pedido continua aparecendo — o
+                          fornecedor precisa saber que existe venda para se
+                          organizar — mas o que permite despachar some. */}
+                      {order.aguardando_pagamento && (
+                        <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4">
+                          <p className="text-sm font-semibold text-amber-200">
+                            Aguardando pagamento
+                          </p>
+
+                          <p className="text-sm text-amber-200/80 mt-1.5 leading-relaxed">
+                            Endereço, telefone, documento do comprador e etiqueta
+                            ficam ocultos até você confirmar o recebimento. Assim o
+                            produto não sai antes de o dinheiro entrar.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Quem vendeu. Com vários vendedores comprando do mesmo
                           fornecedor, sem isto os pedidos chegam sem dono: não dá

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import AssinaturasAdmin from '../../components/dashboard/AssinaturasAdmin';
+import RepassesAdmin from '../../components/dashboard/RepassesAdmin';
 import {
   CSV_MODELO,
   lerArquivo,
@@ -1793,6 +1794,8 @@ export default function Admin() {
       )}
 
       <AssinaturasAdmin />
+
+      <RepassesAdmin />
     </div>
   );
 }
