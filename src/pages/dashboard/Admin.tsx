@@ -109,6 +109,7 @@ export default function Admin() {
 
   /** Formulário começa fechado: quem abre o Admin quase sempre vem ver a lista. */
   const [formAberto, setFormAberto] = useState(false);
+  const [listaAberta, setListaAberta] = useState(false);
 
   // --- Acesso do fornecedor ao Portal ---
   const [accessSupplierId, setAccessSupplierId] = useState<string | null>(null);
@@ -1668,21 +1669,59 @@ export default function Admin() {
         </div>
       </form>
 
-      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-4 shadow-sm">
-        <div className="relative">
-          <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+      {/* A lista abre e fecha igual ao formulário. Com centenas de produtos
+          importados, ela empurra para muito longe tudo o que vem depois —
+          fornecedores, assinaturas e repasses. */}
+      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setListaAberta((aberta) => !aberta)}
+          aria-expanded={listaAberta}
+          className={`w-full p-5 flex items-start justify-between gap-4 text-left hover:bg-gray-50 dark:hover:bg-navy-700/50 transition-colors ${
+            listaAberta ? 'border-b border-gray-200 dark:border-navy-700' : ''
+          }`}
+        >
+          <div>
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-navy-900 dark:text-white" />
 
-          <input
-            type="text"
-            placeholder="Buscar produto, categoria ou fornecedor..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+              <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+                Produtos do catálogo
+              </h2>
+            </div>
+
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+              {products.length === 0
+                ? 'Nenhum produto cadastrado ainda.'
+                : listaAberta
+                  ? `${products.length} produto(s) no catálogo.`
+                  : `${products.length} produto(s). Clique para abrir.`}
+            </p>
+          </div>
+
+          <ChevronDown
+            className={`w-5 h-5 text-gray-500 dark:text-slate-400 shrink-0 mt-1 transition-transform ${
+              listaAberta ? 'rotate-180' : ''
+            }`}
           />
+        </button>
+
+        <div className={listaAberta ? 'p-4' : 'hidden'}>
+          <div className="relative">
+            <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+
+            <input
+              type="text"
+              placeholder="Buscar produto, categoria ou fornecedor..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+            />
+          </div>
         </div>
       </div>
 
-      {loading ? (
+      {!listaAberta ? null : loading ? (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
           <div className="w-10 h-10 border-4 border-gray-200 border-t-black dark:border-navy-700 dark:border-t-white rounded-full animate-spin mx-auto" />
 
