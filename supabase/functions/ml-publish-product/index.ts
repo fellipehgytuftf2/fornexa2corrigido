@@ -105,6 +105,8 @@ interface PublishBody {
    * produto com uma foto só seguem funcionando sem este campo.
    */
   announcement_image_urls?: string[];
+  /** Unidades declaradas no anúncio. Ausente = 10, o padrão da tela. */
+  announcement_quantity?: number;
 }
 
 // Traduz erros conhecidos e recorrentes da API do Mercado Livre em mensagens
@@ -485,12 +487,26 @@ Deno.serve(async (req: Request) => {
     // de enviar, mesmo que o ideal seja também corrigir isso na origem.
     const precoFinal = Math.round(body.announcement_price * 100) / 100;
 
+    // Quantidade do anúncio, escolhida pelo vendedor na tela de preparação.
+    //
+    // Era fixa em 1, o que fazia o anúncio pausar por falta de estoque na
+    // primeira venda e sumir da busca até alguém repor na mão. Nada disso tem a
+    // ver com o estoque do fornecedor, que o FORNEXA não conhece: é só por
+    // quantas vendas o anúncio se sustenta.
+    //
+    // O piso de 1 existe porque o Mercado Livre recusa a publicação inteira com
+    // quantidade zero, e um campo apagado na tela não pode derrubar o anúncio.
+    const quantidadeDoAnuncio = Math.min(
+      999,
+      Math.max(1, Math.floor(Number(body.announcement_quantity) || 10))
+    );
+
     const itemPayload = {
       title: tituloFinal,
       category_id: categoryId,
       price: precoFinal,
       currency_id: "BRL",
-      available_quantity: 1,
+      available_quantity: quantidadeDoAnuncio,
       buying_mode: "buy_it_now",
       listing_type_id: listingTypeId,
       condition: "new",
