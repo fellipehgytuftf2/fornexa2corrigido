@@ -156,13 +156,11 @@ export default function MyProducts() {
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      const supplier = getSupplier(product);
-
+      // Sem busca por fornecedor: digitar o nome de um e ver os produtos dele
+      // filtrados revelaria o que a tela deixou de mostrar.
       return (
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.marketplace.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        supplier?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        supplier?.company_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        product.marketplace.toLowerCase().includes(searchTerm.toLowerCase())
       );
     });
   }, [products, searchTerm]);
@@ -461,6 +459,11 @@ export default function MyProducts() {
                     </div>
                   </div>
 
+                  {/* Quem fornece o produto não aparece aqui de propósito. O
+                      vendedor só precisa saber que o envio está garantido e em
+                      quanto tempo; a identidade do fornecedor entra depois da
+                      venda, na tela de Pedidos, onde ele precisa dela para
+                      pagar e resolver problema. */}
                   <div className="mt-5 bg-gray-50 dark:bg-navy-700 rounded-xl p-4">
                     <div className="flex items-start gap-3">
                       <Truck className="w-5 h-5 text-gray-600 dark:text-slate-400 mt-0.5" />
@@ -468,26 +471,17 @@ export default function MyProducts() {
                       <div>
                         <p className="text-sm font-medium text-navy-900 dark:text-white">
                           {productHasSupplier
-                            ? supplier?.name
+                            ? 'Envio pelo fornecedor'
                             : 'Fornecedor não vinculado'}
                         </p>
 
                         <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
                           {productHasSupplier
-                            ? `${supplier?.company_name || 'Empresa não informada'} · ${
-                                supplier?.city || ''
-                              }${supplier?.city && supplier?.state ? '/' : ''}${
-                                supplier?.state || ''
+                            ? `Prazo médio: ${
+                                supplier?.average_shipping_time || 'não informado'
                               }`
                             : 'Este produto precisa ter supplier_id para gerar pedido corretamente.'}
                         </p>
-
-                        {productHasSupplier && (
-                          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                            WhatsApp: {supplier?.whatsapp || 'Não informado'} · Envio:{' '}
-                            {supplier?.average_shipping_time || 'Não informado'}
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>

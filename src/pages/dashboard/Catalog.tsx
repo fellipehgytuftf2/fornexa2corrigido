@@ -11,14 +11,16 @@ import { supabase } from '../../lib/supabase';
 import { Product } from '../../types';
 import ProductModal from '../../components/dashboard/ProductModal';
 
+/**
+ * O que o catálogo busca do fornecedor.
+ *
+ * Reduzido ao mínimo de propósito: nome, empresa, contato e cidade não são
+ * buscados, para não chegarem ao navegador do vendedor. O tipo acompanha a
+ * consulta — se alguém voltar a pedir um campo, o TypeScript obriga a
+ * declará-lo aqui e a decisão volta a ficar visível.
+ */
 interface SupplierFromSupabase {
   id: string;
-  name: string;
-  company_name: string;
-  whatsapp: string;
-  email: string;
-  city: string;
-  state: string;
   average_shipping_time: string;
 }
 
@@ -44,7 +46,6 @@ export default function Catalog() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Todos');
-  const [selectedSupplier, setSelectedSupplier] = useState('Todos');
   const [ordem, setOrdem] = useState<'recentes' | 'preco-asc' | 'preco-desc' | 'nome'>(
     'recentes'
   );
@@ -72,12 +73,6 @@ export default function Catalog() {
         created_at,
         suppliers (
           id,
-          name,
-          company_name,
-          whatsapp,
-          email,
-          city,
-          state,
           average_shipping_time
         )
       `)
@@ -109,12 +104,18 @@ export default function Catalog() {
           stock: Number(product.stock || 0),
 
           supplierId: product.supplier_id,
-          supplierName: supplier?.name || null,
-          supplierCompanyName: supplier?.company_name || null,
-          supplierWhatsapp: supplier?.whatsapp || null,
-          supplierEmail: supplier?.email || null,
-          supplierCity: supplier?.city || null,
-          supplierState: supplier?.state || null,
+
+          // Nome, empresa, WhatsApp, e-mail e cidade do fornecedor deixaram de
+          // ser buscados. Esconder na tela e continuar enviando ao navegador
+          // não esconderia nada: bastaria abrir o inspetor. O prazo de envio
+          // fica, porque o vendedor precisa dele para decidir o anúncio e não
+          // identifica ninguém.
+          supplierName: null,
+          supplierCompanyName: null,
+          supplierWhatsapp: null,
+          supplierEmail: null,
+          supplierCity: null,
+          supplierState: null,
           supplierShippingTime: supplier?.average_shipping_time || null,
         };
       }
@@ -133,31 +134,22 @@ export default function Catalog() {
     return ['Todos', ...[...encontradas].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
   }, [products]);
 
-  const fornecedores = useMemo(() => {
-    const encontrados = new Set(
-      products.map((produto) => produto.supplierName || '').filter(Boolean)
-    );
-    return ['Todos', ...[...encontrados].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
-  }, [products]);
-
   const filteredProducts = useMemo(() => {
     const busca = searchTerm.trim().toLowerCase();
 
     const encontrados = products.filter((product) => {
+      // Sem busca por fornecedor: digitar o nome de um e ver o catálogo dele
+      // filtrado revelaria exatamente o que a tela deixou de mostrar.
       const matchesSearch =
         !busca ||
         product.name.toLowerCase().includes(busca) ||
         product.description.toLowerCase().includes(busca) ||
-        product.category.toLowerCase().includes(busca) ||
-        Boolean(product.supplierName?.toLowerCase().includes(busca));
+        product.category.toLowerCase().includes(busca);
 
       const matchesCategory =
         selectedCategory === 'Todos' || product.category === selectedCategory;
 
-      const matchesSupplier =
-        selectedSupplier === 'Todos' || product.supplierName === selectedSupplier;
-
-      return matchesSearch && matchesCategory && matchesSupplier;
+      return matchesSearch && matchesCategory;
     });
 
     // Cópia antes de ordenar: sort altera o array original, e o original aqui
@@ -168,15 +160,14 @@ export default function Catalog() {
       if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');
       return 0; // recentes: mantém a ordem que veio do banco
     });
-  }, [products, searchTerm, selectedCategory, selectedSupplier, ordem]);
+  }, [products, searchTerm, selectedCategory, ordem]);
 
   const filtroAtivo =
-    Boolean(searchTerm.trim()) || selectedCategory !== 'Todos' || selectedSupplier !== 'Todos';
+    Boolean(searchTerm.trim()) || selectedCategory !== 'Todos';
 
   const limparFiltros = () => {
     setSearchTerm('');
     setSelectedCategory('Todos');
-    setSelectedSupplier('Todos');
   };
 
   const totalPaginas = Math.max(1, Math.ceil(filteredProducts.length / PRODUTOS_POR_PAGINA));
@@ -185,7 +176,7 @@ export default function Catalog() {
   // estando na página 3 mostraria uma lista vazia sem explicação.
   useEffect(() => {
     setPaginaAtual(1);
-  }, [searchTerm, selectedCategory, selectedSupplier, ordem]);
+  }, [searchTerm, selectedCategory, ordem]);
 
   const produtosDaPagina = useMemo(() => {
     const inicio = (paginaAtual - 1) * PRODUTOS_POR_PAGINA;
@@ -279,22 +270,6 @@ export default function Catalog() {
             </select>
           )}
 
-          {/* Só com mais de um fornecedor: com um só, não filtra nada. */}
-          {fornecedores.length > 2 && (
-            <select
-              value={selectedSupplier}
-              onChange={(event) => setSelectedSupplier(event.target.value)}
-              aria-label="Filtrar por fornecedor"
-              className="h-11 px-3 rounded-lg bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-sm text-navy-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-            >
-              {fornecedores.map((fornecedor) => (
-                <option key={fornecedor} value={fornecedor}>
-                  {fornecedor === 'Todos' ? 'Todos os fornecedores' : fornecedor}
-                </option>
-              ))}
-            </select>
-          )}
-
           <select
             value={ordem}
             onChange={(event) => setOrdem(event.target.value as typeof ordem)}
@@ -371,10 +346,6 @@ export default function Catalog() {
                 <h3 className="text-navy-900 dark:text-white font-bold text-sm line-clamp-2 min-h-[2.5rem]">
                   {product.name}
                 </h3>
-
-                <p className="text-xs text-gray-500 dark:text-slate-400 line-clamp-1">
-                  {product.supplierName || 'Fornecedor não vinculado'}
-                </p>
 
                 <div className="bg-gray-50 dark:bg-navy-700 rounded-lg p-2">
                   <p className="text-[10px] text-gray-500 dark:text-slate-400">
