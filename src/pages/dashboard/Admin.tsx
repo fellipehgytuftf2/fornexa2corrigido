@@ -169,9 +169,34 @@ export default function Admin() {
   const [resumoDoSite, setResumoDoSite] = useState('');
 
   /**
-   * Lê o catálogo direto do site do fornecedor. A função do servidor procura
-   * dados estruturados no padrão que o Google exige — por isso funciona em
-   * lojas diferentes sem código específico para cada uma.
+   * O que a função de leitura devolve.
+   *
+   * Nomeada em vez de escrita direto na chamada porque a resposta carrega o
+   * ponto de continuação, que volta como argumento da chamada seguinte — e o
+   * TypeScript não consegue inferir um tipo que depende de si mesmo.
+   */
+  interface RespostaDoSite {
+    produtos?: ProdutoImportado[];
+    paginas_lidas?: number;
+    total_disponivel?: number;
+    proximo_offset?: number | null;
+    origem_da_lista?: string;
+    sem_preco?: number;
+    aviso?: string | null;
+    error?: string;
+  }
+
+  /**
+   * Lê o catálogo direto do site do fornecedor.
+   *
+   * A função do servidor procura os dados estruturados que o Google exige —
+   * JSON-LD ou microdata —, por isso funciona em lojas diferentes sem código
+   * específico para cada uma.
+   *
+   * Catálogo grande não cabe numa chamada só: o servidor devolve de onde
+   * continuar e esta função vai pedindo o resto até acabar, mostrando o
+   * progresso. Sem isso, uma loja de trezentos itens trazia os primeiros e
+   * parecia que o site estava incompleto.
    */
   const lerSiteDoFornecedor = async () => {
     setLendoSite(true);
@@ -180,54 +205,89 @@ export default function Admin() {
     setImportProdutos([]);
     setImportErros([]);
 
-    const { data, error } = await supabase.functions.invoke<{
-      produtos?: ProdutoImportado[];
-      paginas_lidas?: number;
-      sem_preco?: number;
-      aviso?: string | null;
-      error?: string;
-    }>('importar-catalogo-por-link', {
-      body: { url: importLink.trim() },
-    });
+    const acumulados: ProdutoImportado[] = [];
+    let offset: number | null = 0;
+    let paginas = 0;
+    let semPreco = 0;
+    let ultimoAviso: string | null = null;
 
-    setLendoSite(false);
+    // Teto de segurança: se o servidor devolvesse sempre o mesmo ponto de
+    // continuação, isto impede a tela de ficar pedindo para sempre.
+    for (let rodada = 0; rodada < 40 && offset !== null; rodada++) {
+      const resposta: {
+        data: RespostaDoSite | null;
+        error: unknown;
+      } = await supabase.functions.invoke<RespostaDoSite>(
+        'importar-catalogo-por-link',
+        { body: { url: importLink.trim(), offset } }
+      );
 
-    if (error || !data) {
-      let mensagem: string | undefined = data?.error;
+      const { data, error } = resposta;
 
-      const contexto = (
-        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
-      )?.context;
+      if (error || !data) {
+        let mensagem: string | undefined = data?.error;
 
-      if (!mensagem && contexto?.json) {
-        try {
-          const corpo = await contexto.json();
-          mensagem = corpo?.error;
-        } catch {
-          // segue com a mensagem genérica
+        const contexto = (
+          error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+        )?.context;
+
+        if (!mensagem && contexto?.json) {
+          try {
+            const corpo = await contexto.json();
+            mensagem = corpo?.error;
+          } catch {
+            // segue com a mensagem genérica
+          }
         }
+
+        setLendoSite(false);
+
+        // Falha no meio não descarta o que já veio: melhor entregar parte do
+        // catálogo do que obrigar a começar tudo de novo.
+        if (acumulados.length > 0) {
+          setImportProdutos(acumulados);
+          setResumoDoSite(
+            `${acumulados.length} produto(s) lidos antes da leitura falhar. ` +
+              'Você pode importar estes e rodar de novo para pegar o resto.'
+          );
+          return;
+        }
+
+        setErrorMessage(mensagem ?? 'Não foi possível ler o site do fornecedor.');
+        return;
       }
 
-      setErrorMessage(mensagem ?? 'Não foi possível ler o site do fornecedor.');
-      return;
+      acumulados.push(...(data.produtos ?? []));
+      paginas += data.paginas_lidas ?? 0;
+      semPreco += data.sem_preco ?? 0;
+      ultimoAviso = data.aviso ?? null;
+      offset = data.proximo_offset ?? null;
+
+      // Mostra o andamento a cada rodada, para catálogo grande não parecer
+      // travado enquanto o servidor trabalha.
+      if (offset !== null) {
+        setResumoDoSite(
+          `Lendo... ${acumulados.length} produto(s) até agora, de ${data.total_disponivel ?? '?'} páginas do site.`
+        );
+      }
     }
 
-    const encontrados = data.produtos ?? [];
-
-    setImportProdutos(encontrados);
+    setLendoSite(false);
     setImportArquivo('');
+    setImportProdutos(acumulados);
 
-    if (data.aviso) {
-      setImportErros([{ linha: 0, motivo: data.aviso }]);
+    if (acumulados.length === 0 && ultimoAviso) {
+      setImportErros([{ linha: 0, motivo: ultimoAviso }]);
+      setResumoDoSite('');
       return;
     }
 
     const partes = [
-      `${encontrados.length} produto(s) encontrados em ${data.paginas_lidas ?? 0} página(s)`,
+      `${acumulados.length} produto(s) encontrados em ${paginas} página(s)`,
     ];
 
-    if (data.sem_preco) {
-      partes.push(`${data.sem_preco} sem preço, ignorados`);
+    if (semPreco) {
+      partes.push(`${semPreco} sem preço, ignorados`);
     }
 
     partes.push('estoque vem zerado: o site não informa quantidade');

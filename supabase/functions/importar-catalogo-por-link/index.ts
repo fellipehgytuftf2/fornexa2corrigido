@@ -32,11 +32,19 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-/** Teto de páginas por importação, para não estourar o tempo da função. */
-const MAX_PAGINAS = 60;
+/**
+ * Teto de páginas por chamada, para não estourar o tempo da função.
+ *
+ * Catálogo maior que isso não fica pela metade: a resposta devolve de onde
+ * continuar, e o painel chama de novo até terminar.
+ */
+const POR_CHAMADA = 120;
 
-/** Quantas páginas busca ao mesmo tempo. Baixo de propósito: é site de terceiro. */
-const SIMULTANEAS = 5;
+/** Quando não há sitemap, quantos links da página vale a pena tentar. */
+const MAX_LINKS_DA_PAGINA = 60;
+
+/** Quantas páginas busca ao mesmo tempo. Contido de propósito: é site de terceiro. */
+const SIMULTANEAS = 8;
 
 const TIMEOUT_POR_PAGINA = 12000;
 
@@ -114,6 +122,65 @@ function coletarLinks(html: string, base: string): string[] {
   }
 
   return [...encontrados];
+}
+
+/**
+ * Endereços de produto pelo sitemap.
+ *
+ * Caminho preferido, e por larga margem. Caçar links na página inicial pega o
+ * que estiver em destaque naquele dia e ignora o resto do catálogo — numa loja
+ * com centenas de itens, o importador trazia algumas dezenas e parecia que o
+ * site é que estava incompleto. O sitemap é a lista que a própria loja publica
+ * para o Google, então é o catálogo inteiro, sem adivinhação.
+ */
+async function urlsPeloSitemap(base: string): Promise<string[]> {
+  const raiz = new URL(base).origin;
+
+  const buscarXml = async (endereco: string): Promise<string | null> => {
+    try {
+      const resposta = await fetch(endereco, {
+        signal: AbortSignal.timeout(TIMEOUT_POR_PAGINA),
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FornexaBot/1.0)' },
+      });
+
+      return resposta.ok ? await resposta.text() : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const locs = (xml: string) =>
+    [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)].map((achado) => achado[1]);
+
+  const indice = await buscarXml(`${raiz}/sitemap.xml`);
+
+  if (!indice) {
+    return [];
+  }
+
+  const primeiroNivel = locs(indice);
+
+  // Índice de sitemaps: aponta para outros arquivos em vez de páginas. Só
+  // interessam os de produto — marca e categoria não têm o que importar.
+  const filhosDeProduto = primeiroNivel.filter(
+    (endereco) => endereco.endsWith('.xml') && /produt|product/i.test(endereco)
+  );
+
+  if (filhosDeProduto.length === 0) {
+    return primeiroNivel.filter((endereco) => !endereco.endsWith('.xml'));
+  }
+
+  const paginas: string[] = [];
+
+  for (const filho of filhosDeProduto) {
+    const xml = await buscarXml(filho);
+
+    if (xml) {
+      paginas.push(...locs(xml));
+    }
+  }
+
+  return paginas;
 }
 
 /** Todos os blocos JSON-LD da página, já convertidos em objeto. */
@@ -231,14 +298,167 @@ function lerCategoria(produto: Record<string, unknown>, blocos: unknown[]): stri
   return 'Geral';
 }
 
+// ---------------------------------------------------------------------------
+// Microdata
+// ---------------------------------------------------------------------------
+// Segundo caminho de leitura, para as lojas que marcam o produto com atributos
+// `itemprop` no próprio HTML em vez de publicar um bloco JSON-LD.
+//
+// É o mesmo vocabulário schema.org, só que espalhado pela página. A Loja
+// Integrada, que atende milhares de lojistas no Brasil, marca assim — e sem
+// isto o importador devolvia zero produto num catálogo inteiro, sem explicar
+// que o problema era o formato e não o site.
+
+/**
+ * Recorta o bloco do produto principal.
+ *
+ * Uma página de produto costuma declarar vários `schema.org/Product`: o item em
+ * si e os "produtos relacionados" do rodapé. Os relacionados se identificam por
+ * `itemprop="isRelatedTo"` na mesma tag — sem essa distinção, o importador
+ * leria o preço do produto errado.
+ */
+function recortarProdutoPrincipal(html: string): string | null {
+  const abertura = /<[^>]*itemtype=["'][^"']*schema\.org\/Product["'][^>]*>/gi;
+
+  let achado: RegExpExecArray | null;
+
+  while ((achado = abertura.exec(html))) {
+    if (/itemprop=["']isRelatedTo["']/i.test(achado[0])) {
+      continue;
+    }
+
+    const depoisDaTag = achado.index + achado[0].length;
+
+    // Vai até o próximo Product, que é onde começam os relacionados.
+    const proximo = html
+      .slice(depoisDaTag)
+      .search(/<[^>]*itemtype=["'][^"']*schema\.org\/Product["']/i);
+
+    return proximo === -1
+      ? html.slice(achado.index)
+      : html.slice(achado.index, depoisDaTag + proximo);
+  }
+
+  return null;
+}
+
+/**
+ * Valor de um `itemprop`.
+ *
+ * O padrão permite três lugares para o mesmo dado, e todos aparecem na prática:
+ * o atributo `content`, o `src`/`href` do elemento, ou o texto entre as tags.
+ */
+function lerItemprop(bloco: string, nome: string): string {
+  const padrao = new RegExp(
+    `<([a-z0-9]+)([^>]*itemprop=["']${nome}["'][^>]*)>`,
+    'i'
+  );
+
+  const achado = bloco.match(padrao);
+
+  if (!achado || achado.index === undefined) {
+    return '';
+  }
+
+  const tag = achado[1].toLowerCase();
+  const atributos = achado[2];
+
+  const content = atributos.match(/content=["']([^"']*)["']/i);
+
+  if (content) {
+    return content[1].trim();
+  }
+
+  if (tag === 'img') {
+    const src = atributos.match(/src=["']([^"']*)["']/i);
+    if (src) return src[1].trim();
+  }
+
+  if (tag === 'a' || tag === 'link') {
+    const href = atributos.match(/href=["']([^"']*)["']/i);
+    if (href) return href[1].trim();
+  }
+
+  const depois = bloco.slice(achado.index + achado[0].length);
+  const fechamento = depois.search(new RegExp(`</${tag}`, 'i'));
+
+  return (fechamento === -1 ? depois : depois.slice(0, fechamento))
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Categoria a partir da trilha de navegação em HTML puro.
+ *
+ * Usada quando não há `BreadcrumbList` estruturado. Pega o item mais específico
+ * antes do nome do produto — em "Início > Gato > Petisco Churu", devolve
+ * "Gato".
+ */
+function lerCategoriaDoHtml(html: string): string {
+  const trilha = html.match(/<[^>]*class=["'][^"']*breadcrumb[^"']*["'][^>]*>([\s\S]{0,1200})/i);
+
+  if (!trilha) {
+    return 'Geral';
+  }
+
+  const itens = trilha[1]
+    .replace(/<[^>]*>/g, '\n')
+    .split('\n')
+    .map((item) => item.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  // Sem o último, que é o próprio produto; do mais específico para o mais geral.
+  for (const item of itens.slice(0, -1).reverse()) {
+    if (item.length > 1 && item.length < 60 && !TERMOS_GENERICOS.has(semAcento(item))) {
+      return item;
+    }
+  }
+
+  return 'Geral';
+}
+
+function extrairPorMicrodata(html: string, url: string): ProdutoLido | null {
+  const bloco = recortarProdutoPrincipal(html);
+
+  if (!bloco) {
+    return null;
+  }
+
+  const nome = lerItemprop(bloco, 'name');
+
+  if (!nome) {
+    return null;
+  }
+
+  const preco = Number(lerItemprop(bloco, 'price').replace(/[^\d,.-]/g, '').replace(',', '.'));
+
+  const disponibilidade = lerItemprop(bloco, 'availability').toLowerCase();
+  const imagem = lerItemprop(bloco, 'image');
+
+  return {
+    name: nome,
+    description: lerItemprop(bloco, 'description') || nome,
+    category: lerItemprop(bloco, 'category') || lerCategoriaDoHtml(html),
+    supplier_price: Number.isFinite(preco) ? preco : 0,
+    stock: 0,
+    image_url: imagem.startsWith('http') ? imagem : '',
+    images: [],
+    sku: lerItemprop(bloco, 'sku'),
+    origem: url,
+    disponivel: !disponibilidade || disponibilidade.includes('instock'),
+  };
+}
+
 function extrairProduto(html: string, url: string): ProdutoLido | null {
   const blocos = lerBlocosJsonLd(html);
   const bruto = blocos.find((bloco) => ehTipo(bloco, 'Product')) as
     | Record<string, unknown>
     | undefined;
 
+  // Sem JSON-LD, tenta o mesmo vocabulário marcado no HTML.
   if (!bruto) {
-    return null;
+    return extrairPorMicrodata(html, url);
   }
 
   const nome = String(bruto.name ?? '').trim();
@@ -326,7 +546,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Apenas administradores podem importar catálogo.' }, 403);
   }
 
-  let payload: { url?: string };
+  let payload: { url?: string; offset?: number };
 
   try {
     payload = await req.json();
@@ -356,24 +576,38 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Endereço inválido. Exemplo: https://loja.com.br' }, 400);
   }
 
+  const offset = Math.max(0, Number(payload.offset) || 0);
+
+  // O sitemap é a lista que a própria loja publica: é o catálogo inteiro, não
+  // só o que estava em destaque na página inicial.
+  let candidatas = await urlsPeloSitemap(endereco);
+  let veioDoSitemap = candidatas.length > 0;
+
   const inicial = await buscar(endereco);
 
-  if (!inicial) {
+  if (!inicial && !veioDoSitemap) {
     return json(
       { error: 'Não foi possível abrir esse endereço. Confira o link e tente de novo.' },
       422
     );
   }
 
-  // A própria página pode ser um produto — é o caso de colar a URL de um item.
-  const daPagina = extrairProduto(inicial, endereco);
+  if (!veioDoSitemap && inicial) {
+    candidatas = coletarLinks(inicial, endereco).slice(0, MAX_LINKS_DA_PAGINA);
+    veioDoSitemap = false;
+  }
 
-  const links = coletarLinks(inicial, endereco).slice(0, MAX_PAGINAS);
+  const total = candidatas.length;
+  const fatia = candidatas.slice(offset, offset + POR_CHAMADA);
 
-  const lidos = await emLotes(links, SIMULTANEAS, async (link) => {
+  const lidos = await emLotes(fatia, SIMULTANEAS, async (link) => {
     const html = await buscar(link);
     return html ? extrairProduto(html, link) : null;
   });
+
+  // A própria página pode ser um produto — é o caso de colar a URL de um item.
+  // Só na primeira chamada, para não repetir a cada continuação.
+  const daPagina = offset === 0 && inicial ? extrairProduto(inicial, endereco) : null;
 
   const encontrados = [daPagina, ...lidos].filter(Boolean) as ProdutoLido[];
 
@@ -387,14 +621,18 @@ Deno.serve(async (req: Request) => {
   const produtos = [...porChave.values()].filter((produto) => produto.supplier_price > 0);
 
   const semPreco = porChave.size - produtos.length;
+  const restam = offset + fatia.length < total;
 
   return json({
     produtos,
-    paginas_lidas: links.length + 1,
+    paginas_lidas: fatia.length + (daPagina ? 1 : 0),
+    total_disponivel: total,
+    proximo_offset: restam ? offset + fatia.length : null,
+    origem_da_lista: veioDoSitemap ? 'sitemap' : 'links da página',
     sem_preco: semPreco,
     aviso:
-      produtos.length === 0
-        ? 'Nenhum produto com dados estruturados foi encontrado. O site pode não publicar esse padrão, ou o catálogo pode estar em outro endereço do mesmo domínio.'
+      produtos.length === 0 && !restam
+        ? 'Nenhum produto foi encontrado. O site pode não publicar dados estruturados, ou o catálogo pode estar em outro endereço do mesmo domínio.'
         : null,
   });
 });
