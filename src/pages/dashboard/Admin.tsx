@@ -1363,7 +1363,7 @@ export default function Admin() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 dark:bg-navy-700 sticky top-0">
                         <tr>
-                          {['Produto', 'Categoria', 'Preço', 'Estoque', 'Fotos'].map(
+                          {['Produto', 'Categoria', 'Preço', 'Fotos'].map(
                             (coluna) => (
                               <th
                                 key={coluna}
@@ -1379,19 +1379,26 @@ export default function Admin() {
                       <tbody className="divide-y divide-gray-200 dark:divide-navy-700">
                         {importProdutos.map((produto, indice) => (
                           <tr key={`${produto.name}-${indice}`}>
-                            <td className="px-4 py-2.5 text-navy-900 dark:text-white">
+                            <td className="px-4 py-2.5 text-navy-900 dark:text-white align-top max-w-md">
                               {produto.name}
+
+                              {/* A descrição é o que vai virar o texto do
+                                  anúncio. Conferir depois de importar custa
+                                  bem mais caro do que conferir agora. */}
+                              {produto.description &&
+                                produto.description !== produto.name && (
+                                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">
+                                    {produto.description}
+                                  </p>
+                                )}
                             </td>
-                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
+                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400 align-top">
                               {produto.category}
                             </td>
-                            <td className="px-4 py-2.5 text-navy-900 dark:text-white">
+                            <td className="px-4 py-2.5 text-navy-900 dark:text-white align-top whitespace-nowrap">
                               {formatCurrency(produto.supplier_price)}
                             </td>
-                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
-                              {produto.stock}
-                            </td>
-                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400">
+                            <td className="px-4 py-2.5 text-gray-600 dark:text-slate-400 align-top">
                               {(produto.image_url ? 1 : 0) + produto.images.length}
                             </td>
                           </tr>
@@ -1608,22 +1615,6 @@ export default function Admin() {
 
           <div>
             <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
-              Estoque
-            </label>
-
-            <input
-              type="number"
-              value={form.stock}
-              onChange={(event) => setForm({ ...form, stock: event.target.value })}
-              placeholder="100"
-              min="0"
-              step="1"
-              className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
               Status
             </label>
 
@@ -1756,16 +1747,6 @@ export default function Admin() {
 
                       <p className="text-sm font-bold text-navy-900 dark:text-white mt-1">
                         {formatCurrency(product.supplier_price)}
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 dark:text-slate-400">
-                        Estoque
-                      </p>
-
-                      <p className="text-sm font-bold text-navy-900 dark:text-white mt-1">
-                        {product.stock} un.
                       </p>
                     </div>
 

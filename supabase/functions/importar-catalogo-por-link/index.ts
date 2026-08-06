@@ -260,6 +260,13 @@ const TERMOS_GENERICOS = new Set([
   'catalogo',
   'todos',
   'todos os produtos',
+  // Rótulos de ficha técnica que aparecem logo depois da trilha em muitas
+  // lojas, e que já viraram "categoria" por engano aqui.
+  'marca',
+  'marca:',
+  'codigo',
+  'codigo:',
+  'sku',
 ]);
 
 const semAcento = (texto: string) =>
@@ -395,27 +402,40 @@ function lerItemprop(bloco: string, nome: string): string {
  * antes do nome do produto — em "Início > Gato > Petisco Churu", devolve
  * "Gato".
  */
-function lerCategoriaDoHtml(html: string): string {
-  const trilha = html.match(/<[^>]*class=["'][^"']*breadcrumb[^"']*["'][^>]*>([\s\S]{0,1200})/i);
+function lerCategoriaDoHtml(html: string, nomeDoProduto: string): string {
+  const inicio = html.search(/<[^>]*class=["'][^"']*breadcrumb/i);
 
-  if (!trilha) {
+  if (inicio === -1) {
     return 'Geral';
   }
 
-  const itens = trilha[1]
-    .replace(/<[^>]*>/g, '\n')
-    .split('\n')
-    .map((item) => item.replace(/\s+/g, ' ').trim())
-    .filter(Boolean);
+  const resto = html.slice(inicio);
 
-  // Sem o último, que é o próprio produto; do mais específico para o mais geral.
-  for (const item of itens.slice(0, -1).reverse()) {
-    if (item.length > 1 && item.length < 60 && !TERMOS_GENERICOS.has(semAcento(item))) {
-      return item;
-    }
-  }
+  // Corta no fim da lista. A primeira versão pegava um punhado de caracteres
+  // depois da trilha e acabava alcançando o que vem em seguida na página —
+  // "Código:", "Marca:", o nome da marca. O resultado eram catálogos inteiros
+  // categorizados como "YANPET" ou, pior, como "Marca:".
+  const fim = resto.search(/<\/(ul|nav|ol)>/i);
 
-  return 'Geral';
+  const trecho = (fim === -1 ? resto.slice(0, 1200) : resto.slice(0, fim))
+    // Loja pode deixar o item do produto comentado no HTML; comentário não é
+    // conteúdo e não pode virar categoria.
+    .replace(/<!--[\s\S]*?-->/g, '');
+
+  const itens = [
+    ...trecho.matchAll(/<(?:a|span|strong|li)[^>]*>([\s\S]*?)<\/(?:a|span|strong|li)>/gi),
+  ]
+    .map((achado) => achado[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((item) => item.length > 1 && item.length < 60)
+    .filter((item) => !TERMOS_GENERICOS.has(semAcento(item)))
+    // O último item da trilha costuma ser o próprio produto, mas nem sempre —
+    // algumas lojas o omitem. Comparar pelo nome funciona nos dois casos;
+    // descartar a última posição às cegas jogaria fora a categoria quando ela
+    // fosse a última.
+    .filter((item) => semAcento(item) !== semAcento(nomeDoProduto));
+
+  // O mais específico é o mais próximo do produto, ou seja, o último.
+  return itens.length > 0 ? itens[itens.length - 1] : 'Geral';
 }
 
 /** Mesma foto em tamanhos diferentes tem o mesmo caminho fora da medida. */
@@ -498,7 +518,7 @@ function extrairPorMicrodata(html: string, url: string): ProdutoLido | null {
   return {
     name: nome,
     description: lerItemprop(bloco, 'description') || nome,
-    category: lerItemprop(bloco, 'category') || lerCategoriaDoHtml(html),
+    category: lerItemprop(bloco, 'category') || lerCategoriaDoHtml(html, nome),
     supplier_price: Number.isFinite(preco) ? preco : 0,
     stock: 0,
     image_url: imagens[0] ?? '',

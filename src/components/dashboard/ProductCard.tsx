@@ -21,12 +21,6 @@ export default function ProductCard({ product, onRegister }: ProductCardProps) {
           {product.name}
         </h3>
 
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-            Em estoque: {product.stock}
-          </span>
-        </div>
-
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs text-gray-500 dark:text-slate-400">

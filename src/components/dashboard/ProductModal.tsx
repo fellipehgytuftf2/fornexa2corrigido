@@ -438,9 +438,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         {product.description}
                       </p>
 
-                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">
-                        Estoque disponível: {product.stock} unidade(s)
-                      </p>
                     </div>
                   </div>
                 </div>
