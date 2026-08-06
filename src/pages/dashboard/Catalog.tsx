@@ -248,7 +248,7 @@ export default function Catalog() {
             type="search"
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Buscar produto, categoria ou fornecedor"
+            placeholder="Buscar produto ou categoria"
             aria-label="Buscar no catálogo"
             className="w-full h-11 pl-10 pr-4 rounded-lg bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-sm text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
           />
@@ -346,6 +346,14 @@ export default function Catalog() {
                 <h3 className="text-navy-900 dark:text-white font-bold text-sm line-clamp-2 min-h-[2.5rem]">
                   {product.name}
                 </h3>
+
+                {/* O catálogo só traz produto ativo, então "em estoque" vale
+                    para todos os que chegam aqui. É sinal de disponibilidade,
+                    não quantidade — quem tem o número é o fornecedor. */}
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
+                  Em estoque
+                </p>
 
                 <div className="bg-gray-50 dark:bg-navy-700 rounded-lg p-2">
                   <p className="text-[10px] text-gray-500 dark:text-slate-400">

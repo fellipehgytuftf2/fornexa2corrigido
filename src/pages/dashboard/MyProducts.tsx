@@ -364,7 +364,7 @@ export default function MyProducts() {
 
           <input
             type="text"
-            placeholder="Buscar produto, marketplace ou fornecedor..."
+            placeholder="Buscar produto ou marketplace..."
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
