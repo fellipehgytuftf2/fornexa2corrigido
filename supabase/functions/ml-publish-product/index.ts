@@ -138,6 +138,25 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
     return "O preço informado não é aceito pelo Mercado Livre para esta categoria. Revise o valor de venda.";
   }
 
+  // Vem sem `cause`, só com `error` no corpo — por isso é testado pela mensagem
+  // e pelo campo de erro, e não pelos códigos de causa.
+  const erro = String(itemData?.error ?? "");
+
+  if (
+    erro.includes("listing_type.temporarily_unavailable") ||
+    message.toLowerCase().includes("listing type is temporarily unavailable")
+  ) {
+    return (
+      'O Mercado Livre respondeu que o anúncio grátis está indisponível no momento e pediu para tentar de novo. ' +
+      'Aguarde alguns minutos e publique outra vez. ' +
+      'Se o erro insistir, é provável que a cota de anúncios grátis da sua conta tenha acabado — nesse caso só dá para publicar como anúncio pago, que tem comissão por venda.'
+    );
+  }
+
+  if (causeCodes.includes("item.available_quantity")) {
+    return "O Mercado Livre não aceitou a quantidade de unidades deste anúncio. Anúncio grátis aceita apenas 1 unidade.";
+  }
+
   return null;
 }
 
