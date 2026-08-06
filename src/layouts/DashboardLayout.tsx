@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   DollarSign,
@@ -88,17 +88,6 @@ const navigationItems: NavigationItem[] = [
 
 const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
 
-/** Nome do plano em português. O banco guarda o identificador, não o rótulo. */
-const rotulosDePlano: Record<string, string> = {
-  free: 'Gratuito',
-  basico: 'Básico',
-  premium: 'Premium',
-  start: 'Start',
-  pro: 'Pro',
-  enterprise: 'Enterprise',
-  lifetime: 'Vitalício',
-};
-
 interface SavedUser {
   id?: string;
   name?: string;
@@ -129,8 +118,6 @@ export default function DashboardLayout() {
   const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
-  const [plano, setPlano] = useState<string | null>(null);
-  const [statusPlano, setStatusPlano] = useState<string | null>(null);
   const [checkingRole, setCheckingRole] = useState(true);
 
   useEffect(() => {
@@ -159,17 +146,13 @@ export default function DashboardLayout() {
 
       const { data } = await supabase
         .from('profiles')
-        .select('role, plan, plan_status')
+        .select('role')
         .eq('id', user.id)
-        .maybeSingle<{ role: string | null; plan: string | null; plan_status: string | null }>();
+        .maybeSingle<{ role: string | null }>();
 
+      // Só o papel: o plano deixou de aparecer no menu e agora é lido
+      // direto do banco em Configurações, que é onde ele é mostrado.
       setUserRole(data?.role || 'user');
-
-      // Lido do banco, não do localStorage. O que está guardado no navegador
-      // é de quando a pessoa entrou; quem pagou depois disso continuaria
-      // vendo o plano antigo até sair e entrar de novo.
-      setPlano(data?.plan || null);
-      setStatusPlano(data?.plan_status || null);
 
       setCheckingRole(false);
     };
@@ -219,7 +202,22 @@ export default function DashboardLayout() {
     !checkingRole && isAdminOnlyRoute && userRole !== 'admin';
 
   const firstName = savedUser?.name?.split(' ')[0] || 'Vendedor';
-const isDashboardHome = location.pathname === '/dashboard';
+
+  /** Iniciais para o selo da conta: primeira e última palavra do nome. */
+  const iniciaisDaConta = (() => {
+    const partes = (savedUser?.name || '').trim().split(/\s+/).filter(Boolean);
+
+    if (partes.length === 0) {
+      return 'U';
+    }
+
+    const primeira = partes[0][0];
+    const ultima = partes.length > 1 ? partes[partes.length - 1][0] : '';
+
+    return (primeira + ultima).toUpperCase();
+  })();
+
+  const isDashboardHome = location.pathname === '/dashboard';
 
   const headerSubtitle = isDashboardHome
     ? 'Vamos aumentar seu faturamento hoje? Seu próximo anúncio pode ser seu próximo lucro.'
@@ -311,31 +309,13 @@ const isDashboardHome = location.pathname === '/dashboard';
 
         <div className="flex-1 overflow-y-auto p-4">{renderNavigation()}</div>
 
+        {/* E-mail e plano saíram daqui: ficavam expostos o tempo todo, em toda
+            tela, para quem estivesse olhando junto. Agora só em Configurações,
+            e a identidade da conta vive no topo. */}
         <div className="p-4 border-t border-gray-200 dark:border-navy-700">
-          <div className="mb-4">
-            <p className="text-sm font-semibold text-navy-900 dark:text-white truncate">
-              {savedUser?.name || 'Usuário'}
-            </p>
-
-            <p className="text-xs text-gray-500 dark:text-slate-400 truncate mt-1">
-              {savedUser?.email || 'Conta FORNEXA'}
-            </p>
-
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-              Plano: {rotulosDePlano[plano || ''] || plano || '—'}
-              {statusPlano === 'ativo' ? '' : ' (inativo)'}
-            </p>
-
-            {userRole === 'admin' && (
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">
-                Admin FORNEXA
-              </p>
-            )}
-          </div>
-
           <button
             onClick={handleLogout}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-semibold transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 text-sm font-semibold transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Sair
@@ -407,20 +387,48 @@ const isDashboardHome = location.pathname === '/dashboard';
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={handleToggleTheme}
+                aria-label={darkMode ? 'Usar tema claro' : 'Usar tema escuro'}
                 className="p-2 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-navy-800 transition-colors"
               >
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
+              {/* Identidade da conta.
+                  Sobe da barra lateral para cá, e sem e-mail nem plano: quem
+                  usa o painel na frente de um cliente ou numa gravação de tela
+                  não precisa expor os dois. Eles continuam em Configurações,
+                  que é onde se vai para conferir isso de propósito. */}
+              <Link
+                to="/dashboard/settings"
+                title="Ver conta e plano em Configurações"
+                className="flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl border border-gray-200 dark:border-navy-700 hover:bg-gray-50 dark:hover:bg-navy-800 transition-colors"
+              >
+                <span className="w-8 h-8 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 flex items-center justify-center text-xs font-bold shrink-0">
+                  {iniciaisDaConta}
+                </span>
+
+                <span className="hidden sm:flex flex-col leading-tight text-left">
+                  <span className="text-sm font-semibold text-navy-900 dark:text-white max-w-[140px] truncate">
+                    {savedUser?.name || 'Usuário'}
+                  </span>
+
+                  {userRole === 'admin' && (
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-slate-400">
+                      Administrador
+                    </span>
+                  )}
+                </span>
+              </Link>
+
               <button
                 onClick={handleLogout}
-                className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-navy-800 text-sm font-medium transition-colors"
+                aria-label="Sair da conta"
+                className="p-2 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 transition-colors"
               >
-                <LogOut className="w-4 h-4" />
-                Sair
+                <LogOut className="w-5 h-5" />
               </button>
             </div>
           </div>
