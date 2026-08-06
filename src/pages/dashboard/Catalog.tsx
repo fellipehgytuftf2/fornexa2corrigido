@@ -376,26 +376,14 @@ export default function Catalog() {
                   {product.supplierName || 'Fornecedor não vinculado'}
                 </p>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-gray-50 dark:bg-navy-700 rounded-lg p-2">
-                    <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                      Preço
-                    </p>
+                <div className="bg-gray-50 dark:bg-navy-700 rounded-lg p-2">
+                  <p className="text-[10px] text-gray-500 dark:text-slate-400">
+                    Preço
+                  </p>
 
-                    <p className="text-xs font-bold text-navy-900 dark:text-white">
-                      {formatCurrency(product.supplierPrice)}
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 dark:bg-navy-700 rounded-lg p-2">
-                    <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                      Estoque
-                    </p>
-
-                    <p className="text-xs font-bold text-navy-900 dark:text-white">
-                      {product.stock} un.
-                    </p>
-                  </div>
+                  <p className="text-xs font-bold text-navy-900 dark:text-white">
+                    {formatCurrency(product.supplierPrice)}
+                  </p>
                 </div>
 
                 <div className="w-full px-3 py-1.5 rounded-lg bg-black text-white text-xs font-semibold text-center">

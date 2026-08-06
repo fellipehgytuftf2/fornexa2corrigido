@@ -43,20 +43,6 @@ const MAX_TITULO = 60;
 /** O Mercado Livre recusa a publicação inteira se vierem mais de 10 fotos. */
 const MAX_FOTOS = 10;
 
-/**
- * Quantas unidades o anúncio declara ter.
- *
- * Não é o estoque do fornecedor — esse número ninguém no FORNEXA conhece. É
- * por quantas vendas o anúncio se sustenta antes de o Mercado Livre pausá-lo
- * por falta de estoque.
- *
- * Dez é um meio-termo deliberado. Com 1, o anúncio sai do ar na primeira venda
- * e some da busca até alguém repor na mão. Com um número alto demais, você
- * vende o que o fornecedor não tem — e cancelar venda é das coisas que mais
- * queimam reputação no Mercado Livre.
- */
-const QUANTIDADE_PADRAO = 10;
-const MAX_QUANTIDADE = 999;
 
 /**
  * Título sugerido, já dentro do limite do Mercado Livre.
@@ -92,7 +78,6 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   useTravaScrollDeFundo(true);
 
   const [marginPercentage, setMarginPercentage] = useState<string>('40');
-  const [quantidade, setQuantidade] = useState<string>(String(QUANTIDADE_PADRAO));
 
   /**
    * Título e fotos do anúncio, editáveis. Começam no que veio do catálogo e o
@@ -170,12 +155,6 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const contaDaVenda = calcularVenda(finalPrice, supplierPrice);
   const margemMinima = margemMinimaSemPrejuizo(supplierPrice);
 
-  // Campo vazio ou zero derrubaria o anúncio na hora; o Mercado Livre recusa
-  // quantidade menor que 1.
-  const quantidadeValida = Math.min(
-    MAX_QUANTIDADE,
-    Math.max(1, Math.floor(Number(quantidade) || QUANTIDADE_PADRAO))
-  );
 
   const hasLinkedSupplier = Boolean(product.supplierId);
 
@@ -294,7 +273,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         announcement_price: finalPrice,
         announcement_image_url: fotos[0] || product.image,
         announcement_image_urls: fotos.slice(1),
-        announcement_quantity: quantidadeValida,
       },
     });
 
@@ -738,34 +716,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </p>
                       </div>
 
-                      {/* Quantidade do anúncio.
-                          Não é o estoque do fornecedor — é por quantas vendas o
-                          anúncio se sustenta antes de o Mercado Livre pausá-lo. */}
-                      <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600">
-                        <label
-                          htmlFor="quantidade-anuncio"
-                          className="block text-xs text-gray-500 dark:text-slate-400 mb-2"
-                        >
-                          Unidades no anúncio
-                        </label>
-
-                        <input
-                          id="quantidade-anuncio"
-                          type="number"
-                          min={1}
-                          max={MAX_QUANTIDADE}
-                          step={1}
-                          value={quantidade}
-                          onChange={(event) => setQuantidade(event.target.value)}
-                          className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
-                        />
-
-                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-2 leading-relaxed">
-                          {quantidadeValida === 1
-                            ? 'Com 1 unidade, o anúncio sai do ar assim que vender e some da busca até você repor.'
-                            : `O anúncio aguenta ${quantidadeValida} vendas antes de pausar por falta de estoque. Não prometa mais do que o fornecedor tem: cancelar venda queima reputação no Mercado Livre.`}
-                        </p>
-                      </div>
 
                       {/* O que sobra de verdade.
                           Sem este bloco a tela mostrava "lucro" ignorando a
