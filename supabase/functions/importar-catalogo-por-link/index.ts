@@ -418,6 +418,65 @@ function lerCategoriaDoHtml(html: string): string {
   return 'Geral';
 }
 
+/** Mesma foto em tamanhos diferentes tem o mesmo caminho fora da medida. */
+const semMedida = (endereco: string) => endereco.replace(/\/\d+x\d+\//, '/');
+
+/**
+ * Todas as fotos do produto, e só elas.
+ *
+ * O microdata marca uma imagem só, mas a galeria costuma ter várias — e mais
+ * fotos no anúncio vendem melhor. O problema é separar foto de produto de
+ * bandeira de cartão e selo de frete, que também são imagens dentro do mesmo
+ * bloco.
+ *
+ * O critério é a pasta: a galeria de um produto mora junto da foto principal,
+ * enquanto logos ficam em diretórios de tema. Funciona sem lista de nomes
+ * proibidos, que envelheceria a cada loja nova.
+ *
+ * A mesma foto aparece repetida em vários tamanhos (miniatura, média, zoom);
+ * de cada uma fica a maior, que é a que o Mercado Livre aproveita.
+ */
+function coletarImagensDoBloco(bloco: string, principal: string): string[] {
+  if (!principal.startsWith('http')) {
+    return [];
+  }
+
+  const pasta = semMedida(principal).replace(/\/[^/]*$/, '/');
+  const melhores = new Map<string, { url: string; area: number }>();
+
+  const padrao =
+    /(?:src|content|data-[a-z-]+)=["'](https?:\/\/[^"']+?\.(?:jpe?g|png|webp))(?:\?[^"']*)?["']/gi;
+
+  for (const achado of bloco.matchAll(padrao)) {
+    const endereco = achado[1];
+    const identidade = semMedida(endereco);
+
+    if (!identidade.startsWith(pasta)) {
+      continue;
+    }
+
+    const medida = endereco.match(/\/(\d+)x(\d+)\//);
+    const area = medida ? Number(medida[1]) * Number(medida[2]) : 0;
+
+    const atual = melhores.get(identidade);
+
+    if (!atual || area > atual.area) {
+      melhores.set(identidade, { url: endereco, area });
+    }
+  }
+
+  const lista = [...melhores.values()].map((item) => item.url);
+
+  // A principal precisa ser a primeira: é a que vira capa do anúncio.
+  const posicao = lista.findIndex((item) => semMedida(item) === semMedida(principal));
+
+  if (posicao > 0) {
+    lista.unshift(lista.splice(posicao, 1)[0]);
+  }
+
+  return lista.slice(0, 10);
+}
+
 function extrairPorMicrodata(html: string, url: string): ProdutoLido | null {
   const bloco = recortarProdutoPrincipal(html);
 
@@ -434,7 +493,7 @@ function extrairPorMicrodata(html: string, url: string): ProdutoLido | null {
   const preco = Number(lerItemprop(bloco, 'price').replace(/[^\d,.-]/g, '').replace(',', '.'));
 
   const disponibilidade = lerItemprop(bloco, 'availability').toLowerCase();
-  const imagem = lerItemprop(bloco, 'image');
+  const imagens = coletarImagensDoBloco(bloco, lerItemprop(bloco, 'image'));
 
   return {
     name: nome,
@@ -442,8 +501,8 @@ function extrairPorMicrodata(html: string, url: string): ProdutoLido | null {
     category: lerItemprop(bloco, 'category') || lerCategoriaDoHtml(html),
     supplier_price: Number.isFinite(preco) ? preco : 0,
     stock: 0,
-    image_url: imagem.startsWith('http') ? imagem : '',
-    images: [],
+    image_url: imagens[0] ?? '',
+    images: imagens.slice(1),
     sku: lerItemprop(bloco, 'sku'),
     origem: url,
     disponivel: !disponibilidade || disponibilidade.includes('instock'),
