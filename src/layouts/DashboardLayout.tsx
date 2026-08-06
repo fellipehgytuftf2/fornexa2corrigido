@@ -307,20 +307,10 @@ export default function DashboardLayout() {
           </p>
         </div>
 
+        {/* O rodapé do menu sumiu por inteiro: nome, e-mail e plano foram para
+            o topo ou para Configurações, e o Sair já existe lá em cima. Dois
+            botões de sair na mesma tela só dividem a atenção. */}
         <div className="flex-1 overflow-y-auto p-4">{renderNavigation()}</div>
-
-        {/* E-mail e plano saíram daqui: ficavam expostos o tempo todo, em toda
-            tela, para quem estivesse olhando junto. Agora só em Configurações,
-            e a identidade da conta vive no topo. */}
-        <div className="p-4 border-t border-gray-200 dark:border-navy-700">
-          <button
-            onClick={handleLogout}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-200 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:hover:border-red-800 text-sm font-semibold transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sair
-          </button>
-        </div>
       </aside>
 
       {sidebarOpen && (
@@ -351,16 +341,6 @@ export default function DashboardLayout() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">{renderNavigation()}</div>
-
-            <div className="p-4 border-t border-gray-200 dark:border-navy-700">
-              <button
-                onClick={handleLogout}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-semibold transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                Sair
-              </button>
-            </div>
           </aside>
         </div>
       )}
