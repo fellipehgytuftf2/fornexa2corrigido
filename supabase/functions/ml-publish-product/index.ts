@@ -487,19 +487,29 @@ Deno.serve(async (req: Request) => {
     // de enviar, mesmo que o ideal seja também corrigir isso na origem.
     const precoFinal = Math.round(body.announcement_price * 100) / 100;
 
-    // Quantidade do anúncio, escolhida pelo vendedor na tela de preparação.
+    // Quantidade do anúncio.
     //
-    // Era fixa em 1, o que fazia o anúncio pausar por falta de estoque na
-    // primeira venda e sumir da busca até alguém repor na mão. Nada disso tem a
-    // ver com o estoque do fornecedor, que o FORNEXA não conhece: é só por
-    // quantas vendas o anúncio se sustenta.
+    // O ANÚNCIO GRÁTIS ACEITA UMA UNIDADE E SÓ. O Mercado Livre recusa a
+    // publicação inteira com 400 e a mensagem:
     //
-    // O piso de 1 existe porque o Mercado Livre recusa a publicação inteira com
-    // quantidade zero, e um campo apagado na tela não pode derrubar o anúncio.
-    const quantidadeDoAnuncio = Math.min(
-      999,
-      Math.max(1, Math.floor(Number(body.announcement_quantity) || 10))
-    );
+    //   "Available quantity max. value is 1 for category MLB1893,
+    //    condition new and listing type free"
+    //
+    // Como a função prefere o tipo grátis sempre que ele existe — para não
+    // cobrar do vendedor —, na prática quase todo anúncio daqui cai nesse
+    // limite. Subir a quantidade sem olhar o tipo derrubou a publicação de
+    // todos os produtos.
+    //
+    // Em anúncio pago o limite não existe, e aí vale usar mais de uma unidade:
+    // com 1, o anúncio pausa por falta de estoque na primeira venda e some da
+    // busca até alguém repor na mão. Nada disso tem a ver com o estoque do
+    // fornecedor, que o FORNEXA não conhece — é só por quantas vendas o
+    // anúncio se sustenta.
+    const ehAnuncioGratis = listingTypeId === "free";
+
+    const quantidadeDoAnuncio = ehAnuncioGratis
+      ? 1
+      : Math.min(999, Math.max(1, Math.floor(Number(body.announcement_quantity) || 10)));
 
     const itemPayload = {
       title: tituloFinal,
