@@ -4,7 +4,6 @@ import {
   CheckCircle,
   Package,
   Search,
-  ShoppingCart,
   Store,
   Trash2,
   Truck,
@@ -41,29 +40,6 @@ interface UserProduct {
   created_at: string;
   suppliers?: SupplierFromSupabase | SupplierFromSupabase[] | null;
 }
-
-const demoCustomers = [
-  {
-    name: 'Mariana Costa',
-    email: 'mariana@email.com',
-    phone: '(11) 99999-1001',
-  },
-  {
-    name: 'Lucas Almeida',
-    email: 'lucas@email.com',
-    phone: '(21) 98888-2002',
-  },
-  {
-    name: 'Fernanda Souza',
-    email: 'fernanda@email.com',
-    phone: '(31) 97777-3003',
-  },
-  {
-    name: 'Rafael Santos',
-    email: 'rafael@email.com',
-    phone: '(41) 96666-4004',
-  },
-];
 
 export default function MyProducts() {
   const [products, setProducts] = useState<UserProduct[]>([]);
@@ -216,60 +192,6 @@ export default function MyProducts() {
 
     await loadProducts();
     showSuccess('Produto excluído com sucesso.');
-  };
-
-  const handleRegisterSale = async (product: UserProduct) => {
-    const supplier = getSupplier(product);
-
-    if (!product.supplier_id || !supplier) {
-      setErrorMessage('Este produto não tem fornecedor vinculado. Não é possível registrar venda.');
-      return;
-    }
-
-    setActionId(product.id);
-    setErrorMessage('');
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setActionId(null);
-      setErrorMessage('Sessão não encontrada. Faça login novamente.');
-      return;
-    }
-
-    const customer = demoCustomers[Math.floor(Math.random() * demoCustomers.length)];
-
-    const { error } = await supabase.from('orders').insert({
-      user_id: user.id,
-      product_id: product.id,
-      product_name: product.name,
-      product_image_url: product.image_url,
-      customer_name: customer.name,
-      customer_email: customer.email,
-      customer_phone: customer.phone,
-      supplier_id: product.supplier_id,
-      supplier_name: supplier.name,
-      supplier_whatsapp: supplier.whatsapp,
-      supplier_price: product.supplier_price,
-      sale_price: product.sale_price,
-      profit: product.margin,
-      status: 'sent_to_supplier',
-      marketplace: product.marketplace || 'Mercado Livre',
-      tracking_code: '',
-    });
-
-    setActionId(null);
-
-    if (error) {
-      console.error('Erro ao registrar venda:', error);
-      setErrorMessage(`Não foi possível registrar a venda: ${error.message}`);
-      return;
-    }
-
-    showSuccess('Venda registrada e pedido criado com fornecedor correto.');
   };
 
   return (
@@ -486,24 +408,19 @@ export default function MyProducts() {
                     </div>
                   </div>
 
+                  {/* O botão "Registrar venda" saiu daqui.
+                      Ele era sobra de demonstração: criava um pedido com
+                      comprador sorteado de uma lista fixa no código. Parecia
+                      registrar uma venda feita fora do Mercado Livre, e
+                      qualquer vendedor clicaria achando isso.
+                      Em 2026-08-06 um vendedor clicou três vezes e mandou três
+                      pedidos falsos, com compradores inventados, direto para o
+                      portal de um fornecedor real — que quase separou e postou
+                      mercadoria para gente que não existe.
+                      Venda de verdade entra sozinha pelo webhook do Mercado
+                      Livre. Se um dia fizer falta registrar venda de fora,
+                      precisa ser um formulário pedindo o comprador real. */}
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={() => handleRegisterSale(product)}
-                      disabled={actionId === product.id || !productHasSupplier}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-                    >
-                      {actionId === product.id ? (
-                        <>
-                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Processando...
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingCart className="w-4 h-4" />
-                          Registrar venda
-                        </>
-                      )}
-                    </button>
 
                     <button
                       onClick={() => handleDeleteProduct(product.id)}
