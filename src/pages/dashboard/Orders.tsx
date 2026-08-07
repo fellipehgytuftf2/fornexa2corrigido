@@ -457,12 +457,6 @@ export default function Orders() {
     return 'Pedido finalizado';
   };
 
-  const generateTrackingCode = () => {
-    const random = Math.floor(100000 + Math.random() * 900000);
-
-    return `FX${random}`;
-  };
-
   const handleAdvanceStatus = async (order: Order) => {
     const nextStatus = getNextStatus(order.status);
 
@@ -473,13 +467,17 @@ export default function Orders() {
     setActionId(order.id);
     setErrorMessage('');
 
+    // Só o status. O código de rastreio era inventado aqui quando o pedido
+    // virava "enviado" sem código — um "FX" seguido de seis dígitos ao acaso.
+    // Ele ia para o portal do fornecedor como se fosse rastreio de verdade, e
+    // de lá podia chegar ao comprador, que digitaria no site dos Correios e
+    // não acharia nada.
+    //
+    // Rastreio real vem do Mercado Livre, gravado por `ml-sync-orders` a
+    // partir do envio. Vazio é resposta honesta enquanto ele não existe.
     const payload: Partial<Order> = {
       status: nextStatus,
     };
-
-    if (nextStatus === 'shipped' && !order.tracking_code) {
-      payload.tracking_code = generateTrackingCode();
-    }
 
     const { error } = await supabase
       .from('orders')
