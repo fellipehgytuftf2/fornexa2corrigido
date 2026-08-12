@@ -25,6 +25,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import AssinaturasAdmin from '../../components/dashboard/AssinaturasAdmin';
 import RepassesAdmin from '../../components/dashboard/RepassesAdmin';
+import AcessosAdmin from '../../components/dashboard/AcessosAdmin';
 import {
   CSV_MODELO,
   lerArquivo,
@@ -1872,6 +1873,8 @@ export default function Admin() {
           </p>
         </div>
       )}
+
+      <AcessosAdmin />
 
       <AssinaturasAdmin />
 
