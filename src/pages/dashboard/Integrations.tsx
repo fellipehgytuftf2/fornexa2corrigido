@@ -21,8 +21,36 @@ interface MlConnection {
   updated_at: string;
 }
 
+/** Uma pendência do cadastro no Mercado Livre, já em linguagem de gente. */
+interface Pendencia {
+  codigo: string;
+  titulo: string;
+  oQueFazer: string;
+  onde: string;
+}
+
+/**
+ * Diagnóstico da conta do Mercado Livre.
+ *
+ * Estar conectado não é o mesmo que estar apto a vender: o Mercado Livre
+ * recusa anúncio de conta com cadastro pendente, e o vendedor descobria isso
+ * só ao clicar em publicar, depois de montar o anúncio inteiro.
+ */
+interface StatusDaConta {
+  conectado: boolean;
+  apto: boolean;
+  pode_vender?: boolean;
+  pode_anunciar?: boolean;
+  apelido?: string | null;
+  erro_de_leitura?: boolean;
+  mensagem?: string;
+  pendencias: Pendencia[];
+}
+
 export default function Integrations() {
   const [connection, setConnection] = useState<MlConnection | null>(null);
+  const [statusDaConta, setStatusDaConta] = useState<StatusDaConta | null>(null);
+  const [conferindoConta, setConferindoConta] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -58,11 +86,27 @@ export default function Integrations() {
     if (data) {
       setConnection(data);
       setLoading(false);
+
+      // Conectar não é o mesmo que estar apto a vender. A conta pode estar
+      // ligada e mesmo assim ser recusada pelo Mercado Livre por pendência de
+      // cadastro — e antes disso o vendedor só descobria no último passo, ao
+      // clicar em publicar, depois de montar o anúncio inteiro.
+      conferirStatusDaConta();
       return;
     }
 
     setConnection(null);
+    setStatusDaConta(null);
     setLoading(false);
+  };
+
+  const conferirStatusDaConta = async () => {
+    setConferindoConta(true);
+
+    const { data } = await supabase.functions.invoke<StatusDaConta>('ml-status-conta');
+
+    setStatusDaConta(data ?? null);
+    setConferindoConta(false);
   };
 
   useEffect(() => {
@@ -86,6 +130,9 @@ export default function Integrations() {
       );
       window.history.replaceState({}, '', window.location.pathname);
     }
+    // Roda uma vez, na entrada da tela. Incluir `loadConnection` nas
+    // dependências refaria a consulta a cada render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showSuccess = (message: string) => {
@@ -324,6 +371,100 @@ export default function Integrations() {
                     </div>
                   ))}
                 </dl>
+
+                {/* Diagnóstico do cadastro no Mercado Livre.
+                    Conectar não basta: a conta pode estar ligada e mesmo assim
+                    ter todo anúncio recusado por pendência de cadastro. Antes
+                    disso o vendedor só descobria ao clicar em publicar, com uma
+                    mensagem genérica de recusa, depois de montar o anúncio
+                    inteiro. */}
+                {conferindoConta && (
+                  <div className="mx-5 mb-5 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Conferindo se a conta está apta a vender...
+                  </div>
+                )}
+
+                {!conferindoConta && statusDaConta?.erro_de_leitura && (
+                  <div className="mx-5 mb-5 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      {statusDaConta.mensagem}
+                    </p>
+                  </div>
+                )}
+
+                {!conferindoConta && statusDaConta?.apto && (
+                  <div className="mx-5 mb-5 flex items-start gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4">
+                    <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      Conta apta a vender. Seus anúncios podem ser publicados
+                      normalmente.
+                    </p>
+                  </div>
+                )}
+
+                {!conferindoConta &&
+                  statusDaConta &&
+                  !statusDaConta.apto &&
+                  !statusDaConta.erro_de_leitura && (
+                    <div className="mx-5 mb-5 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-5">
+                      <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+
+                        <div>
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                            O Mercado Livre ainda não liberou esta conta para
+                            vender
+                          </p>
+
+                          <p className="text-sm text-red-700 dark:text-red-300 mt-1.5 leading-relaxed">
+                            Enquanto isso, qualquer anúncio será recusado — pelo
+                            FORNEXA ou pelo painel do próprio Mercado Livre. A
+                            pendência é no cadastro da conta e só você pode
+                            resolver.
+                          </p>
+                        </div>
+                      </div>
+
+                      {statusDaConta.pendencias.length > 0 && (
+                        <ol className="mt-4 space-y-3">
+                          {statusDaConta.pendencias.map((pendencia, indice) => (
+                            <li
+                              key={pendencia.codigo}
+                              className="flex gap-3 rounded-lg bg-white dark:bg-navy-800 border border-red-200 dark:border-red-900 p-3"
+                            >
+                              <span className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 text-xs font-bold flex items-center justify-center shrink-0">
+                                {indice + 1}
+                              </span>
+
+                              <div>
+                                <p className="text-sm font-semibold text-navy-900 dark:text-white">
+                                  {pendencia.titulo}
+                                </p>
+
+                                <p className="text-sm text-gray-600 dark:text-slate-400 mt-1 leading-relaxed">
+                                  {pendencia.oQueFazer}
+                                </p>
+
+                                <p className="text-xs font-medium text-gray-500 dark:text-slate-500 mt-1.5">
+                                  {pendencia.onde}
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+
+                      <button
+                        onClick={conferirStatusDaConta}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 text-sm font-semibold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Já resolvi, conferir de novo
+                      </button>
+                    </div>
+                  )}
 
                 <div className="px-5 pb-5">
                   <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">

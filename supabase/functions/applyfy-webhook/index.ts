@@ -79,9 +79,34 @@ interface AvisoApplyfy {
   event?: string;
   token?: string;
   offerCode?: string | null;
+  checkoutUrl?: string;
   client?: Cliente;
   transaction?: Transacao;
   subscription?: Assinatura | null;
+}
+
+/**
+ * Código de quem indicou a venda.
+ *
+ * A Applyfy devolve em `checkoutUrl` o endereço exato que o comprador abriu,
+ * com todos os parâmetros — sessão, oferta e afiliação. O afiliado vem em
+ * `code`, confirmado no disparo de teste da própria plataforma.
+ *
+ * Nulo quer dizer venda direta, que é o caso das duas primeiras vendas reais.
+ */
+function lerAfiliado(checkoutUrl: string | undefined): string | null {
+  if (!checkoutUrl) {
+    return null;
+  }
+
+  try {
+    const codigo = new URL(checkoutUrl).searchParams.get("code");
+    return codigo?.trim() || null;
+  } catch {
+    // Endereço malformado não pode derrubar o processamento do pagamento:
+    // saber quem indicou vale bem menos que liberar o acesso de quem pagou.
+    return null;
+  }
 }
 
 /** O que cada evento faz com o acesso. */
@@ -246,6 +271,7 @@ Deno.serve(async (req: Request) => {
         plano,
         valor: transacao.amount ?? null,
         expira_em: validade,
+        afiliado: lerAfiliado(aviso.checkoutUrl),
         payload: aviso as unknown as Record<string, unknown>,
       })
       .select("id")

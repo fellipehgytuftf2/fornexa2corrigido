@@ -1,0 +1,198 @@
+// ============================================================================
+// FORNEXA — ml-status-conta
+// ============================================================================
+// Responde se a conta do Mercado Livre do vendedor está apta a vender, e o que
+// falta quando não está.
+//
+// POR QUE EXISTE
+// A mesma checagem já era feita dentro de `ml-publish-product`, mas só no
+// instante da publicação — depois de o vendedor escolher o produto, ajustar
+// margem, revisar título e fotos. Quem estava bloqueado só descobria no fim, e
+// muitas vezes com a mensagem genérica de recusa.
+//
+// Descobrir isso na tela de Integrações, logo depois de conectar, é a diferença
+// entre "resolvo meu cadastro hoje" e "esse sistema não funciona".
+//
+// O Mercado Livre devolve o diagnóstico em GET /users/{id}, no campo `status`:
+//
+//   status.sell.allow    pode vender?
+//   status.list.allow    pode anunciar?
+//   status.billing.allow pode faturar?
+//   status.*.codes       o que impede, em código
+//   mercadoenvios        "not_accepted" quando não aceitou os termos
+//
+// Só lê. Nada aqui altera conta, nem no Mercado Livre nem no FORNEXA.
+// ============================================================================
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { chavePublica, chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+interface Pendencia {
+  codigo: string;
+  titulo: string;
+  oQueFazer: string;
+  onde: string;
+}
+
+/**
+ * Traduz os códigos do Mercado Livre em tarefas que o vendedor consegue fazer.
+ *
+ * O código cru não ajuda ninguém: "rejected_by_regulations" não diz que a
+ * saída é abrir um CNPJ. Cada item aqui responde três coisas — o que está
+ * errado, o que fazer e onde fazer.
+ */
+function traduzirPendencias(status: Record<string, any>, dados: Record<string, any>): Pendencia[] {
+  const pendencias: Pendencia[] = [];
+
+  const codigos = new Set<string>([
+    ...(status?.sell?.codes ?? []),
+    ...(status?.list?.codes ?? []),
+    ...(status?.billing?.codes ?? []),
+  ]);
+
+  if (codigos.has("address_pending")) {
+    pendencias.push({
+      codigo: "address_pending",
+      titulo: "Endereço fiscal incompleto",
+      oQueFazer:
+        "Complete o endereço da sua conta com CEP, número e complemento. O Mercado Livre precisa dele para emitir nota.",
+      onde: "Mercado Livre → Meu perfil → Endereço",
+    });
+  }
+
+  if (codigos.has("rejected_by_regulations")) {
+    pendencias.push({
+      codigo: "rejected_by_regulations",
+      titulo: "Conta não autorizada a vender",
+      oQueFazer:
+        "É a pendência fiscal. Na prática exige CNPJ — o MEI resolve, sai em um dia — e o emissor de nota fiscal ativo no Faturador.",
+      onde: "Mercado Livre → Configurações → Faturador",
+    });
+  }
+
+  // Conta pessoal do Mercado Pago não vende. Não vem como código de bloqueio,
+  // mas é causa frequente do bloqueio acima — vale aparecer junto.
+  if (dados?.status?.mercadopago_account_type === "personal") {
+    pendencias.push({
+      codigo: "mercadopago_personal",
+      titulo: "Conta do Mercado Pago é pessoal",
+      oQueFazer:
+        "Vender exige conta de vendedor, não pessoal. A troca é feita no próprio Mercado Pago e costuma pedir CNPJ.",
+      onde: "Mercado Pago → Seu perfil → Tipo de conta",
+    });
+  }
+
+  if (dados?.status?.mercadoenvios === "not_accepted") {
+    pendencias.push({
+      codigo: "mercadoenvios_not_accepted",
+      titulo: "Mercado Envios não aceito",
+      oQueFazer:
+        "Aceite os termos do Mercado Envios. Sem isso, seus anúncios não conseguem gerar etiqueta de envio.",
+      onde: "Mercado Livre → Configurações → Envios",
+    });
+  }
+
+  if (dados?.status?.confirmed_email === false) {
+    pendencias.push({
+      codigo: "email_nao_confirmado",
+      titulo: "E-mail não confirmado",
+      oQueFazer: "Confirme o e-mail da conta pelo link que o Mercado Livre enviou.",
+      onde: "Caixa de entrada do e-mail cadastrado",
+    });
+  }
+
+  return pendencias;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabaseUrl = urlDoProjeto();
+  const serviceRoleKey = chaveSecreta();
+  const anonKey = chavePublica();
+
+  if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    return json({ error: "Função mal configurada no servidor." }, 500);
+  }
+
+  const authHeader = req.headers.get("Authorization");
+
+  if (!authHeader) {
+    return json({ error: "Faça login novamente." }, 401);
+  }
+
+  const clienteDoChamador = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+
+  const {
+    data: { user },
+  } = await clienteDoChamador.auth.getUser();
+
+  if (!user) {
+    return json({ error: "Faça login novamente." }, 401);
+  }
+
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // O token do vendedor fica no servidor e nunca chega ao navegador.
+  const { data: conexao } = await admin
+    .from("ml_connections")
+    .select("access_token, ml_user_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!conexao?.access_token || !conexao?.ml_user_id) {
+    return json({ conectado: false, apto: false, pendencias: [] });
+  }
+
+  const resposta = await fetch(
+    `https://api.mercadolibre.com/users/${conexao.ml_user_id}`,
+    { headers: { Authorization: `Bearer ${conexao.access_token}` } }
+  );
+
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    // Token vencido é o caso comum aqui, e tem solução própria: reconectar.
+    return json({
+      conectado: true,
+      apto: false,
+      erro_de_leitura: true,
+      mensagem:
+        "Não foi possível consultar sua conta no Mercado Livre. Reconecte a integração e tente de novo.",
+      pendencias: [],
+    });
+  }
+
+  const status = dados?.status ?? {};
+
+  const podeVender = status?.sell?.allow === true;
+  const podeAnunciar = status?.list?.allow === true;
+
+  return json({
+    conectado: true,
+    apto: podeVender && podeAnunciar,
+    pode_vender: podeVender,
+    pode_anunciar: podeAnunciar,
+    apelido: dados?.nickname ?? null,
+    pendencias: traduzirPendencias(status, dados),
+  });
+});
