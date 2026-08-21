@@ -39,6 +39,8 @@ interface Pendencia {
 interface StatusDaConta {
   conectado: boolean;
   apto: boolean;
+  /** Conta apta, mas o Mercado Livre está limitando novos anúncios. */
+  limite_de_anuncios?: boolean;
   pode_vender?: boolean;
   pode_anunciar?: boolean;
   apelido?: string | null;
@@ -397,17 +399,34 @@ export default function Integrations() {
                   <div className="mx-5 mb-5 flex items-start gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4">
                     <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
 
-                    <p className="text-sm text-green-800 dark:text-green-200">
-                      Conta apta a vender. Seus anúncios podem ser publicados
-                      normalmente.
-                    </p>
+                    <div>
+                      <p className="text-sm text-green-800 dark:text-green-200">
+                        Conta apta a vender. Seus anúncios podem ser publicados
+                        normalmente.
+                      </p>
+
+                      {/* Aviso em outro tom: não é impedimento de conta, é
+                          limite de quantos anúncios ela sustenta sem pagar. */}
+                      {statusDaConta.limite_de_anuncios && (
+                        <p className="text-sm text-green-800/80 dark:text-green-200/80 mt-2 leading-relaxed">
+                          O Mercado Livre está limitando novos anúncios nesta
+                          conta no momento. Costuma ser a cota de anúncios
+                          grátis: ela libera conforme anúncios antigos saem do
+                          ar, ou você publica como anúncio pago.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
+                {/* Sem pendência identificada não existe caixa vermelha. Acusar
+                    problema sem dizer qual assusta e não ajuda — foi o que
+                    aconteceu numa conta que publicava normalmente. */}
                 {!conferindoConta &&
                   statusDaConta &&
                   !statusDaConta.apto &&
-                  !statusDaConta.erro_de_leitura && (
+                  !statusDaConta.erro_de_leitura &&
+                  statusDaConta.pendencias.length > 0 && (
                     <div className="mx-5 mb-5 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-5">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />

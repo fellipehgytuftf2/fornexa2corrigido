@@ -187,12 +187,29 @@ Deno.serve(async (req: Request) => {
   const podeVender = status?.sell?.allow === true;
   const podeAnunciar = status?.list?.allow === true;
 
+  const pendencias = traduzirPendencias(status, dados);
+
+  // Aptidão se decide por `sell.allow` e pela lista de pendências, não por
+  // `list.allow`.
+  //
+  // `list.allow` pode vir falso SEM código nenhum, e isso não é pendência de
+  // cadastro: é limite de anúncio, tipicamente a cota de anúncios grátis
+  // esgotada. Exigir os dois fazia a tela acusar bloqueio numa conta que
+  // publica normalmente — e pior, acusar com a lista de tarefas vazia, dizendo
+  // que há um problema sem dizer qual.
+  const apto = podeVender && pendencias.length === 0;
+
+  // Aviso separado, e em outro tom: não é impedimento de conta, é limite de
+  // quantos anúncios ela pode ter no ar sem pagar.
+  const limiteDeAnuncios = apto && !podeAnunciar;
+
   return json({
     conectado: true,
-    apto: podeVender && podeAnunciar,
+    apto,
+    limite_de_anuncios: limiteDeAnuncios,
     pode_vender: podeVender,
     pode_anunciar: podeAnunciar,
     apelido: dados?.nickname ?? null,
-    pendencias: traduzirPendencias(status, dados),
+    pendencias,
   });
 });
