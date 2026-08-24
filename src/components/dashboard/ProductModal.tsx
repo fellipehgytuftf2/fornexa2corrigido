@@ -45,6 +45,9 @@ interface MlConnection {
  */
 type RegraDePreco = 'lucro' | 'margemAlvo' | 'sobreCusto';
 
+/** Atalhos da barra de porcentagem. */
+const PRESETS_DE_MARGEM = [30, 50, 80, 100];
+
 /** Limite do Mercado Livre: acima disso o título é cortado no anúncio. */
 const MAX_TITULO = 60;
 
@@ -765,6 +768,48 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </div>
                       </div>
 
+                      {/* A barra volta nas regras de porcentagem.
+                          Arrastar e ver o lucro mudar ao lado ensina mais
+                          rápido que digitar e conferir — e foi como a tela
+                          nasceu. Em reais ela não faz sentido: não há escala
+                          natural entre R$ 1 e R$ 500. */}
+                      {regraDePreco !== 'lucro' && (
+                        <div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={200}
+                            step={1}
+                            value={valor}
+                            onChange={(evento) => setValorDaRegra(evento.target.value)}
+                            className="fornexa-slider w-full"
+                            aria-label={rotuloDaRegra}
+                          />
+
+                          <div className="flex justify-between text-[11px] text-gray-400 dark:text-slate-500 mt-1">
+                            <span>0%</span>
+                            <span>200%</span>
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-2 mt-3">
+                            {PRESETS_DE_MARGEM.map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setValorDaRegra(String(preset))}
+                                className={
+                                  valor === preset
+                                    ? 'py-2 rounded-lg text-xs font-semibold border bg-gold border-gold text-black'
+                                    : 'py-2 rounded-lg text-xs font-semibold border bg-white dark:bg-navy-900 border-gray-200 dark:border-navy-600 text-navy-900 dark:text-slate-300 hover:border-gold/60'
+                                }
+                              >
+                                {preset}%
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed">
                         {ajudaDaRegra}
                       </p>
@@ -939,6 +984,43 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           permalink={publishedPermalink}
         />
       )}
+        <style>{`
+          .fornexa-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 999px;
+            background: #545A5B;
+            outline: none;
+            cursor: pointer;
+          }
+
+          .fornexa-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #FFD300;
+            border: 2px solid #FFFFFF;
+            cursor: pointer;
+          }
+
+          .fornexa-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            background: #FFD300;
+            border: 2px solid #FFFFFF;
+            cursor: pointer;
+          }
+
+          .fornexa-slider::-moz-range-track {
+            height: 6px;
+            border-radius: 999px;
+            background: #545A5B;
+          }
+        `}</style>
     </>
   );
 }
