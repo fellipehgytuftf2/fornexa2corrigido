@@ -57,7 +57,9 @@ export interface ContaDaVenda {
 export function calcularVenda(
   precoDeVenda: number,
   custoDoFornecedor: number,
-  tipo: 'classico' | 'premium' = 'classico'
+  tipo: 'classico' | 'premium' = 'classico',
+  /** Frete que o vendedor banca. Ausente = a estimativa padrão. */
+  freteCustomizado?: number
 ): ContaDaVenda {
   const preco = Number(precoDeVenda) || 0;
   const custo = Number(custoDoFornecedor) || 0;
@@ -65,7 +67,7 @@ export function calcularVenda(
   const comissao = preco * (tipo === 'premium' ? COMISSAO_PREMIUM : COMISSAO_CLASSICO);
 
   const temFreteGratis = preco >= LIMITE_FRETE_GRATIS;
-  const frete = temFreteGratis ? FRETE_ESTIMADO : 0;
+  const frete = temFreteGratis ? (freteCustomizado ?? FRETE_ESTIMADO) : 0;
 
   const lucro = preco - custo - comissao - frete;
 
@@ -107,4 +109,53 @@ export function margemMinimaSemPrejuizo(
   }
 
   return null;
+}
+
+/**
+ * O preço que entrega o lucro desejado, já descontando comissão e frete.
+ *
+ * É a conta ao contrário da que existia. Antes o vendedor escolhia uma margem
+ * sobre o custo e descobria depois que não sobrava nada — o que fez uma margem
+ * de 40% virar prejuízo de R$ 2,50 num produto de R$ 97. Aqui ele diz quanto
+ * quer que sobre, e o preço sai pronto.
+ *
+ * A álgebra:
+ *
+ *   preço = custo + comissão + frete + lucro
+ *   comissão = preço x taxa
+ *
+ *   preço x (1 - taxa) = custo + frete + lucro
+ *   preço = (custo + frete + lucro) / (1 - taxa)
+ *
+ * O frete cria um degrau: ele só existe acima do limite de frete grátis, e o
+ * limite é sobre o próprio preço que estamos calculando. Por isso a conta é
+ * feita duas vezes — primeiro sem frete, e de novo com frete se o resultado
+ * passar do limite.
+ */
+export function precoParaLucroDesejado(
+  custoDoFornecedor: number,
+  lucroDesejado: number,
+  opcoes?: {
+    tipo?: 'classico' | 'premium';
+    /** Frete que o vendedor banca. Ausente = a estimativa padrão. */
+    frete?: number;
+  }
+): number {
+  const custo = Number(custoDoFornecedor) || 0;
+  const lucro = Number(lucroDesejado) || 0;
+
+  const taxa = opcoes?.tipo === 'premium' ? COMISSAO_PREMIUM : COMISSAO_CLASSICO;
+  const freteCheio = opcoes?.frete ?? FRETE_ESTIMADO;
+
+  const calcular = (frete: number) => (custo + frete + lucro) / (1 - taxa);
+
+  // Primeira tentativa: supondo que o anúncio fica abaixo do frete grátis.
+  const semFrete = calcular(0);
+
+  if (semFrete < LIMITE_FRETE_GRATIS) {
+    return Math.ceil(semFrete * 100) / 100;
+  }
+
+  // Passou do limite: o frete entra e empurra o preço mais para cima.
+  return Math.ceil(calcular(freteCheio) * 100) / 100;
 }

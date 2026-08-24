@@ -19,9 +19,11 @@ import { supabase } from '../../lib/supabase';
 import PublishFlowOverlay from './PublishFlowOverlay';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
+  FRETE_ESTIMADO,
   LIMITE_FRETE_GRATIS,
   calcularVenda,
   margemMinimaSemPrejuizo,
+  precoParaLucroDesejado,
 } from '../../lib/taxasDoMercadoLivre';
 
 interface ProductModalProps {
@@ -78,6 +80,15 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   useTravaScrollDeFundo(true);
 
   const [marginPercentage, setMarginPercentage] = useState<string>('40');
+
+  /**
+   * Quanto o vendedor quer que sobre, em reais, depois de tudo.
+   *
+   * É a entrada principal da calculadora desde que ela foi invertida: antes
+   * ele escolhia uma margem sobre o custo e descobria o prejuízo depois.
+   */
+  const [lucroDesejado, setLucroDesejado] = useState<string>('');
+  const [freteInformado, setFreteInformado] = useState<string>('');
 
   /**
    * Título e fotos do anúncio, editáveis. Começam no que veio do catálogo e o
@@ -152,7 +163,22 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   // A margem escolhida é sobre o custo; ela não sabe nada sobre o que o
   // marketplace retém. Estas duas linhas traduzem a escolha em dinheiro que
   // sobra de verdade, antes de o anúncio ir ao ar.
-  const contaDaVenda = calcularVenda(finalPrice, supplierPrice);
+  // Frete que o vendedor banca. Campo vazio usa a estimativa padrão; quem
+  // conhece o produto informa o valor real e a conta para de chutar.
+  const freteValido =
+    freteInformado.trim() === '' ? undefined : Math.max(0, Number(freteInformado) || 0);
+
+  const lucroAlvo = Number(lucroDesejado) || 0;
+
+  // Com lucro alvo definido, o preço é calculado por ele. Sem, cai na margem
+  // sobre o custo, que é como a tela funcionava antes.
+  const usandoLucroAlvo = lucroDesejado.trim() !== '' && lucroAlvo > 0;
+
+  const precoDeVenda = usandoLucroAlvo
+    ? precoParaLucroDesejado(supplierPrice, lucroAlvo, { frete: freteValido })
+    : finalPrice;
+
+  const contaDaVenda = calcularVenda(precoDeVenda, supplierPrice, 'classico', freteValido);
   const margemMinima = margemMinimaSemPrejuizo(supplierPrice);
 
 
@@ -263,14 +289,17 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         name: product.name,
         image_url: fotos[0] || product.image,
         supplier_price: supplierPrice,
-        sale_price: finalPrice,
-        margin: profitAmount,
+        sale_price: precoDeVenda,
+        // O que se grava como margem é o que sobra de verdade, não o
+        // acréscimo sobre o custo: era esse número que fazia o Financeiro
+        // mostrar lucro onde havia prejuízo.
+        margin: contaDaVenda.lucro,
         // O que vai para o anúncio é o que o vendedor revisou na tela, não o
         // texto gerado: ele pode ter ajustado título e fotos.
         announcement_title: titulo.trim().slice(0, MAX_TITULO),
         announcement_description: generatedDescription,
         announcement_category: product.category,
-        announcement_price: finalPrice,
+        announcement_price: precoDeVenda,
         announcement_image_url: fotos[0] || product.image,
         announcement_image_urls: fotos.slice(1),
       },
@@ -613,7 +642,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </p>
 
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Preço final: {formatCurrency(finalPrice)}
+                          Preço final: {formatCurrency(precoDeVenda)}
                         </p>
                       </div>
                     </div>
@@ -691,8 +720,87 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       </div>
 
                       <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">
-                        Exemplo: 40% em um produto de R$ 50 gera R$ 20 de lucro.
+                        Esta porcentagem é sobre o custo. O que sobra de verdade
+                        aparece abaixo, já sem a parte do Mercado Livre.
                       </p>
+                    </div>
+
+                    {/* Caminho inverso, e o preferido.
+                        Aqui o vendedor diz quanto quer que sobre e o preço sai
+                        pronto. O caminho de cima — escolher margem e torcer —
+                        foi o que fez 40% virar prejuízo de R$ 2,50 num produto
+                        de R$ 97. */}
+                    <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border-2 border-gold/40">
+                      <label
+                        htmlFor="lucro-desejado"
+                        className="block text-sm font-medium text-navy-900 dark:text-white"
+                      >
+                        Ou diga quanto quer ganhar
+                      </label>
+
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 mb-3">
+                        O preço é calculado com a comissão e o frete já
+                        descontados. Preenchendo aqui, a margem acima é ignorada.
+                      </p>
+
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-slate-400">
+                          R$
+                        </span>
+
+                        <input
+                          id="lucro-desejado"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={lucroDesejado}
+                          onChange={(event) => setLucroDesejado(event.target.value)}
+                          placeholder="30,00"
+                          className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-gold/40"
+                        />
+                      </div>
+
+                      <label
+                        htmlFor="frete-informado"
+                        className="block text-xs font-medium text-navy-900 dark:text-white mt-4 mb-1.5"
+                      >
+                        Frete que você paga (opcional)
+                      </label>
+
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-slate-400">
+                          R$
+                        </span>
+
+                        <input
+                          id="frete-informado"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={freteInformado}
+                          onChange={(event) => setFreteInformado(event.target.value)}
+                          placeholder={String(FRETE_ESTIMADO)}
+                          className="w-full pl-10 pr-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+                        />
+                      </div>
+
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+                        Vazio usa a estimativa de {formatCurrency(FRETE_ESTIMADO)},
+                        que vale para produto leve. Produto pesado custa mais —
+                        informe o valor real e a conta para de chutar.
+                      </p>
+
+                      {usandoLucroAlvo && (
+                        <div className="mt-4 rounded-lg bg-gold/10 border border-gold/30 p-3">
+                          <p className="text-xs text-gray-600 dark:text-slate-300">
+                            Para sobrar {formatCurrency(lucroAlvo)}, anuncie por
+                          </p>
+
+                          <p className="text-2xl font-bold text-navy-900 dark:text-white mt-1">
+                            {formatCurrency(precoDeVenda)}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
@@ -712,7 +820,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </p>
 
                         <p className="text-2xl font-bold text-white dark:text-navy-900 mt-1">
-                          {formatCurrency(finalPrice)}
+                          {formatCurrency(precoDeVenda)}
                         </p>
                       </div>
 
@@ -895,8 +1003,8 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           productName={product.name}
           productImage={product.image}
           marketplace="Mercado Livre"
-          finalPrice={finalPrice}
-          profitAmount={profitAmount}
+          finalPrice={precoDeVenda}
+          profitAmount={contaDaVenda.lucro}
           marginPercent={marginPercentValue}
           onPublishingDone={handlePublishingDone}
           onClose={onClose}
