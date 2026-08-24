@@ -311,16 +311,28 @@ Deno.serve(async (req: Request) => {
         detalhes: sellerStatusData?.status,
       });
 
-      let mensagem =
-        "Sua conta do Mercado Livre ainda não está habilitada para vender. Verifique as pendências na sua conta do Mercado Livre.";
+      // Uma pendência de cada vez confunde: a conta costuma ter mais de uma,
+      // e resolver só a primeira não destrava nada. A mensagem lista todas e
+      // manda o vendedor para a tela de Integrações, onde elas aparecem com
+      // o que fazer e onde fazer.
+      const tarefas: string[] = [];
+
+      if (codes.includes("address_pending")) {
+        tarefas.push("completar o endereço da conta, com CEP, número e complemento");
+      }
 
       if (codes.includes("rejected_by_regulations")) {
-        mensagem =
-          "Sua conta do Mercado Livre ainda não está habilitada para vender por pendência fiscal. Acesse 'Faturador' nas configurações da sua conta do Mercado Livre — normalmente é necessário ter CNPJ (ex: MEI) e o emissor de nota fiscal ativo.";
-      } else if (codes.includes("address_pending")) {
-        mensagem =
-          "Falta confirmar o endereço fiscal da sua conta do Mercado Livre. Acesse 'Seu perfil' nas configurações da conta para revisar.";
+        tarefas.push(
+          "resolver o que o Mercado Livre aponta em 'Minha conta' — costuma ser documento não validado ou verificação de identidade pendente"
+        );
       }
+
+      const mensagem =
+        tarefas.length > 0
+          ? "O Mercado Livre ainda não liberou esta conta para vender. Falta " +
+            tarefas.join("; e ") +
+            ". Pessoa física com CPF pode vender: só abra CNPJ se o próprio Mercado Livre pedir. Em Integrações, no FORNEXA, a lista completa aparece com o passo a passo."
+          : "O Mercado Livre ainda não liberou esta conta para vender. Abra Integrações no FORNEXA para ver a lista do que falta resolver na sua conta.";
 
       return new Response(
         JSON.stringify({ error: mensagem, ml_status_codes: codes }),
