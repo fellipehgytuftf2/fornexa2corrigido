@@ -19,7 +19,6 @@ import PublishFlowOverlay from './PublishFlowOverlay';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
   COMISSAO_CLASSICO,
-  FRETE_ESTIMADO,
   calcularVenda,
   margemMinimaSemPrejuizo,
 } from '../../lib/taxasDoMercadoLivre';
@@ -86,7 +85,6 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   useTravaScrollDeFundo(true);
 
   const [margemEscolhida, setMargemEscolhida] = useState<string>('40');
-  const [freteInformado, setFreteInformado] = useState<string>('');
 
   /**
    * Título e fotos do anúncio, editáveis. Começam no que veio do catálogo e o
@@ -155,11 +153,6 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
 
   const supplierPrice = Number(product.supplierPrice || 0);
 
-  // Frete que o vendedor banca. Campo vazio usa a estimativa padrão; quem
-  // conhece o produto informa o valor real e a conta para de chutar.
-  const freteValido =
-    freteInformado.trim() === '' ? undefined : Math.max(0, Number(freteInformado) || 0);
-
   const margem = Math.max(0, Number(margemEscolhida) || 0);
 
   // Preço pela margem sobre o custo, como a tela sempre fez.
@@ -170,7 +163,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   // vendedor só descobria no extrato, agora vê em vermelho antes de publicar.
   const precoDeVenda = supplierPrice * (1 + margem / 100);
 
-  const contaDaVenda = calcularVenda(precoDeVenda, supplierPrice, 'classico', freteValido);
+  const contaDaVenda = calcularVenda(precoDeVenda, supplierPrice);
   const margemMinima = margemMinimaSemPrejuizo(supplierPrice);
 
 
@@ -699,34 +692,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         ))}
                       </div>
 
-                      {/* Frete ao lado da margem porque muda o resultado da
-                          conta abaixo. A estimativa serve para produto leve;
-                          quem conhece o próprio produto informa o real. */}
-                      <div className="mt-4">
-                        <label
-                          htmlFor="frete-informado"
-                          className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5"
-                        >
-                          Frete que você paga (R$)
-                        </label>
-
-                        <input
-                          id="frete-informado"
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={freteInformado}
-                          onChange={(evento) => setFreteInformado(evento.target.value)}
-                          placeholder={String(FRETE_ESTIMADO)}
-                          className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
-                        />
-
-                        <p className="text-[11px] text-gray-500 dark:text-slate-500 mt-1.5 leading-relaxed">
-                          Vazio usa a estimativa de {formatCurrency(FRETE_ESTIMADO)}.
-                          Só entra na conta acima de {formatCurrency(79)}, onde o
-                          Mercado Livre exige frete grátis.
-                        </p>
-                      </div>
                     </div>
 
                     {/* A conta aberta, linha a linha. Ver de onde o dinheiro
@@ -753,7 +718,11 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </div>
 
                         <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400">Frete</dt>
+                          <dt className="text-gray-600 dark:text-slate-400">
+                            {contaDaVenda.temFreteGratis
+                              ? 'Frete grátis (estimado)'
+                              : 'Frete'}
+                          </dt>
                           <dd className="text-red-600 dark:text-red-400 tabular-nums">
                             −{formatCurrency(contaDaVenda.frete)}
                           </dd>
@@ -826,8 +795,10 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     )}
 
                     <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed">
-                      Estimativa. A comissão muda por categoria e o valor exato só
-                      sai depois da venda — o Financeiro mostra o real.
+                      Estimativa. Acima de R$ 79 o Mercado Livre exige frete
+                      grátis e o vendedor banca parte dele — por isso ele entra na
+                      conta. A comissão muda por categoria, e os valores exatos só
+                      saem depois da venda: o Financeiro mostra os reais.
                     </p>
 
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
