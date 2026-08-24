@@ -717,16 +717,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                           </dd>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400">
-                            {contaDaVenda.temFreteGratis
-                              ? 'Frete grátis (estimado)'
-                              : 'Frete'}
-                          </dt>
-                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
-                            −{formatCurrency(contaDaVenda.frete)}
-                          </dd>
-                        </div>
 
                         <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-navy-600">
                           <dt className="font-medium text-navy-900 dark:text-white">
@@ -745,6 +735,22 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       </dl>
                     </div>
 
+                    {/* O frete nao entra na conta porque ninguem sabe quanto
+                        e antes da venda: depende de peso, dimensoes e regiao.
+                        Antes havia um chute de R$ 25 fixo aqui, que aparecia
+                        como se fosse calculo. Avisar sem numero e honesto;
+                        inventar um numero nao era. */}
+                    {contaDaVenda.temFreteGratis && (
+                      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                        <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                          <strong>O frete ainda vai sair daqui.</strong> Acima de
+                          R$ 79 o Mercado Livre exige frete grátis e você banca
+                          parte dele. Quanto, depende do peso e da região do
+                          comprador — só dá para saber depois da venda, e o
+                          Financeiro mostra o valor real.
+                        </p>
+                      </div>
+                    )}
                     <div className="bg-black dark:bg-white rounded-xl p-4">
                       <p className="text-xs text-white/70 dark:text-navy-700">
                         Preço de venda
@@ -795,10 +801,9 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     )}
 
                     <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed">
-                      Estimativa. Acima de R$ 79 o Mercado Livre exige frete
-                      grátis e o vendedor banca parte dele — por isso ele entra na
-                      conta. A comissão muda por categoria, e os valores exatos só
-                      saem depois da venda: o Financeiro mostra os reais.
+                      A comissão é estimativa: ela muda por categoria e o valor
+                      exato só sai depois da venda. O Financeiro mostra o real,
+                      buscado do próprio Mercado Livre.
                     </p>
 
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">

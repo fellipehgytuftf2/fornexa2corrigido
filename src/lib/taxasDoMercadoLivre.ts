@@ -30,10 +30,22 @@ export const COMISSAO_PREMIUM = 0.17;
 export const LIMITE_FRETE_GRATIS = 79;
 
 /**
- * Quanto o vendedor costuma bancar de frete num produto leve com frete grátis.
- * O ML subsidia uma parte; o resto sai do bolso de quem vende.
+ * O frete NÃO é estimado aqui, e isso é decisão, não esquecimento.
+ *
+ * Quanto o vendedor banca depende do peso, das dimensões e da região do
+ * comprador — nada disso existe no catálogo antes da venda. O endpoint do
+ * Mercado Livre que responderia isso exige token e as medidas do produto.
+ *
+ * Havia um chute de R$ 25 fixo aqui. Num produto leve ele exagerava, num
+ * pesado ficava curto, e nos dois casos aparecia na tela como se fosse
+ * cálculo. Número inventado com cara de real é pior que número nenhum — foi
+ * a mesma lição do código de rastreio que o sistema gerava sozinho.
+ *
+ * O que a tela faz agora é avisar que o frete existe acima do limite, sem
+ * fingir saber quanto. O valor real aparece no Financeiro depois da venda,
+ * buscado do próprio Mercado Livre.
  */
-export const FRETE_ESTIMADO = 25;
+export const FRETE_ESTIMADO = 0;
 
 export interface ContaDaVenda {
   precoDeVenda: number;
