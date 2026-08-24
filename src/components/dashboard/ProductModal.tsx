@@ -22,7 +22,6 @@ import {
   FRETE_ESTIMADO,
   calcularVenda,
   margemMinimaSemPrejuizo,
-  precoParaLucroDesejado,
 } from '../../lib/taxasDoMercadoLivre';
 
 interface ProductModalProps {
@@ -43,9 +42,7 @@ interface MlConnection {
  * preço sai calculado. Os outros dois existem porque quem já trabalha com
  * margem tem o número na cabeça e não quer converter.
  */
-type RegraDePreco = 'lucro' | 'margemAlvo' | 'sobreCusto';
-
-/** Atalhos da barra de porcentagem. */
+/** Atalhos da barra de margem. */
 const PRESETS_DE_MARGEM = [30, 50, 80, 100];
 
 /** Limite do Mercado Livre: acima disso o título é cortado no anúncio. */
@@ -88,8 +85,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   // O modal existe só enquanto está aberto, então a trava vale sempre.
   useTravaScrollDeFundo(true);
 
-  const [regraDePreco, setRegraDePreco] = useState<RegraDePreco>('lucro');
-  const [valorDaRegra, setValorDaRegra] = useState<string>('30');
+  const [margemEscolhida, setMargemEscolhida] = useState<string>('40');
   const [freteInformado, setFreteInformado] = useState<string>('');
 
   /**
@@ -164,60 +160,18 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const freteValido =
     freteInformado.trim() === '' ? undefined : Math.max(0, Number(freteInformado) || 0);
 
-  const valor = Math.max(0, Number(valorDaRegra) || 0);
+  const margem = Math.max(0, Number(margemEscolhida) || 0);
 
-  /**
-   * O preço, conforme a regra escolhida.
-   *
-   * As duas primeiras regras já descontam comissão e frete, então o que o
-   * vendedor pede é o que ele recebe. A terceira é a antiga: margem sobre o
-   * custo, que ignora o marketplace — foi ela que fez 40% num produto de
-   * R$ 97 virar prejuízo de R$ 2,50. Continua disponível porque muita gente
-   * pensa nesses termos, e agora a conta aberta mostra o estrago na hora.
-   */
-  const precoDeVenda = (() => {
-    if (regraDePreco === 'lucro') {
-      return precoParaLucroDesejado(supplierPrice, valor, { frete: freteValido });
-    }
-
-    if (regraDePreco === 'margemAlvo') {
-      // O lucro é uma fatia do próprio preço, então ele entra dos dois lados:
-      //   preço = custo + preço x taxa + frete + preço x margem
-      const fatia = Math.min(valor, 90) / 100;
-      const sobra = 1 - COMISSAO_CLASSICO - fatia;
-
-      if (sobra <= 0) {
-        return 0;
-      }
-
-      const semFrete = supplierPrice / sobra;
-
-      if (semFrete < 79) {
-        return Math.ceil(semFrete * 100) / 100;
-      }
-
-      return Math.ceil(((supplierPrice + (freteValido ?? FRETE_ESTIMADO)) / sobra) * 100) / 100;
-    }
-
-    return supplierPrice * (1 + valor / 100);
-  })();
+  // Preço pela margem sobre o custo, como a tela sempre fez.
+  //
+  // Esta conta não sabe nada sobre o que o Mercado Livre retém — e é
+  // justamente por isso que a decomposição abaixo dela existe. Com 40% num
+  // custo de R$ 97 o preço sai R$ 135,80 e o lucro real é negativo; antes o
+  // vendedor só descobria no extrato, agora vê em vermelho antes de publicar.
+  const precoDeVenda = supplierPrice * (1 + margem / 100);
 
   const contaDaVenda = calcularVenda(precoDeVenda, supplierPrice, 'classico', freteValido);
   const margemMinima = margemMinimaSemPrejuizo(supplierPrice);
-
-  const rotuloDaRegra =
-    regraDePreco === 'lucro'
-      ? 'Quero ganhar (R$)'
-      : regraDePreco === 'margemAlvo'
-        ? 'Margem alvo (%)'
-        : 'Margem sobre o custo (%)';
-
-  const ajudaDaRegra =
-    regraDePreco === 'lucro'
-      ? 'O preço sai com a comissão e o frete já descontados. O que você pedir é o que sobra.'
-      : regraDePreco === 'margemAlvo'
-        ? 'Quanto do preço de venda vira lucro seu, depois das taxas.'
-        : 'Acréscimo sobre o custo. Não desconta nada — confira o lucro estimado abaixo.';
 
 
 
@@ -700,119 +654,79 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                   </div>
 
                   <div className="space-y-4">
-                    {/* Regra de preço.
-                        Uma seção só, no lugar dos dois blocos que competiam:
-                        a barra de margem e o campo de lucro desejado. Ter os
-                        dois na mesma tela confundia mais do que ajudava. */}
-                    <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600 space-y-3">
-                      <div>
+                    <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600">
+                      <div className="flex items-center justify-between mb-4">
                         <label
-                          htmlFor="regra-de-preco"
-                          className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5"
+                          htmlFor="margem-desejada"
+                          className="text-sm font-medium text-navy-900 dark:text-white"
                         >
-                          Regra de preço
+                          Margem desejada
                         </label>
 
-                        <select
-                          id="regra-de-preco"
-                          value={regraDePreco}
-                          onChange={(evento) =>
-                            setRegraDePreco(evento.target.value as RegraDePreco)
-                          }
-                          className="w-full px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+                        <span className="text-xl font-bold text-gold">{margem}%</span>
+                      </div>
+
+                      <input
+                        id="margem-desejada"
+                        type="range"
+                        min={0}
+                        max={200}
+                        step={1}
+                        value={margem}
+                        onChange={(evento) => setMargemEscolhida(evento.target.value)}
+                        className="fornexa-slider w-full"
+                      />
+
+                      <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1.5">
+                        <span>0%</span>
+                        <span>200%</span>
+                      </div>
+
+                      <div className="grid grid-cols-4 gap-2 mt-4">
+                        {PRESETS_DE_MARGEM.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setMargemEscolhida(String(preset))}
+                            className={
+                              margem === preset
+                                ? 'py-2 rounded-lg text-xs font-semibold border bg-gold border-gold text-black'
+                                : 'py-2 rounded-lg text-xs font-semibold border bg-white dark:bg-navy-900 border-gray-200 dark:border-navy-600 text-navy-900 dark:text-slate-300 hover:border-gold/60'
+                            }
+                          >
+                            {preset}%
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Frete ao lado da margem porque muda o resultado da
+                          conta abaixo. A estimativa serve para produto leve;
+                          quem conhece o próprio produto informa o real. */}
+                      <div className="mt-4">
+                        <label
+                          htmlFor="frete-informado"
+                          className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5"
                         >
-                          <option value="lucro">Quanto quero ganhar (R$)</option>
-                          <option value="margemAlvo">Margem alvo (%)</option>
-                          <option value="sobreCusto">Margem sobre o custo (%)</option>
-                        </select>
+                          Frete que você paga (R$)
+                        </label>
+
+                        <input
+                          id="frete-informado"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={freteInformado}
+                          onChange={(evento) => setFreteInformado(evento.target.value)}
+                          placeholder={String(FRETE_ESTIMADO)}
+                          className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
+                        />
+
+                        <p className="text-[11px] text-gray-500 dark:text-slate-500 mt-1.5 leading-relaxed">
+                          Vazio usa a estimativa de {formatCurrency(FRETE_ESTIMADO)}.
+                          Só entra na conta acima de {formatCurrency(79)}, onde o
+                          Mercado Livre exige frete grátis.
+                        </p>
                       </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label
-                            htmlFor="valor-da-regra"
-                            className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5"
-                          >
-                            {rotuloDaRegra}
-                          </label>
-
-                          <input
-                            id="valor-da-regra"
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={valorDaRegra}
-                            onChange={(evento) => setValorDaRegra(evento.target.value)}
-                            className="w-full px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-gold/40"
-                          />
-                        </div>
-
-                        <div>
-                          <label
-                            htmlFor="frete-informado"
-                            className="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1.5"
-                          >
-                            Frete estimado (R$)
-                          </label>
-
-                          <input
-                            id="frete-informado"
-                            type="number"
-                            min={0}
-                            step="0.01"
-                            value={freteInformado}
-                            onChange={(evento) => setFreteInformado(evento.target.value)}
-                            placeholder={String(FRETE_ESTIMADO)}
-                            className="w-full px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-gold/40"
-                          />
-                        </div>
-                      </div>
-
-                      {/* A barra volta nas regras de porcentagem.
-                          Arrastar e ver o lucro mudar ao lado ensina mais
-                          rápido que digitar e conferir — e foi como a tela
-                          nasceu. Em reais ela não faz sentido: não há escala
-                          natural entre R$ 1 e R$ 500. */}
-                      {regraDePreco !== 'lucro' && (
-                        <div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={200}
-                            step={1}
-                            value={valor}
-                            onChange={(evento) => setValorDaRegra(evento.target.value)}
-                            className="fornexa-slider w-full"
-                            aria-label={rotuloDaRegra}
-                          />
-
-                          <div className="flex justify-between text-[11px] text-gray-400 dark:text-slate-500 mt-1">
-                            <span>0%</span>
-                            <span>200%</span>
-                          </div>
-
-                          <div className="grid grid-cols-4 gap-2 mt-3">
-                            {PRESETS_DE_MARGEM.map((preset) => (
-                              <button
-                                key={preset}
-                                type="button"
-                                onClick={() => setValorDaRegra(String(preset))}
-                                className={
-                                  valor === preset
-                                    ? 'py-2 rounded-lg text-xs font-semibold border bg-gold border-gold text-black'
-                                    : 'py-2 rounded-lg text-xs font-semibold border bg-white dark:bg-navy-900 border-gray-200 dark:border-navy-600 text-navy-900 dark:text-slate-300 hover:border-gold/60'
-                                }
-                              >
-                                {preset}%
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed">
-                        {ajudaDaRegra}
-                      </p>
                     </div>
 
                     {/* A conta aberta, linha a linha. Ver de onde o dinheiro
