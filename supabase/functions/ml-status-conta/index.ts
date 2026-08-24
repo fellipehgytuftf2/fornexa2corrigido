@@ -50,9 +50,9 @@ interface Pendencia {
 /**
  * Traduz os códigos do Mercado Livre em tarefas que o vendedor consegue fazer.
  *
- * O código cru não ajuda ninguém: "rejected_by_regulations" não diz que a
- * saída é abrir um CNPJ. Cada item aqui responde três coisas — o que está
- * errado, o que fazer e onde fazer.
+ * O código cru não ajuda ninguém: "rejected_by_regulations" não diz onde
+ * clicar. Cada item aqui responde três coisas — o que está errado, o que
+ * fazer e onde fazer.
  */
 function traduzirPendencias(status: Record<string, any>, dados: Record<string, any>): Pendencia[] {
   const pendencias: Pendencia[] = [];
@@ -78,8 +78,8 @@ function traduzirPendencias(status: Record<string, any>, dados: Record<string, a
       codigo: "rejected_by_regulations",
       titulo: "Conta não autorizada a vender",
       oQueFazer:
-        "É a pendência fiscal. Na prática exige CNPJ — o MEI resolve, sai em um dia — e o emissor de nota fiscal ativo no Faturador.",
-      onde: "Mercado Livre → Configurações → Faturador",
+        "O Mercado Livre bloqueou a venda nesta conta. Abra 'Minha conta' e resolva o que ele apontar: costuma ser documento não validado, dados do Mercado Pago incompletos ou verificação de identidade pendente. Pessoa física com CPF pode vender — só abra CNPJ se o próprio Mercado Livre pedir.",
+      onde: "Mercado Livre → Minha conta",
     });
   }
 
@@ -90,7 +90,7 @@ function traduzirPendencias(status: Record<string, any>, dados: Record<string, a
       codigo: "mercadopago_personal",
       titulo: "Conta do Mercado Pago é pessoal",
       oQueFazer:
-        "Vender exige conta de vendedor, não pessoal. A troca é feita no próprio Mercado Pago e costuma pedir CNPJ.",
+        "Vender no Mercado Livre exige conta de vendedor. A troca é feita no próprio Mercado Pago, em Tipo de conta, e pessoa física também pode fazer.",
       onde: "Mercado Pago → Seu perfil → Tipo de conta",
     });
   }

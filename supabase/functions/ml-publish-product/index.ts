@@ -119,7 +119,7 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
   const causeCodes = cause.map((c: any) => c?.code ?? "").join(" ");
 
   if (message === "seller.unable_to_list" || causeCodes.includes("rejected_by_regulations")) {
-    return "Sua conta do Mercado Livre ainda não está habilitada para vender. Isso geralmente acontece por pendência no cadastro fiscal (Faturador / NF-e) ou dados de endereço. Acesse 'Faturador' nas configurações da sua conta do Mercado Livre para verificar o que falta — normalmente é necessário ter CNPJ (ex: MEI) e o emissor de nota fiscal ativo.";
+    return "Sua conta do Mercado Livre ainda não está habilitada para vender. Costuma ser pendência de cadastro: endereço fiscal incompleto, documento não validado ou dados do Mercado Pago faltando. Abra 'Minha conta' no Mercado Livre e resolva o que ele apontar — pessoa física com CPF pode vender, então nem sempre é caso de abrir CNPJ.";
   }
 
   if (causeCodes.includes("address_pending")) {
@@ -371,6 +371,79 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           error:
             "Não foi possível identificar automaticamente a categoria do Mercado Livre para este produto. Tente ajustar o nome do produto no catálogo para algo mais comum, como \"Caixa de Passagem PVC\".",
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3.5 Conferir as regras da categoria ANTES de tentar criar o item.
+    //
+    // Cada categoria do Mercado Livre publica preço mínimo, preço máximo e se
+    // aceita anúncio. Sem esta checagem o erro só aparecia na criação, como
+    // "item.price.invalid", e chegava ao vendedor como "o Mercado Livre
+    // recusou a criação do anúncio" — sem dizer que o problema era o preço nem
+    // qual o limite.
+    //
+    // O endpoint é público e não gasta o token do vendedor.
+    const categoriaResponse = await fetch(
+      `https://api.mercadolibre.com/categories/${categoryId}`
+    );
+
+    const categoriaData = await categoriaResponse.json().catch(() => null);
+    const regras = categoriaData?.settings ?? {};
+
+    if (categoriaResponse.ok && regras.listing_allowed === false) {
+      await supabase.from("log_integracao_ml").insert({
+        contexto: "ml-publish-product",
+        mensagem: "Categoria não aceita anúncios",
+        detalhes: { categoryId, nome: categoriaData?.name, regras },
+      });
+
+      return new Response(
+        JSON.stringify({
+          error:
+            `A categoria "${categoriaData?.name ?? categoryId}" que o Mercado Livre escolheu para este produto não aceita anúncios novos. Ajuste o nome do produto no catálogo para algo mais específico, para que ele caia numa categoria mais precisa.`,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const precoPretendido = Math.round((body.announcement_price ?? 0) * 100) / 100;
+    const minimo = Number(regras.minimum_price ?? 0);
+    const maximo = regras.maximum_price === null ? null : Number(regras.maximum_price);
+
+    const emReais = (valor: number) =>
+      valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+    if (categoriaResponse.ok && minimo > 0 && precoPretendido < minimo) {
+      await supabase.from("log_integracao_ml").insert({
+        contexto: "ml-publish-product",
+        mensagem: "Preço abaixo do mínimo da categoria",
+        detalhes: { categoryId, nome: categoriaData?.name, minimo, precoPretendido },
+      });
+
+      return new Response(
+        JSON.stringify({
+          error:
+            `O Mercado Livre exige preço mínimo de ${emReais(minimo)} na categoria "${categoriaData?.name ?? categoryId}", e seu anúncio está em ${emReais(precoPretendido)}. Aumente a margem até passar desse valor.`,
+          preco_minimo: minimo,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (categoriaResponse.ok && maximo !== null && maximo > 0 && precoPretendido > maximo) {
+      await supabase.from("log_integracao_ml").insert({
+        contexto: "ml-publish-product",
+        mensagem: "Preço acima do máximo da categoria",
+        detalhes: { categoryId, nome: categoriaData?.name, maximo, precoPretendido },
+      });
+
+      return new Response(
+        JSON.stringify({
+          error:
+            `O Mercado Livre não aceita preço acima de ${emReais(maximo)} na categoria "${categoriaData?.name ?? categoryId}", e seu anúncio está em ${emReais(precoPretendido)}. Reduza a margem.`,
+          preco_maximo: maximo,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
