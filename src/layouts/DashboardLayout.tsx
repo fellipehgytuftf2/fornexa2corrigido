@@ -346,7 +346,7 @@ export default function DashboardLayout() {
       )}
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 bg-white/90 dark:bg-navy-900/90 backdrop-blur border-b border-gray-200 dark:border-navy-700">
+        <header className="sticky top-0 z-30 bg-white dark:bg-navy-900 border-b border-gray-200 dark:border-navy-700">
           <div className="h-16 px-4 sm:px-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button

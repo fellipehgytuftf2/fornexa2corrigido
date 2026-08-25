@@ -449,7 +449,7 @@ export default function AcessosAdmin() {
       )}
 
       {detalhe && (
-        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex min-h-full items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-center justify-center p-4">
           <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg">
             <div className="flex items-start justify-between mb-5">
               <div>
@@ -547,7 +547,7 @@ export default function AcessosAdmin() {
       )}
 
       {editando && (
-        <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto flex min-h-full items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-center justify-center p-4">
           <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-md">
             <div className="flex items-start justify-between mb-5">
               <div>

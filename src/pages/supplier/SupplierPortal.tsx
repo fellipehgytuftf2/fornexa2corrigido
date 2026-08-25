@@ -1136,7 +1136,7 @@ export default function SupplierPortal() {
       {/* Troca de senha. Sem isto, fornecedor que esquece a senha depende do
           admin apagar e recriar o acesso. */}
       {contaAberta && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
             className="absolute inset-0 bg-black/70"
             onClick={() => setContaAberta(false)}
@@ -1216,7 +1216,7 @@ export default function SupplierPortal() {
 
       {/* Conversa do chamado */}
       {conversaPedido && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
             className="absolute inset-0 bg-black/70"
             onClick={() => setConversaPedido(null)}

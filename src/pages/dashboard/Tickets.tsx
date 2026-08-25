@@ -425,7 +425,7 @@ export default function Tickets() {
 
       {/* New ticket modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-navy-700">
               <h2 className="text-lg font-semibold text-navy-900 dark:text-white">Abrir chamado</h2>
@@ -483,7 +483,7 @@ export default function Tickets() {
 
       {/* Conversa do chamado. O fornecedor lê e responde pelo Portal. */}
       {chamadoAberto && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
             className="absolute inset-0 bg-black/60"
             onClick={() => setChamadoAberto(null)}

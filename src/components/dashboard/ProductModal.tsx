@@ -354,7 +354,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
           Com a rolagem no fundo, o cartão tem a altura que precisar e a
           pessoa rola até o fim. Funciona em qualquer altura de tela. */}
-      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/50 backdrop-blur-sm">
         <div className="flex min-h-full items-center justify-center p-4">
           <div
             className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl shadow-2xl animate-fade-in"
