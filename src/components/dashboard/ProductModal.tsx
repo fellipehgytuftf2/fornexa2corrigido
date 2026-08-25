@@ -358,22 +358,18 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
   // ele. A classe inteira de problema deixa de existir.
   return createPortal(
     <>
-      {/* Quem rola é o FUNDO, não o modal.
+      {/* O modal fica parado e o conteúdo rola por dentro dele.
 
-          Antes o cartão tentava caber na altura da janela, com max-h em vh.
-          Em janela baixa — celular deitado, navegador achatado — não existe
-          altura que funcione: ou o conteúdo é cortado em cima e embaixo ao
-          mesmo tempo, sumindo o X e o botão de publicar juntos, ou sobra um
-          filete inútil.
-
-          Com a rolagem no fundo, o cartão tem a altura que precisar e a
-          pessoa rola até o fim. Funciona em qualquer altura de tela. */}
-      <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/50 backdrop-blur-sm">
-        <div className="flex min-h-full items-start justify-center p-4">
-          <div
-            className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl my-auto shadow-2xl animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-          >
+          A altura é calc(100vh - 2rem), e não um valor em vh solto: o
+          envoltório tem p-4 de folga, então pedir 92vh dava 92vh mais 32px e
+          estourava a tela em janela baixa — o cartão era cortado em cima e
+          embaixo ao mesmo tempo, sumindo o X e o botão de publicar juntos.
+          Descontando a folga, ele nunca passa do que cabe. */}
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div
+          className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl animate-fade-in"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-navy-700 sticky top-0 bg-white dark:bg-navy-800 z-10">
             <div>
               <h2 className="text-lg font-semibold text-navy-900 dark:text-white">
@@ -826,7 +822,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
       </div>
