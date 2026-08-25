@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import ModalPortal from '../ui/modal-portal';
 
 interface Conta {
   user_id: string;
@@ -449,200 +450,204 @@ export default function AcessosAdmin() {
       )}
 
       {detalhe && (
-        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
-          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg my-auto">
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
-                  {detalhe.nome}
-                </h3>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
+            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg my-auto">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
+                    {detalhe.nome}
+                  </h3>
 
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  {detalhe.email}
-                </p>
-              </div>
-
-              <button
-                onClick={() => setDetalhe(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                aria-label="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {[
-                { rotulo: 'Tipo', valor: detalhe.tipo },
-                {
-                  rotulo: 'Plano',
-                  valor: `${rotulosDePlano[detalhe.plano || ''] || detalhe.plano || '—'} · ${
-                    detalhe.plan_status || '—'
-                  }`,
-                },
-                { rotulo: 'Produtos preparados', valor: String(detalhe.total_produtos) },
-                { rotulo: 'Pedidos', valor: String(detalhe.total_pedidos) },
-                {
-                  rotulo: 'Mercado Livre',
-                  valor: detalhe.ml_conectado ? 'conectado' : 'não conectado',
-                },
-                { rotulo: 'Conta criada', valor: formatarData(detalhe.criado_em) },
-              ].map((item) => (
-                <div
-                  key={item.rotulo}
-                  className="bg-gray-50 dark:bg-navy-700 rounded-lg p-3"
-                >
-                  <p className="text-xs text-gray-500 dark:text-slate-400">
-                    {item.rotulo}
-                  </p>
-
-                  <p className="text-sm font-semibold text-navy-900 dark:text-white mt-0.5">
-                    {item.valor}
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                    {detalhe.email}
                   </p>
                 </div>
-              ))}
-            </div>
 
-            <h4 className="text-sm font-semibold text-navy-900 dark:text-white mb-1">
-              Fornecedores que esta conta enxerga
-            </h4>
-
-            <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
-              {detalhe.tipo === 'Administrador'
-                ? 'Administrador enxerga o cadastro inteiro, com pedido ou sem.'
-                : 'Um vendedor passa a enxergar o fornecedor quando tem pedido com ele — é quando precisa pagar.'}
-            </p>
-
-            {carregandoDetalhe ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 py-4">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Carregando...
+                <button
+                  onClick={() => setDetalhe(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            ) : fornecedoresDaConta.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-slate-400 py-3">
-                Nenhum. Esta conta nunca teve pedido com fornecedor algum.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {fornecedoresDaConta.map((item) => (
-                  <li
-                    key={item.supplier_id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-navy-600 px-3 py-2.5"
-                  >
-                    <span className="text-sm text-navy-900 dark:text-white">
-                      {item.fornecedor}
-                    </span>
 
-                    <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
-                      {item.pedidos === 0
-                        ? 'sem pedidos'
-                        : `${item.pedidos} pedido(s) · ${formatarData(item.ultimo_pedido)}`}
-                    </span>
-                  </li>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {[
+                  { rotulo: 'Tipo', valor: detalhe.tipo },
+                  {
+                    rotulo: 'Plano',
+                    valor: `${rotulosDePlano[detalhe.plano || ''] || detalhe.plano || '—'} · ${
+                      detalhe.plan_status || '—'
+                    }`,
+                  },
+                  { rotulo: 'Produtos preparados', valor: String(detalhe.total_produtos) },
+                  { rotulo: 'Pedidos', valor: String(detalhe.total_pedidos) },
+                  {
+                    rotulo: 'Mercado Livre',
+                    valor: detalhe.ml_conectado ? 'conectado' : 'não conectado',
+                  },
+                  { rotulo: 'Conta criada', valor: formatarData(detalhe.criado_em) },
+                ].map((item) => (
+                  <div
+                    key={item.rotulo}
+                    className="bg-gray-50 dark:bg-navy-700 rounded-lg p-3"
+                  >
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {item.rotulo}
+                    </p>
+
+                    <p className="text-sm font-semibold text-navy-900 dark:text-white mt-0.5">
+                      {item.valor}
+                    </p>
+                  </div>
                 ))}
-              </ul>
-            )}
+              </div>
+
+              <h4 className="text-sm font-semibold text-navy-900 dark:text-white mb-1">
+                Fornecedores que esta conta enxerga
+              </h4>
+
+              <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+                {detalhe.tipo === 'Administrador'
+                  ? 'Administrador enxerga o cadastro inteiro, com pedido ou sem.'
+                  : 'Um vendedor passa a enxergar o fornecedor quando tem pedido com ele — é quando precisa pagar.'}
+              </p>
+
+              {carregandoDetalhe ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Carregando...
+                </div>
+              ) : fornecedoresDaConta.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400 py-3">
+                  Nenhum. Esta conta nunca teve pedido com fornecedor algum.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {fornecedoresDaConta.map((item) => (
+                    <li
+                      key={item.supplier_id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-navy-600 px-3 py-2.5"
+                    >
+                      <span className="text-sm text-navy-900 dark:text-white">
+                        {item.fornecedor}
+                      </span>
+
+                      <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">
+                        {item.pedidos === 0
+                          ? 'sem pedidos'
+                          : `${item.pedidos} pedido(s) · ${formatarData(item.ultimo_pedido)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {editando && (
-        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
-          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-md my-auto">
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
-                  Ajustar plano
-                </h3>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
+            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-md my-auto">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
+                    Ajustar plano
+                  </h3>
 
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  {editando.email}
-                </p>
-              </div>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                    {editando.email}
+                  </p>
+                </div>
 
-              <button
-                onClick={() => setEditando(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                aria-label="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
-                  Plano
-                </label>
-
-                <select
-                  value={novoPlano}
-                  onChange={(evento) => setNovoPlano(evento.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm"
+                <button
+                  onClick={() => setEditando(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  aria-label="Fechar"
                 >
-                  <option value="basico">Básico</option>
-                  <option value="premium">Premium</option>
-                </select>
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
-                  Situação
-                </label>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+                    Plano
+                  </label>
 
-                <select
-                  value={novoStatus}
-                  onChange={(evento) => setNovoStatus(evento.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm"
+                  <select
+                    value={novoPlano}
+                    onChange={(evento) => setNovoPlano(evento.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm"
+                  >
+                    <option value="basico">Básico</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+                    Situação
+                  </label>
+
+                  <select
+                    value={novoStatus}
+                    onChange={(evento) => setNovoStatus(evento.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm"
+                  >
+                    <option value="ativo">Ativo — libera o acesso</option>
+                    <option value="inativo">Inativo — bloqueia</option>
+                    <option value="vencido">Vencido — bloqueia</option>
+                    <option value="cancelado">Cancelado — bloqueia</option>
+                    <option value="reembolsado">Reembolsado — bloqueia</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+                    Dias de acesso
+                  </label>
+
+                  <input
+                    type="number"
+                    min={1}
+                    value={dias}
+                    onChange={(evento) => setDias(evento.target.value)}
+                    placeholder="Deixe vazio para não expirar"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm"
+                  />
+
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+                    Vazio serve para compra única e cortesia. Preencha 33 para uma
+                    mensalidade do Básico.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={salvarPlano}
+                  disabled={salvando}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
                 >
-                  <option value="ativo">Ativo — libera o acesso</option>
-                  <option value="inativo">Inativo — bloqueia</option>
-                  <option value="vencido">Vencido — bloqueia</option>
-                  <option value="cancelado">Cancelado — bloqueia</option>
-                  <option value="reembolsado">Reembolsado — bloqueia</option>
-                </select>
+                  {salvando && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Salvar
+                </button>
+
+                <button
+                  onClick={() => setEditando(null)}
+                  className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold"
+                >
+                  Cancelar
+                </button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
-                  Dias de acesso
-                </label>
-
-                <input
-                  type="number"
-                  min={1}
-                  value={dias}
-                  onChange={(evento) => setDias(evento.target.value)}
-                  placeholder="Deixe vazio para não expirar"
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm"
-                />
-
-                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-                  Vazio serve para compra única e cortesia. Preencha 33 para uma
-                  mensalidade do Básico.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={salvarPlano}
-                disabled={salvando}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-              >
-                {salvando && <Loader2 className="w-4 h-4 animate-spin" />}
-                Salvar
-              </button>
-
-              <button
-                onClick={() => setEditando(null)}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold"
-              >
-                Cancelar
-              </button>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Calculator,
@@ -342,7 +343,20 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
   const loadingRequiredData = loadingMercadoLivre;
 
-  return (
+  // O modal e desenhado direto no corpo do documento, fora da arvore da
+  // pagina.
+  //
+  // Dentro da pagina ele disputava camada com o cabecalho e com o menu, e
+  // perdia de formas dificeis de prever: `backdrop-filter`, `sticky` e
+  // `transform` criam contextos de empilhamento proprios, e o navegador
+  // compoe alguns deles acima do modal mesmo com z-index menor. O resultado
+  // era uma faixa do cabecalho aparecendo nitida por cima do fundo
+  // escurecido — e cada tentativa de consertar por z-index descobria outro
+  // elemento fazendo o mesmo.
+  //
+  // Preso ao corpo, o modal nao tem nenhum ancestral capaz de competir com
+  // ele. A classe inteira de problema deixa de existir.
+  return createPortal(
     <>
       {/* Quem rola é o FUNDO, não o modal.
 
@@ -868,6 +882,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
             background: #545A5B;
           }
         `}</style>
-    </>
+    </>,
+    document.body
   );
 }

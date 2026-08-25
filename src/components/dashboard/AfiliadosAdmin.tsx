@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Loader2, Share2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import ModalPortal from '../ui/modal-portal';
 
 interface Afiliado {
   afiliado: string;
@@ -196,66 +197,68 @@ export default function AfiliadosAdmin() {
       )}
 
       {detalhe && (
-        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
-          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg my-auto">
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h3 className="text-lg font-semibold text-navy-900 dark:text-white font-mono">
-                  {detalhe.afiliado}
-                </h3>
+        <ModalPortal>
+          <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
+            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg my-auto">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-navy-900 dark:text-white font-mono">
+                    {detalhe.afiliado}
+                  </h3>
 
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  {detalhe.vendas} venda(s) · {formatarValor(detalhe.faturamento)} ·
-                  primeira em {formatarData(detalhe.primeira_venda)}
-                </p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                    {detalhe.vendas} venda(s) · {formatarValor(detalhe.faturamento)} ·
+                    primeira em {formatarData(detalhe.primeira_venda)}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setDetalhe(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <button
-                onClick={() => setDetalhe(null)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                aria-label="Fechar"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {carregandoDetalhe ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Carregando...
+                </div>
+              ) : (
+                <ul className="space-y-2">
+                  {clientes.map((cliente, indice) => (
+                    <li
+                      key={`${cliente.email}-${indice}`}
+                      className="rounded-lg border border-gray-200 dark:border-navy-600 px-3 py-2.5"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm text-navy-900 dark:text-white">
+                          {cliente.nome || cliente.email}
+                        </span>
+
+                        <span className="text-sm font-medium text-navy-900 dark:text-white">
+                          {formatarValor(cliente.valor)}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                        {cliente.plan_status === 'ativo'
+                          ? 'ativo'
+                          : cliente.plan_status || 'sem conta ainda'}
+                        {' · comprou '}
+                        {formatarData(cliente.comprou_em)}
+                        {' · último acesso '}
+                        {formatarData(cliente.ultimo_acesso)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-
-            {carregandoDetalhe ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400 py-4">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Carregando...
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {clientes.map((cliente, indice) => (
-                  <li
-                    key={`${cliente.email}-${indice}`}
-                    className="rounded-lg border border-gray-200 dark:border-navy-600 px-3 py-2.5"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm text-navy-900 dark:text-white">
-                        {cliente.nome || cliente.email}
-                      </span>
-
-                      <span className="text-sm font-medium text-navy-900 dark:text-white">
-                        {formatarValor(cliente.valor)}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      {cliente.plan_status === 'ativo'
-                        ? 'ativo'
-                        : cliente.plan_status || 'sem conta ainda'}
-                      {' · comprou '}
-                      {formatarData(cliente.comprou_em)}
-                      {' · último acesso '}
-                      {formatarData(cliente.ultimo_acesso)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );
