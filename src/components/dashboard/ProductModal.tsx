@@ -4,7 +4,6 @@ import {
   Calculator,
   Image,
   FileText,
-  Tag,
   AlertCircle,
   Link2,
   Truck,
@@ -434,46 +433,20 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
               <div className="space-y-6">
-                <div className="bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 rounded-xl p-5">
-                  <div className="flex gap-4">
-                    <img
-                      src={product.image}
-                      alt={product.name}
-                      className="w-24 h-24 object-cover rounded-xl"
-                    />
+                <div className="bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 rounded-xl overflow-hidden">
+                  {/* O nome do produto e a categoria. A prévia que existia
+                      acima repetia isto, mais a descrição — tudo aparecendo de
+                      novo, editável, poucos centímetros abaixo. */}
+                  <div className="px-5 py-4 border-b border-gray-200 dark:border-navy-700 flex items-start gap-2">
+                    <Sparkles className="w-5 h-5 text-gray-700 dark:text-white shrink-0 mt-0.5" />
 
-                    <div className="flex-1">
-                      <h3 className="text-navy-900 dark:text-white font-semibold">
+                    <div>
+                      <h3 className="text-navy-900 dark:text-white font-semibold leading-snug">
                         {product.name}
                       </h3>
 
-                      <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                         {product.category}
-                      </p>
-
-                      <p className="text-sm text-gray-600 dark:text-slate-400 mt-3">
-                        {product.description}
-                      </p>
-
-                    </div>
-                  </div>
-                </div>
-
-                {/* O quadro com nome, empresa, cidade e WhatsApp do fornecedor
-                    saiu daqui: são dados de bastidor, e a tela é sobre o
-                    anúncio. O vínculo continua valendo — só não é exibido. */}
-
-                <div className="bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 rounded-xl overflow-hidden">
-                  <div className="px-5 py-4 border-b border-gray-200 dark:border-navy-700 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-gray-700 dark:text-white" />
-
-                    <div>
-                      <h3 className="text-navy-900 dark:text-white font-semibold">
-                        Anúncio gerado automaticamente por IA
-                      </h3>
-
-                      <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                        Título, descrição, categoria e preço preparados para revisão.
                       </p>
                     </div>
                   </div>
@@ -615,23 +588,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3">
-                      <Tag className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5" />
-
-                      <div>
-                        <p className="text-sm font-medium text-navy-900 dark:text-white">
-                          Categoria e preço
-                        </p>
-
-                        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                          Categoria: {product.category}
-                        </p>
-
-                        <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Preço final: {formatCurrency(precoDeVenda)}
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -805,16 +761,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       exato só sai depois da venda. O Financeiro mostra o real,
                       buscado do próprio Mercado Livre.
                     </p>
-
-                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                      <p className="text-blue-700 dark:text-blue-400 text-sm font-medium">
-                        Automação do anúncio
-                      </p>
-
-                      <p className="text-blue-700 dark:text-blue-400 text-sm mt-1">
-                        O FORNEXA usa o fornecedor vinculado ao produto para salvar o anúncio com origem correta.
-                      </p>
-                    </div>
 
                     <div className="flex flex-col gap-3 pt-2">
                       {!mercadoLivreConnected ? (
