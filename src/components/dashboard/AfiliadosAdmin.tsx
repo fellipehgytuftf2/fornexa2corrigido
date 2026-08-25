@@ -196,8 +196,8 @@ export default function AfiliadosAdmin() {
       )}
 
       {detalhe && (
-        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-center justify-center p-4">
-          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black/50 z-[100] overflow-y-auto flex min-h-full items-start justify-center p-4">
+          <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg my-auto">
             <div className="flex items-start justify-between mb-5">
               <div>
                 <h3 className="text-lg font-semibold text-navy-900 dark:text-white font-mono">
