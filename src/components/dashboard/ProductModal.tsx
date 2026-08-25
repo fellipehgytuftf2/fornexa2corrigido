@@ -344,11 +344,22 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div
-          className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl animate-fade-in"
-          onClick={(e) => e.stopPropagation()}
-        >
+      {/* Quem rola é o FUNDO, não o modal.
+
+          Antes o cartão tentava caber na altura da janela, com max-h em vh.
+          Em janela baixa — celular deitado, navegador achatado — não existe
+          altura que funcione: ou o conteúdo é cortado em cima e embaixo ao
+          mesmo tempo, sumindo o X e o botão de publicar juntos, ou sobra um
+          filete inútil.
+
+          Com a rolagem no fundo, o cartão tem a altura que precisar e a
+          pessoa rola até o fim. Funciona em qualquer altura de tela. */}
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <div
+            className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl shadow-2xl animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
           <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-navy-700 sticky top-0 bg-white dark:bg-navy-800 z-10">
             <div>
               <h2 className="text-lg font-semibold text-navy-900 dark:text-white">
@@ -802,8 +813,8 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
               </div>
             </div>
           </div>
+          </div>
         </div>
-
       </div>
 
       {flowStage !== 'idle' && (
