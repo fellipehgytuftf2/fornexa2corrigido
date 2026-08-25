@@ -1361,8 +1361,8 @@ export default function Admin() {
                 </p>
 
                 <div className="rounded-xl border border-gray-200 dark:border-navy-700 overflow-hidden">
-                  <div className="max-h-72 overflow-y-auto">
-                    <table className="w-full text-sm">
+                  <div className="max-h-72 overflow-y-auto overflow-x-auto">
+                    <table className="w-full text-sm min-w-[560px]">
                       <thead className="bg-gray-50 dark:bg-navy-700 sticky top-0">
                         <tr>
                           {['Produto', 'Categoria', 'Preço', 'Fotos'].map(
