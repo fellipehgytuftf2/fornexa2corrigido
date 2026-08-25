@@ -109,8 +109,14 @@ export default function PublishFlowOverlay({
     setTimeout(() => setShowToast(false), 2500);
   };
 
+  // z-[110] fica acima do modal que abriu esta tela (z-[100]).
+  //
+  // Os dois vivem no mesmo portal, presos ao corpo do documento, entao quem
+  // tem o numero maior ganha. Com o valor antigo, o fundo opaco daqui era
+  // pintado por tras do modal: a pagina sumia, o modal continuava por cima e
+  // parecia que a tela tinha quebrado ao clicar em Publicar.
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#06151E]">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-[#06151E]">
       {stage === 'publishing' ? (
         <div className="w-full max-w-md text-center">
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-[#11212D] border border-[#253745] flex items-center justify-center">
@@ -248,7 +254,7 @@ export default function PublishFlowOverlay({
       )}
 
       {showToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#11212D] border border-[#253745] text-white text-sm px-5 py-3 rounded-xl shadow-lg z-[70]">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#11212D] border border-[#253745] text-white text-sm px-5 py-3 rounded-xl shadow-lg z-[120]">
           Em breve disponível.
         </div>
       )}
