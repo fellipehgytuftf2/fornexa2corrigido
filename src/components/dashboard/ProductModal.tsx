@@ -346,7 +346,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div
-          className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl max-h-[92vh] overflow-y-auto shadow-2xl animate-fade-in"
+          className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl animate-fade-in"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-navy-700 sticky top-0 bg-white dark:bg-navy-800 z-10">

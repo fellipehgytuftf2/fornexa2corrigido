@@ -1222,7 +1222,7 @@ export default function SupplierPortal() {
             onClick={() => setConversaPedido(null)}
           />
 
-          <div className="relative w-full sm:max-w-2xl max-h-[90vh] flex flex-col bg-navy-900 rounded-t-2xl sm:rounded-2xl border border-white/10">
+          <div className="relative w-full sm:max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col bg-navy-900 rounded-t-2xl sm:rounded-2xl border border-white/10">
             <div className="p-5 border-b border-white/10">
               <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-500">
                 Conversa sobre o pedido

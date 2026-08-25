@@ -489,7 +489,7 @@ export default function Tickets() {
             onClick={() => setChamadoAberto(null)}
           />
 
-          <div className="relative w-full sm:max-w-2xl max-h-[90vh] flex flex-col bg-white dark:bg-navy-800 rounded-t-2xl sm:rounded-2xl border border-gray-200 dark:border-navy-700 shadow-xl">
+          <div className="relative w-full sm:max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col bg-white dark:bg-navy-800 rounded-t-2xl sm:rounded-2xl border border-gray-200 dark:border-navy-700 shadow-xl">
             <div className="p-5 border-b border-gray-200 dark:border-navy-700">
               <h2 className="text-lg font-bold text-navy-900 dark:text-white">
                 {chamadoAberto.subject}
