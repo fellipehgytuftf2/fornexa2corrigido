@@ -23,6 +23,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { chavePublica, chaveSecreta, urlDoProjeto } from '../_shared/chaves.ts';
+import { obterAccessToken } from '../_shared/tokenMercadoLivre.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -203,49 +204,16 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  let accessToken = connection.access_token as string;
+  const token = await obterAccessToken(admin, connection);
 
-  // 4. Renova o token se estiver perto de expirar.
-  //    Mesma lógica de ml-sync-orders, para o comportamento não divergir.
-  const expiresAt = connection.expires_at ? new Date(connection.expires_at).getTime() : 0;
-  const cincoMinutos = Date.now() + 5 * 60 * 1000;
-
-  if (expiresAt < cincoMinutos) {
-    const refreshResponse = await fetch('https://api.mercadolibre.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: Deno.env.get('ML_CLIENT_ID')!,
-        client_secret: Deno.env.get('ML_CLIENT_SECRET')!,
-        refresh_token: connection.refresh_token,
-      }),
-    });
-
-    const refreshData = await refreshResponse.json();
-
-    if (!refreshResponse.ok) {
-      console.error('Falha ao renovar token do vendedor:', refreshData);
-      return json(
-        { error: 'A conexão do vendedor com o Mercado Livre expirou. Peça para ele reconectar.' },
-        409
-      );
-    }
-
-    accessToken = refreshData.access_token;
-
-    await admin
-      .from('ml_connections')
-      .update({
-        access_token: refreshData.access_token,
-        refresh_token: refreshData.refresh_token ?? connection.refresh_token,
-        expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString(),
-      })
-      .eq('id', connection.id);
+  if (!token.ok) {
+    return json(
+      { error: 'A conexão do vendedor com o Mercado Livre expirou. Peça para ele reconectar.' },
+      409
+    );
   }
+
+  const accessToken = token.accessToken;
 
   // 5. Busca a etiqueta.
   //    A etiqueta só existe quando o envio está em ready_to_ship no Mercado

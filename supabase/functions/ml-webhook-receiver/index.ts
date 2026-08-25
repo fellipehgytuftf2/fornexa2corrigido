@@ -32,6 +32,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
+import { obterAccessToken } from "../_shared/tokenMercadoLivre.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,59 +141,34 @@ Deno.serve(async (req: Request) => {
     }
 
     const vendedorId = connection.user_id as string;
-    let accessToken = connection.access_token as string;
 
-    // Renova o token se necessário (mesma lógica das outras funções)
-    const expiresAt = connection.expires_at ? new Date(connection.expires_at).getTime() : 0;
-    const fiveMinutesFromNow = Date.now() + 5 * 60 * 1000;
+    const token = await obterAccessToken(supabase, connection);
 
-    if (expiresAt < fiveMinutesFromNow) {
-      const refreshResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-        },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: Deno.env.get("ML_CLIENT_ID")!,
-          client_secret: Deno.env.get("ML_CLIENT_SECRET")!,
-          refresh_token: connection.refresh_token,
-        }),
-      });
-
-      const refreshData = await refreshResponse.json();
-
-      if (refreshResponse.ok) {
-        accessToken = refreshData.access_token;
-        const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000).toISOString();
-
+    if (!token.ok) {
+      if (webhookEventId) {
         await supabase
-          .from("ml_connections")
+          .from("webhook_events")
           .update({
-            access_token: refreshData.access_token,
-            refresh_token: refreshData.refresh_token ?? connection.refresh_token,
-            expires_at: newExpiresAt,
+            status: "erro",
+            erro_mensagem: "Conexão do vendedor com o Mercado Livre precisa ser refeita",
+            processado_em: new Date().toISOString(),
           })
-          .eq("id", connection.id);
-      } else {
-        if (webhookEventId) {
-          await supabase
-            .from("webhook_events")
-            .update({
-              status: "erro",
-              erro_mensagem: "Falha ao renovar token do vendedor ao processar webhook",
-              processado_em: new Date().toISOString(),
-            })
-            .eq("id", webhookEventId);
-        }
-
-        return new Response(JSON.stringify({ received: true }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+          .eq("id", webhookEventId);
       }
+
+      // 503 de propósito, e não 200.
+      //
+      // Responder 200 dizia ao Mercado Livre "recebi e resolvi", e ele
+      // marcava a notificação como entregue — a venda sumia para sempre.
+      // Com 503 ele reenvia por horas, e quando o vendedor reconectar o
+      // pedido entra sozinho, sem ninguém precisar descobrir que faltou.
+      return new Response(JSON.stringify({ received: false, retry: true }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const accessToken = token.accessToken;
 
     // 3. Buscar os detalhes do pedido direto pelo "resource" que o webhook
     // já indica (ex: "/orders/1234567890")

@@ -30,6 +30,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
+import { obterAccessToken } from "../_shared/tokenMercadoLivre.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,50 +84,19 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    let accessToken = connection.access_token as string;
     const mlUserId = connection.external_account_id as string;
 
-    // Renova o token se estiver perto de expirar (mesma lógica das outras funções)
-    const expiresAt = connection.expires_at ? new Date(connection.expires_at).getTime() : 0;
-    const fiveMinutesFromNow = Date.now() + 5 * 60 * 1000;
+    const token = await obterAccessToken(supabase, connection);
 
-    if (expiresAt < fiveMinutesFromNow) {
-      const refreshResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-        },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: Deno.env.get("ML_CLIENT_ID")!,
-          client_secret: Deno.env.get("ML_CLIENT_SECRET")!,
-          refresh_token: connection.refresh_token,
-        }),
-      });
-
-      const refreshData = await refreshResponse.json();
-
-      if (refreshResponse.ok) {
-        accessToken = refreshData.access_token;
-        const newExpiresAt = new Date(Date.now() + refreshData.expires_in * 1000).toISOString();
-
-        await supabase
-          .from("ml_connections")
-          .update({
-            access_token: refreshData.access_token,
-            refresh_token: refreshData.refresh_token ?? connection.refresh_token,
-            expires_at: newExpiresAt,
-          })
-          .eq("id", connection.id);
-      } else {
-        console.error("Falha ao renovar token antes de sincronizar pedidos:", refreshData);
-        return new Response(
-          JSON.stringify({ error: "Sua conexão com o Mercado Livre expirou. Reconecte em Integrações." }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    if (!token.ok) {
+      console.error("Falha ao obter token antes de sincronizar pedidos:", token.motivo);
+      return new Response(
+        JSON.stringify({ error: "Sua conexão com o Mercado Livre expirou. Reconecte em Integrações." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const accessToken = token.accessToken;
 
     // 3. Buscar pedidos recentes do Mercado Livre (últimos 30 dias, mais
     // recentes primeiro). O endpoint /orders/search é paginado; para manter
