@@ -80,6 +80,46 @@ function montarTitulo(nome: string): string {
   return ultimoEspaco > 30 ? cortado.slice(0, ultimoEspaco) : cortado;
 }
 
+/**
+ * Transforma a recusa crua do Mercado Livre em texto legível.
+ *
+ * A API responde de três jeitos conforme o erro: um array de causas com
+ * `code` e `message`, uma frase solta, ou um objeto inteiro. Aqui os três
+ * viram texto — a prioridade é nunca deixar a causa sumir, mesmo feia.
+ */
+function descreverDetalhe(detalhe: unknown): string {
+  if (!detalhe) {
+    return '';
+  }
+
+  if (typeof detalhe === 'string') {
+    return detalhe;
+  }
+
+  if (Array.isArray(detalhe)) {
+    const linhas = detalhe
+      .map((causa) => {
+        if (typeof causa === 'string') {
+          return causa;
+        }
+
+        const item = causa as { code?: string; message?: string };
+        const codigo = item?.code ? `[${item.code}] ` : '';
+
+        return item?.message ? `${codigo}${item.message}` : JSON.stringify(causa);
+      })
+      .filter(Boolean);
+
+    return linhas.join('\n');
+  }
+
+  try {
+    return JSON.stringify(detalhe, null, 2);
+  } catch {
+    return String(detalhe);
+  }
+}
+
 export default function ProductModal({ product, onClose }: ProductModalProps) {
   // O modal existe só enquanto está aberto, então a trava vale sempre.
   useTravaScrollDeFundo(true);
@@ -105,6 +145,19 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [mercadoLivreError, setMercadoLivreError] = useState('');
 
   const [publishError, setPublishError] = useState('');
+
+  /**
+   * A recusa crua do Mercado Livre, do jeito que ela chegou.
+   *
+   * A tradução acima cobre os erros que já vimos. Quando aparece um que
+   * ninguem previu, a tela dizia so "O Mercado Livre recusou a criação do
+   * anúncio" e a causa real morria no servidor — o cliente ficava travado e
+   * do lado de cá não havia como saber o motivo sem ir no banco.
+   *
+   * Agora o motivo aparece embaixo da mensagem. É texto técnico, e está
+   * marcado como tal na tela.
+   */
+  const [publishErrorDetalhe, setPublishErrorDetalhe] = useState('');
   const [publishedPermalink, setPublishedPermalink] = useState('');
 
   useEffect(() => {
@@ -251,6 +304,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
     setPublishing(true);
     setPublishError('');
+    setPublishErrorDetalhe('');
 
     const {
       data: { user },
@@ -301,15 +355,19 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
       // caso, precisamos ler o corpo da resposta manualmente a partir de
       // publishInvokeError.context (um objeto Response).
       let mensagemEspecifica: string | undefined = publishResult?.error;
+      let detalheCru: unknown;
 
       const errorContext = (
-        publishInvokeError as { context?: { json?: () => Promise<{ error?: string }> } } | null
+        publishInvokeError as {
+          context?: { json?: () => Promise<{ error?: string; detalhes?: unknown }> };
+        } | null
       )?.context;
 
       if (!mensagemEspecifica && errorContext?.json) {
         try {
           const errorBody = await errorContext.json();
           mensagemEspecifica = errorBody?.error;
+          detalheCru = errorBody?.detalhes;
         } catch {
           // Se não der pra ler o corpo (ex: não é JSON), seguimos com a
           // mensagem genérica abaixo.
@@ -320,6 +378,8 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         mensagemEspecifica ??
           'Não foi possível publicar o anúncio no Mercado Livre. Tente novamente.'
       );
+
+      setPublishErrorDetalhe(descreverDetalhe(detalheCru));
       return;
     }
 
@@ -430,9 +490,23 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-700 dark:text-red-400 mt-0.5" />
 
-                <p className="text-red-700 dark:text-red-400 text-sm font-medium">
-                  {publishError}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-red-700 dark:text-red-400 text-sm font-medium">
+                    {publishError}
+                  </p>
+
+                  {publishErrorDetalhe && (
+                    <div className="mt-3">
+                      <p className="text-red-700/70 dark:text-red-400/70 text-xs mb-1">
+                        Resposta do Mercado Livre (envie este texto ao suporte):
+                      </p>
+
+                      <pre className="text-red-800 dark:text-red-300 text-xs bg-red-100/60 dark:bg-red-950/40 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">
+                        {publishErrorDetalhe}
+                      </pre>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
