@@ -12,6 +12,14 @@ interface TicketMessage {
   created_at: string;
 }
 
+/** Quem abriu o chamado, resolvido pela funcao do banco (so admin). */
+interface QuemAbriu {
+  vendedor_nome: string | null;
+  vendedor_email: string | null;
+  fornecedor_nome: string | null;
+  fornecedor_email: string | null;
+}
+
 interface SupportTicket {
   id: string;
   user_id: string;
@@ -128,6 +136,7 @@ export default function Tickets() {
   };
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [quemAbriu, setQuemAbriu] = useState<Record<string, QuemAbriu>>({});
 
   const loadTickets = async () => {
     setLoading(true);
@@ -151,7 +160,9 @@ export default function Tickets() {
       .eq('id', user.id)
       .maybeSingle();
 
-    setIsAdmin(profileData?.role === 'admin');
+    const ehAdmin = profileData?.role === 'admin';
+
+    setIsAdmin(ehAdmin);
 
     const { data, error } = await supabase
       .from('tickets')
@@ -168,6 +179,29 @@ export default function Tickets() {
 
     const carregados = (data || []) as SupportTicket[];
     setTickets(carregados);
+
+    // Só o admin precisa disso: o vendedor abriu todos os que ele vê.
+    if (ehAdmin && carregados.length > 0) {
+      const { data: autores, error: erroAutores } = await supabase.rpc(
+        'admin_quem_abriu_chamado'
+      );
+
+      if (erroAutores) {
+        // Não é motivo para esconder os chamados: sem os nomes a tela ainda
+        // serve. Mostra "—" na coluna e segue.
+        console.error('Erro ao carregar quem abriu os chamados:', erroAutores);
+      } else {
+        const porChamado: Record<string, QuemAbriu> = {};
+
+        (autores as (QuemAbriu & { ticket_id: string })[] | null)?.forEach(
+          (linha) => {
+            porChamado[linha.ticket_id] = linha;
+          }
+        );
+
+        setQuemAbriu(porChamado);
+      }
+    }
 
     if (carregados.length === 0) {
       setNaoLidas({});
@@ -321,6 +355,12 @@ export default function Tickets() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-700">
+                  {isAdmin && (
+                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                      Quem abriu
+                    </th>
+                  )}
+
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
                     Assunto
                   </th>
@@ -344,6 +384,48 @@ export default function Tickets() {
               <tbody className="divide-y divide-gray-200 dark:divide-navy-700">
                 {tickets.map((ticket) => (
                   <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-navy-700/50">
+                    {isAdmin && (
+                      <td className="px-5 py-4 text-sm">
+                        {(() => {
+                          const autor = quemAbriu[ticket.id];
+
+                          // Chamado com fornecedor foi aberto no Portal por
+                          // ele, mesmo o pedido sendo de um vendedor. O
+                          // vendedor aparece embaixo porque continua sendo
+                          // quem precisa da resposta.
+                          const abriu = ticket.supplier_id
+                            ? autor?.fornecedor_nome || autor?.fornecedor_email
+                            : autor?.vendedor_nome || autor?.vendedor_email;
+
+                          if (!abriu) {
+                            return <span className="text-gray-400 dark:text-slate-500">—</span>;
+                          }
+
+                          return (
+                            <div>
+                              <p className="text-navy-900 dark:text-white font-medium">
+                                {abriu}
+                              </p>
+
+                              {ticket.supplier_id ? (
+                                <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                  pedido de{' '}
+                                  {autor?.vendedor_nome || autor?.vendedor_email || 'vendedor'}
+                                </p>
+                              ) : (
+                                autor?.vendedor_email &&
+                                autor?.vendedor_nome && (
+                                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                                    {autor.vendedor_email}
+                                  </p>
+                                )
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    )}
+
                     <td className="px-5 py-4 text-sm text-navy-900 dark:text-white font-medium">
                       {ticket.subject}
 
