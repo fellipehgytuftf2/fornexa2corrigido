@@ -158,7 +158,7 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
   // O nome do campo faltando vem no texto da causa, nao em `message` — la
   // chega so "body.required_fields".
   if (causeCodes.includes("body.required_fields") && causeMessages.includes("family_name")) {
-    return "O Mercado Livre passou a exigir um campo novo nesta categoria e a publicação foi recusada. Já tratamos isso — tente publicar de novo. Se continuar, avise o suporte.";
+    return "O Mercado Livre mudou como esta categoria recebe o nome do anúncio e recusou as duas formas conhecidas. Avise o suporte do FORNEXA com o texto técnico abaixo.";
   }
 
   if (causeCodes.includes("item.available_quantity")) {
@@ -169,27 +169,30 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
 }
 
 /**
- * A recusa veio por causa do `family_name`?
+ * A recusa foi sobre o NOME do anúncio?
  *
- * Serve para o caminho contrario do erro que motivou o campo: categoria que
- * ainda nao foi migrada e nao conhece o campo. Sem isto, mandar
- * `family_name` para todo mundo consertaria uns e quebraria outros.
+ * É o que decide se vale repetir a publicação na outra forma. Qualquer outro
+ * motivo — preço, foto, atributo, conta sem permissão — daria o mesmo erro
+ * das duas maneiras.
  */
-function reclamaDoFamilyName(itemData: any): boolean {
+function recusouPeloNome(itemData: any): boolean {
   const cause = Array.isArray(itemData?.cause) ? itemData.cause : [];
+
   const texto = [
     itemData?.message ?? "",
     itemData?.error ?? "",
     ...cause.map((c: any) => `${c?.code ?? ""} ${c?.message ?? ""}`),
-  ].join(" ");
+  ]
+    .join(" ")
+    .toLowerCase();
 
-  // "required_fields" e a recusa por FALTAR o campo — nesse caso mandar de
-  // novo sem ele so repetiria o erro.
-  if (texto.includes("required_fields")) {
-    return false;
-  }
-
-  return texto.includes("family_name");
+  // "family_name" e "family name" aparecem escritos das duas formas pela
+  // própria API, conforme o erro.
+  return (
+    texto.includes("family_name") ||
+    texto.includes("family name") ||
+    texto.includes("[title]")
+  );
 }
 
 Deno.serve(async (req: Request) => {
@@ -615,25 +618,11 @@ Deno.serve(async (req: Request) => {
       ? 1
       : Math.min(999, Math.max(1, Math.floor(Number(body.announcement_quantity) || 10)));
 
-    const itemPayload = {
-      title: tituloFinal,
-
-      // Exigência nova do Mercado Livre (modelo "User Product").
-      //
-      // A recusa vinha como `body.required_fields`, "The body does not
-      // contains some or none of the following properties [family_name]", e o
-      // vendedor só via "recusou a criação do anúncio".
-      //
-      // `family_name` é o nome genérico que agrupa variações do mesmo produto
-      // ("Apple iPhone 256GB" agrupando o vermelho e o azul). Como aqui cada
-      // anúncio é um produto sozinho, sem variação, o próprio título serve.
-      //
-      // A documentação diz que `title` ainda é aceito e mapeado para
-      // `family_name` por compatibilidade, e que `family_name` tem
-      // prioridade quando os dois vêm. Mas as categorias já migradas recusam
-      // sem ele — foi o que derrubou a publicação dos clientes.
-      family_name: tituloFinal,
-
+    // O corpo do anúncio, sem o nome.
+    //
+    // O nome é a parte que muda conforme o modelo de publicação da categoria,
+    // e por isso entra depois — ver a lista de tentativas logo abaixo.
+    const itemBase = {
       category_id: categoryId,
       price: precoFinal,
       currency_id: "BRL",
@@ -645,6 +634,32 @@ Deno.serve(async (req: Request) => {
       attributes: itemAttributes,
     };
 
+    /**
+     * O Mercado Livre tem dois modelos de publicação convivendo, e a mesma
+     * conta cai num ou noutro conforme a categoria.
+     *
+     * MODELO NOVO ("User Product"): o nome vem em `family_name`, e mandar
+     * `title` junto é recusado —
+     *   "The fields [title] are invalid for requested call."
+     *
+     * MODELO ANTIGO: o nome vem em `title`, e `family_name` não existe —
+     *   "The body does not contains some or none of the following
+     *    properties [family_name]" quando falta,
+     *   "The field family name is invalid" quando sobra.
+     *
+     * Não existe jeito de perguntar de fora em qual modelo a categoria está.
+     * A documentação diz que `title` ainda é aceito por compatibilidade, e
+     * na prática não é — foi assim que a publicação dos clientes parou.
+     *
+     * Então tenta os dois, nesta ordem, e para no primeiro que o Mercado
+     * Livre aceitar. O modelo novo vem primeiro porque é para onde as
+     * categorias estão migrando.
+     */
+    const tentativas: { nome: string; corpo: Record<string, unknown> }[] = [
+      { nome: "family_name", corpo: { family_name: tituloFinal, ...itemBase } },
+      { nome: "title", corpo: { title: tituloFinal, ...itemBase } },
+    ];
+
     const criarItem = (corpo: Record<string, unknown>) =>
       fetch("https://api.mercadolibre.com/items", {
         method: "POST",
@@ -655,23 +670,27 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify(corpo),
       });
 
-    let createItemResponse = await criarItem(itemPayload);
-    let itemData = await createItemResponse.json();
+    let createItemResponse!: Response;
+    let itemData: any;
 
-    // Rede de segurança para o caminho contrário.
-    //
-    // Nem toda categoria foi migrada para o modelo novo, e não dá para saber
-    // de fora quais foram. Se alguma recusar justamente por causa de
-    // `family_name`, tenta de novo sem ele em vez de derrubar a publicação.
-    //
-    // Isso protege as contas que publicavam bem antes desta mudança.
-    if (!createItemResponse.ok && reclamaDoFamilyName(itemData)) {
-      console.warn("Categoria recusou family_name; repetindo sem o campo.");
-
-      const { family_name: _ignorado, ...semFamilia } = itemPayload;
-
-      createItemResponse = await criarItem(semFamilia);
+    for (const tentativa of tentativas) {
+      createItemResponse = await criarItem(tentativa.corpo);
       itemData = await createItemResponse.json();
+
+      if (createItemResponse.ok) {
+        break;
+      }
+
+      // Só vale insistir quando a recusa foi sobre o nome. Preço, foto,
+      // atributo ou conta bloqueada dão o mesmo erro nas duas formas — repetir
+      // seria só uma publicação a mais para o Mercado Livre recusar de novo.
+      if (!recusouPeloNome(itemData)) {
+        break;
+      }
+
+      console.warn(
+        `Mercado Livre recusou o anúncio por ${tentativa.nome}; tentando a outra forma.`
+      );
     }
 
     if (!createItemResponse.ok) {
