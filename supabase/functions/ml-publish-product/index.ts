@@ -118,6 +118,7 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
   const message = itemData?.message ?? "";
   const cause = Array.isArray(itemData?.cause) ? itemData.cause : [];
   const causeCodes = cause.map((c: any) => c?.code ?? "").join(" ");
+  const causeMessages = cause.map((c: any) => c?.message ?? "").join(" ");
 
   if (message === "seller.unable_to_list" || causeCodes.includes("rejected_by_regulations")) {
     return "Sua conta do Mercado Livre ainda não está habilitada para vender. Costuma ser pendência de cadastro: endereço fiscal incompleto, documento não validado ou dados do Mercado Pago faltando. Abra 'Minha conta' no Mercado Livre e resolva o que ele apontar — pessoa física com CPF pode vender, então nem sempre é caso de abrir CNPJ.";
@@ -154,11 +155,41 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
     );
   }
 
+  // O nome do campo faltando vem no texto da causa, nao em `message` — la
+  // chega so "body.required_fields".
+  if (causeCodes.includes("body.required_fields") && causeMessages.includes("family_name")) {
+    return "O Mercado Livre passou a exigir um campo novo nesta categoria e a publicação foi recusada. Já tratamos isso — tente publicar de novo. Se continuar, avise o suporte.";
+  }
+
   if (causeCodes.includes("item.available_quantity")) {
     return "O Mercado Livre não aceitou a quantidade de unidades deste anúncio. Anúncio grátis aceita apenas 1 unidade.";
   }
 
   return null;
+}
+
+/**
+ * A recusa veio por causa do `family_name`?
+ *
+ * Serve para o caminho contrario do erro que motivou o campo: categoria que
+ * ainda nao foi migrada e nao conhece o campo. Sem isto, mandar
+ * `family_name` para todo mundo consertaria uns e quebraria outros.
+ */
+function reclamaDoFamilyName(itemData: any): boolean {
+  const cause = Array.isArray(itemData?.cause) ? itemData.cause : [];
+  const texto = [
+    itemData?.message ?? "",
+    itemData?.error ?? "",
+    ...cause.map((c: any) => `${c?.code ?? ""} ${c?.message ?? ""}`),
+  ].join(" ");
+
+  // "required_fields" e a recusa por FALTAR o campo — nesse caso mandar de
+  // novo sem ele so repetiria o erro.
+  if (texto.includes("required_fields")) {
+    return false;
+  }
+
+  return texto.includes("family_name");
 }
 
 Deno.serve(async (req: Request) => {
@@ -586,6 +617,23 @@ Deno.serve(async (req: Request) => {
 
     const itemPayload = {
       title: tituloFinal,
+
+      // Exigência nova do Mercado Livre (modelo "User Product").
+      //
+      // A recusa vinha como `body.required_fields`, "The body does not
+      // contains some or none of the following properties [family_name]", e o
+      // vendedor só via "recusou a criação do anúncio".
+      //
+      // `family_name` é o nome genérico que agrupa variações do mesmo produto
+      // ("Apple iPhone 256GB" agrupando o vermelho e o azul). Como aqui cada
+      // anúncio é um produto sozinho, sem variação, o próprio título serve.
+      //
+      // A documentação diz que `title` ainda é aceito e mapeado para
+      // `family_name` por compatibilidade, e que `family_name` tem
+      // prioridade quando os dois vêm. Mas as categorias já migradas recusam
+      // sem ele — foi o que derrubou a publicação dos clientes.
+      family_name: tituloFinal,
+
       category_id: categoryId,
       price: precoFinal,
       currency_id: "BRL",
@@ -597,16 +645,34 @@ Deno.serve(async (req: Request) => {
       attributes: itemAttributes,
     };
 
-    const createItemResponse = await fetch("https://api.mercadolibre.com/items", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(itemPayload),
-    });
+    const criarItem = (corpo: Record<string, unknown>) =>
+      fetch("https://api.mercadolibre.com/items", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(corpo),
+      });
 
-    const itemData = await createItemResponse.json();
+    let createItemResponse = await criarItem(itemPayload);
+    let itemData = await createItemResponse.json();
+
+    // Rede de segurança para o caminho contrário.
+    //
+    // Nem toda categoria foi migrada para o modelo novo, e não dá para saber
+    // de fora quais foram. Se alguma recusar justamente por causa de
+    // `family_name`, tenta de novo sem ele em vez de derrubar a publicação.
+    //
+    // Isso protege as contas que publicavam bem antes desta mudança.
+    if (!createItemResponse.ok && reclamaDoFamilyName(itemData)) {
+      console.warn("Categoria recusou family_name; repetindo sem o campo.");
+
+      const { family_name: _ignorado, ...semFamilia } = itemPayload;
+
+      createItemResponse = await criarItem(semFamilia);
+      itemData = await createItemResponse.json();
+    }
 
     if (!createItemResponse.ok) {
       console.error("Falha ao criar item no Mercado Livre:", itemData);
