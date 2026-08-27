@@ -114,7 +114,7 @@ export async function obterAccessToken(
   // bom — reler resolve, sem pedir nada ao vendedor.
   const { data: atual } = await supabase
     .from('ml_connections')
-    .select('access_token, expires_at')
+    .select('access_token, refresh_token, expires_at')
     .eq('id', conexao.id)
     .maybeSingle();
 
@@ -122,13 +122,68 @@ export async function obterAccessToken(
     return { accessToken: atual.access_token, ok: true, precisaReconectar: false };
   }
 
+  // Outra chamada girou o refresh token, mas o access token dela ainda não
+  // chegou ao banco — ou já venceu de novo. Com o token novo em mãos vale uma
+  // segunda tentativa; sem ela, esta chamada desistiria de uma conexão que
+  // está perfeitamente viva.
+  if (atual?.refresh_token && atual.refresh_token !== conexao.refresh_token) {
+    const segunda = await renovar(atual.refresh_token);
+    const dadosDaSegunda = await segunda.json().catch(() => ({}));
+
+    if (segunda.ok && dadosDaSegunda?.access_token) {
+      await supabase
+        .from('ml_connections')
+        .update({
+          access_token: dadosDaSegunda.access_token,
+          refresh_token: dadosDaSegunda.refresh_token ?? atual.refresh_token,
+          expires_at: new Date(Date.now() + dadosDaSegunda.expires_in * 1000).toISOString(),
+          status: 'connected',
+        })
+        .eq('id', conexao.id);
+
+      return {
+        accessToken: dadosDaSegunda.access_token,
+        ok: true,
+        precisaReconectar: false,
+      };
+    }
+  }
+
   // Agora sim: ninguém renovou e o refresh token morreu de vez. A tela precisa
   // parar de dizer "Conectada", senão o vendedor só descobre ao tentar
   // publicar — e conclui que o sistema está quebrado.
+  //
+  // O `.eq('refresh_token', ...)` não é enfeite: é o que impede desconectar
+  // uma conexão que está boa.
+  //
+  // A corrida que sobrava era esta. Duas chamadas simultâneas, a primeira
+  // renova no Mercado Livre e demora um instante para gravar. Nesse instante a
+  // segunda lê o banco, vê o token velho, conclui "morreu" e grava
+  // 'disconnected'. Se essa gravação cair DEPOIS da primeira, a conexão fica
+  // marcada como caída com um token perfeitamente válido guardado — e o
+  // vendedor reconecta sem que nada estivesse errado.
+  //
+  // Comparando o refresh token, a desconexão só acontece se ninguém tiver
+  // girado nada nesse meio tempo.
   await supabase
     .from('ml_connections')
     .update({ status: 'disconnected' })
-    .eq('id', conexao.id);
+    .eq('id', conexao.id)
+    .eq('refresh_token', conexao.refresh_token);
+
+  // Sem registro não há como saber se a queda foi corrida, senha trocada,
+  // aplicativo revogado ou refresh token de seis meses vencido — e essas
+  // quatro pedem respostas diferentes.
+  await supabase.from('log_integracao_ml').insert({
+    contexto: 'token-mercado-livre',
+    mensagem: 'Conexão marcada como desconectada',
+    detalhes: {
+      conexao_id: conexao.id,
+      user_id: conexao.user_id,
+      expirava_em: conexao.expires_at,
+      resposta: dados,
+    },
+  });
 
   return {
     accessToken: '',
