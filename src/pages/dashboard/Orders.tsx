@@ -13,6 +13,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 type OrderStatus =
@@ -96,6 +97,9 @@ export default function Orders() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  /** Devolução aberta de cada pedido, por order_id. */
+  const [devolucoes, setDevolucoes] = useState<Record<string, Devolucao>>({});
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
   const [showIssues, setShowIssues] = useState(false);
@@ -261,6 +265,25 @@ export default function Orders() {
         )
       `)
       .order('created_at', { ascending: false });
+
+    // A política de RLS já limita às devoluções do próprio vendedor, então não
+    // precisa filtrar por pedido aqui.
+    const { data: devolucoesData } = await supabase
+      .from('devolucoes')
+      .select('*')
+      .order('avisada_em', { ascending: false });
+
+    const porPedido: Record<string, Devolucao> = {};
+
+    ((devolucoesData || []) as Devolucao[]).forEach((devolucao) => {
+      // A consulta vem da mais nova para a mais antiga, então a primeira de
+      // cada pedido é a que vale.
+      if (!porPedido[devolucao.order_id]) {
+        porPedido[devolucao.order_id] = devolucao;
+      }
+    });
+
+    setDevolucoes(porPedido);
 
     setLoading(false);
 
@@ -911,6 +934,16 @@ export default function Orders() {
                       {actionId === order.id ? 'Atualizando...' : getNextStatusLabel(order.status)}
                     </button>
 
+                    {/* Só depois de entregue: antes disso não existe devolução
+                        para avisar, e o pedido ainda segue o fluxo normal. */}
+                    {order.status === 'delivered' && !devolucoes[order.id] && (
+                      <DevolucaoNoPedido
+                        order={order}
+                        supplierWhatsapp={supplierWhatsapp}
+                        onMudou={loadOrders}
+                      />
+                    )}
+
                     {order.ml_shipment_id && (
                       <button
                         onClick={() => diagnosticarEnvio(order)}
@@ -931,6 +964,18 @@ export default function Orders() {
                       Excluir
                     </button>
                   </div>
+
+                  {/* Devolução já registrada: onde está e quanto falta do
+                      prazo do CD. Fica fora da fileira de botões porque é
+                      estado do pedido, não uma ação. */}
+                  {devolucoes[order.id] && (
+                    <DevolucaoNoPedido
+                      order={order}
+                      devolucao={devolucoes[order.id]}
+                      supplierWhatsapp={supplierWhatsapp}
+                      onMudou={loadOrders}
+                    />
+                  )}
 
                   {/* Diagnóstico de envio — decide qual caminho a confirmação
                       de despacho no Mercado Livre precisa seguir. */}

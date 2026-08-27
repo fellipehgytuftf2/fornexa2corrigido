@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import EstoqueFornecedor from '../../components/supplier/EstoqueFornecedor';
+import DevolucoesFornecedor from '../../components/supplier/DevolucoesFornecedor';
 import { fetchSupplierAccount, type SupplierAccount } from '../../lib/supplierAuth';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
@@ -745,11 +746,25 @@ export default function SupplierPortal() {
           >
             Estoque
           </button>
+
+          <button
+            onClick={() => setActiveTab('devolucoes')}
+            aria-current={activeTab === 'devolucoes' ? 'page' : undefined}
+            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 ${
+              activeTab === 'devolucoes'
+                ? 'bg-gold text-navy-900'
+                : 'border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            Devoluções
+          </button>
         </nav>
 
         <div className="mt-8">
           {activeTab === 'estoque' ? (
             <EstoqueFornecedor />
+          ) : activeTab === 'devolucoes' ? (
+            <DevolucoesFornecedor />
           ) : loading ? (
             <div className="py-20 text-center">
               <Loader2 className="w-8 h-8 text-slate-600 animate-spin mx-auto" />
