@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
+import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 type OrderStatus =
@@ -663,6 +664,10 @@ export default function Orders() {
           )}
         </div>
       )}
+
+      {/* Só aparece quando há algo parado. Fica acima dos números porque é
+          dinheiro que os números não mostram. */}
+      <ParadosNoCD />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
