@@ -525,6 +525,25 @@ Deno.serve(async (req: Request) => {
       MODEL: "Não especificado",
     };
 
+    /**
+     * Texto genérico para atributo obrigatório de texto livre desconhecido.
+     *
+     * Antes, atributo de texto livre fora do mapa acima caía direto em "não
+     * resolvido" e bloqueava a publicação inteira — foi assim que "Número de
+     * peça" travou o catálogo da MS Digital.
+     *
+     * Bloquear não protege ninguém: o Mercado Livre aceita texto livre nesses
+     * campos, e um "Não especificado" é exatamente o que o vendedor digitaria
+     * ali. O que ele NÃO faria é inventar número, e por isso os atributos
+     * numéricos continuam bloqueando logo abaixo.
+     */
+    const TEXTO_GENERICO = "Não especificado";
+
+    // Tipos que aceitam qualquer texto. Fora desta lista ficam number,
+    // number_unit e boolean, onde um valor chutado vira dado errado no
+    // anúncio em vez de campo em branco.
+    const tiposDeTextoLivre = new Set(["string", "list"]);
+
     // Palavras que indicam uma opção "genérica" dentro de uma lista de
     // valores permitidos (ex: nas opções de "Tipo de produto", "Gênero").
     const genericValuePattern = /gen[eé]ric|outro|n[aã]o especificado|other|unissex/i;
@@ -555,7 +574,14 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Caso 3: não sabemos resolver este atributo automaticamente
+        // Caso 3: texto livre sem valor conhecido — preenche genérico.
+        if (tiposDeTextoLivre.has(String(attr?.value_type ?? "string"))) {
+          itemAttributes.push({ id: attr.id, value_name: TEXTO_GENERICO });
+          continue;
+        }
+
+        // Caso 4: número, medida ou sim/não. Aqui chutar é pior do que parar:
+        // um peso ou uma voltagem errada no anúncio engana o comprador.
         unresolvedRequiredAttributes.push(attr.name ?? attr.id);
       }
     }
@@ -573,9 +599,9 @@ Deno.serve(async (req: Request) => {
       });
       return new Response(
         JSON.stringify({
-          error: `Essa categoria do Mercado Livre também exige preencher: ${unresolvedRequiredAttributes.join(
+          error: `Essa categoria do Mercado Livre exige uma medida que só o fornecedor sabe: ${unresolvedRequiredAttributes.join(
             ", "
-          )}. Ainda não conseguimos preencher esses campos automaticamente.`,
+          )}. Não preenchemos sozinhos porque medida errada no anúncio engana o comprador. Avise o suporte do FORNEXA com o nome do produto.`,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
