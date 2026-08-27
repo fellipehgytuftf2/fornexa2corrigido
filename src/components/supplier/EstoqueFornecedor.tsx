@@ -9,6 +9,8 @@ interface ProdutoDoFornecedor {
   preco: number;
   estoque: number;
   ativo: boolean;
+  /** O fornecedor marcou que não tem este produto. */
+  indisponivel: boolean;
 }
 
 /** Abaixo disto o produto ainda vende, mas já merece um aviso na tela. */
@@ -111,9 +113,52 @@ export default function EstoqueFornecedor() {
     const gravado = Number(data ?? quantidade);
 
     setProdutos((atuais) =>
-      atuais.map((item) => (item.id === produto.id ? { ...item, estoque: gravado } : item))
+      atuais.map((item) =>
+        item.id === produto.id
+          ? { ...item, estoque: gravado, indisponivel: gravado === 0 }
+          : item
+      )
     );
     setRascunho((atual) => ({ ...atual, [produto.id]: String(gravado) }));
+
+    setSalvoId(produto.id);
+    window.setTimeout(() => setSalvoId((atual) => (atual === produto.id ? null : atual)), 1600);
+  };
+
+  /**
+   * "Esse eu não tenho" — um produto só, sem ligar o controle.
+   *
+   * É o caso mais comum: acabou um item e o fornecedor quer tirá-lo do
+   * catálogo hoje, sem se comprometer a manter número de todos os outros.
+   */
+  const alternarDisponibilidade = async (produto: ProdutoDoFornecedor) => {
+    const voltando = produto.indisponivel;
+
+    setSalvandoId(produto.id);
+    setErro('');
+
+    const { error } = await supabase.rpc('fornecedor_define_disponibilidade', {
+      p_produto: produto.id,
+      p_disponivel: voltando,
+    });
+
+    setSalvandoId(null);
+
+    if (error) {
+      setErro(`Não foi possível salvar: ${error.message}`);
+      return;
+    }
+
+    // Voltando ao catálogo, o banco garante ao menos uma unidade — senão o
+    // produto sumiria de novo na hora para quem tem o controle ligado.
+    const estoque = voltando ? Math.max(1, produto.estoque) : 0;
+
+    setProdutos((atuais) =>
+      atuais.map((item) =>
+        item.id === produto.id ? { ...item, indisponivel: !voltando, estoque } : item
+      )
+    );
+    setRascunho((atual) => ({ ...atual, [produto.id]: String(estoque) }));
 
     setSalvoId(produto.id);
     window.setTimeout(() => setSalvoId((atual) => (atual === produto.id ? null : atual)), 1600);
@@ -142,7 +187,7 @@ export default function EstoqueFornecedor() {
       Number(valor || 0)
     );
 
-  const zerados = produtos.filter((produto) => produto.estoque <= 0).length;
+  const foraDoCatalogo = produtos.filter((produto) => produto.indisponivel).length;
 
   if (carregando) {
     return (
@@ -175,7 +220,7 @@ export default function EstoqueFornecedor() {
             <p className="text-sm text-slate-400 mt-1 leading-relaxed max-w-xl">
               {controlaEstoque
                 ? 'Ligado. Produto zerado sai do catálogo e ninguém consegue anunciar. Volta sozinho quando você repõe.'
-                : 'Desligado. Você pode anotar as quantidades à vontade — nada sai do catálogo enquanto não ligar.'}
+                : 'Desligado. As quantidades ficam só como anotação. Para tirar um produto do catálogo sem ligar isto, use "Não tenho" na linha dele.'}
             </p>
           </div>
 
@@ -197,9 +242,10 @@ export default function EstoqueFornecedor() {
           </button>
         </div>
 
-        {controlaEstoque && zerados > 0 && (
+        {foraDoCatalogo > 0 && (
           <p className="text-sm text-amber-300/90 mt-4">
-            {zerados} produto(s) zerado(s) estão fora do catálogo agora.
+            {foraDoCatalogo} produto(s) estão fora do catálogo agora por falta de
+            estoque.
           </p>
         )}
       </div>
@@ -216,8 +262,8 @@ export default function EstoqueFornecedor() {
       ) : (
         <ul className="space-y-3">
           {produtos.map((produto) => {
-            const zerado = produto.estoque <= 0;
-            const acabando = !zerado && produto.estoque <= ACABANDO;
+            const fora = produto.indisponivel;
+            const acabando = !fora && produto.estoque > 0 && produto.estoque <= ACABANDO;
 
             return (
               <li
@@ -241,9 +287,7 @@ export default function EstoqueFornecedor() {
                     <p className="text-sm text-slate-400 mt-0.5">
                       {formatarPreco(produto.preco)}
 
-                      {controlaEstoque && zerado && (
-                        <span className="ml-2 text-red-400">· fora do catálogo</span>
-                      )}
+                      {fora && <span className="ml-2 text-red-400">· fora do catálogo</span>}
 
                       {controlaEstoque && acabando && (
                         <span className="ml-2 text-amber-300/90">· acabando</span>
@@ -276,13 +320,19 @@ export default function EstoqueFornecedor() {
                     className="w-24 rounded-xl border border-white/10 bg-navy-900/60 px-3 py-2.5 text-white text-center font-mono tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50"
                   />
 
+                  {/* Serve sozinho, sem o controle ligado: é o fornecedor
+                      dizendo "esse eu não tenho" para um produto só. */}
                   <button
                     type="button"
-                    onClick={() => gravar(produto, '0')}
-                    disabled={salvandoId === produto.id || zerado}
-                    className="rounded-xl border border-white/10 px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-40"
+                    onClick={() => alternarDisponibilidade(produto)}
+                    disabled={salvandoId === produto.id}
+                    className={`whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-40 ${
+                      fora
+                        ? 'bg-gold text-navy-900 hover:opacity-90'
+                        : 'border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white'
+                    }`}
                   >
-                    Zerar
+                    {fora ? 'Voltei a ter' : 'Não tenho'}
                   </button>
 
                   <span className="w-5 shrink-0" aria-live="polite">

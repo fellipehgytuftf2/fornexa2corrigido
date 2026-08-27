@@ -40,6 +40,7 @@ interface CatalogProductFromSupabase {
   supplier_price: number;
   stock: number;
   status: string;
+  indisponivel_no_fornecedor: boolean | null;
   supplier_id: string | null;
   created_at?: string;
   suppliers?: SupplierFromSupabase | SupplierFromSupabase[] | null;
@@ -75,6 +76,7 @@ export default function Catalog() {
         supplier_price,
         stock,
         status,
+        indisponivel_no_fornecedor,
         supplier_id,
         created_at,
         suppliers (
@@ -96,8 +98,9 @@ export default function Catalog() {
     }
 
     const formattedProducts: Product[] = ((data || []) as CatalogProductFromSupabase[])
-      // Duas coisas tiram um produto do catálogo aqui: fornecedor inativo, e
-      // produto sem estoque de fornecedor que conta estoque.
+      // Três coisas tiram um produto do catálogo aqui: fornecedor inativo,
+      // produto que o próprio fornecedor marcou como sem estoque, e produto
+      // zerado de fornecedor que conta estoque.
       //
       // O filtro é aqui e não na consulta porque exigir a junção no banco
       // (`suppliers!inner`) também derrubaria os produtos sem fornecedor
@@ -115,9 +118,15 @@ export default function Catalog() {
           return false;
         }
 
-        // Só vale para quem ligou o controle. O importador de catálogo grava
-        // estoque 0 em tudo que sobe, então aplicar isso a todos esvaziaria o
-        // catálogo inteiro de uma vez.
+        // Marca do próprio fornecedor, produto a produto. Vale sempre, com o
+        // controle ligado ou não — é ele dizendo "esse eu não tenho".
+        if (product.indisponivel_no_fornecedor) {
+          return false;
+        }
+
+        // O zero só esconde sozinho para quem ligou o controle. O importador
+        // de catálogo grava estoque 0 em tudo que sobe, então aplicar isso a
+        // todos esvaziaria o catálogo inteiro de uma vez.
         if (fornecedor?.controla_estoque && Number(product.stock || 0) <= 0) {
           return false;
         }
