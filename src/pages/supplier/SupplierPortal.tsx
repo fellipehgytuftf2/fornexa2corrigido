@@ -15,6 +15,7 @@ import {
   User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import EstoqueFornecedor from '../../components/supplier/EstoqueFornecedor';
 import { fetchSupplierAccount, type SupplierAccount } from '../../lib/supplierAuth';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
@@ -730,10 +731,26 @@ export default function SupplierPortal() {
               </button>
             );
           })}
+
+          {/* Fora do laço porque estoque não é um filtro de pedido: as abas de
+              cima recortam a mesma lista, esta troca a tela inteira. */}
+          <button
+            onClick={() => setActiveTab('estoque')}
+            aria-current={activeTab === 'estoque' ? 'page' : undefined}
+            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 ${
+              activeTab === 'estoque'
+                ? 'bg-gold text-navy-900'
+                : 'border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            Estoque
+          </button>
         </nav>
 
         <div className="mt-8">
-          {loading ? (
+          {activeTab === 'estoque' ? (
+            <EstoqueFornecedor />
+          ) : loading ? (
             <div className="py-20 text-center">
               <Loader2 className="w-8 h-8 text-slate-600 animate-spin mx-auto" />
               <p className="text-slate-400 mt-4">Carregando seus pedidos...</p>

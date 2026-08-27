@@ -23,9 +23,11 @@ interface SupplierFromSupabase {
   id: string;
   average_shipping_time: string;
 
-  // Serve só para esconder do catálogo os produtos de fornecedor inativo. Não
-  // é dado de identificação, então não fere a regra acima.
+  // Servem só para esconder produto do catálogo — fornecedor inativo, e
+  // produto zerado de quem conta estoque. Não identificam ninguém, então não
+  // ferem a regra acima.
   status: 'active' | 'inactive';
+  controla_estoque: boolean;
 }
 
 interface CatalogProductFromSupabase {
@@ -78,7 +80,8 @@ export default function Catalog() {
         suppliers (
           id,
           average_shipping_time,
-          status
+          status,
+          controla_estoque
         )
       `)
       .eq('status', 'active')
@@ -93,7 +96,8 @@ export default function Catalog() {
     }
 
     const formattedProducts: Product[] = ((data || []) as CatalogProductFromSupabase[])
-      // Fornecedor inativo sai do catálogo junto com os produtos dele.
+      // Duas coisas tiram um produto do catálogo aqui: fornecedor inativo, e
+      // produto sem estoque de fornecedor que conta estoque.
       //
       // O filtro é aqui e não na consulta porque exigir a junção no banco
       // (`suppliers!inner`) também derrubaria os produtos sem fornecedor
@@ -107,7 +111,18 @@ export default function Catalog() {
           ? product.suppliers[0]
           : product.suppliers;
 
-        return fornecedor?.status !== 'inactive';
+        if (fornecedor?.status === 'inactive') {
+          return false;
+        }
+
+        // Só vale para quem ligou o controle. O importador de catálogo grava
+        // estoque 0 em tudo que sobe, então aplicar isso a todos esvaziaria o
+        // catálogo inteiro de uma vez.
+        if (fornecedor?.controla_estoque && Number(product.stock || 0) <= 0) {
+          return false;
+        }
+
+        return true;
       })
       .map(
       (product) => {
