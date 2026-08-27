@@ -22,6 +22,10 @@ import ProductModal from '../../components/dashboard/ProductModal';
 interface SupplierFromSupabase {
   id: string;
   average_shipping_time: string;
+
+  // Serve só para esconder do catálogo os produtos de fornecedor inativo. Não
+  // é dado de identificação, então não fere a regra acima.
+  status: 'active' | 'inactive';
 }
 
 interface CatalogProductFromSupabase {
@@ -73,7 +77,8 @@ export default function Catalog() {
         created_at,
         suppliers (
           id,
-          average_shipping_time
+          average_shipping_time,
+          status
         )
       `)
       .eq('status', 'active')
@@ -87,7 +92,24 @@ export default function Catalog() {
       return;
     }
 
-    const formattedProducts: Product[] = ((data || []) as CatalogProductFromSupabase[]).map(
+    const formattedProducts: Product[] = ((data || []) as CatalogProductFromSupabase[])
+      // Fornecedor inativo sai do catálogo junto com os produtos dele.
+      //
+      // O filtro é aqui e não na consulta porque exigir a junção no banco
+      // (`suppliers!inner`) também derrubaria os produtos sem fornecedor
+      // vinculado, que hoje aparecem. Quem não tem fornecedor continua como
+      // estava; quem tem, obedece o status dele.
+      //
+      // Isso vale só para o catálogo. Pedido em andamento não é afetado, e o
+      // fornecedor continua enxergando tudo no Portal.
+      .filter((product) => {
+        const fornecedor = Array.isArray(product.suppliers)
+          ? product.suppliers[0]
+          : product.suppliers;
+
+        return fornecedor?.status !== 'inactive';
+      })
+      .map(
       (product) => {
         const supplier = Array.isArray(product.suppliers)
           ? product.suppliers[0]
