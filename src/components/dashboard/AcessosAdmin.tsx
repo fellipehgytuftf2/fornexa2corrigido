@@ -148,6 +148,8 @@ export default function AcessosAdmin() {
   const [aviso, setAviso] = useState('');
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('todas');
+  const [confirmarEntrada, setConfirmarEntrada] = useState<Conta | null>(null);
+  const [entrando, setEntrando] = useState(false);
 
   const [detalhe, setDetalhe] = useState<Conta | null>(null);
   const [fornecedoresDaConta, setFornecedoresDaConta] = useState<FornecedorDaConta[]>([]);
@@ -271,6 +273,66 @@ export default function AcessosAdmin() {
 
     setEditando(null);
     await carregar();
+  };
+
+  /**
+   * Entra na conta do cliente para ver a plataforma como ele vê.
+   *
+   * A sessão do admin é TROCADA, não duplicada: o navegador guarda uma sessão
+   * só. Por isso a confirmação avisa antes — quem clica sem saber acha que o
+   * sistema deslogou sozinho.
+   */
+  const entrarNaConta = async (conta: Conta) => {
+    setEntrando(true);
+    setErro('');
+
+    const { data, error } = await supabase.functions.invoke<{
+      token_hash?: string;
+      error?: string;
+    }>('admin-entrar-como', {
+      body: { user_id: conta.user_id },
+    });
+
+    let mensagem = data?.error;
+
+    // Resposta fora do 2xx não vem em `data`; o corpo fica em error.context.
+    const contexto = (
+      error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+    )?.context;
+
+    if (!mensagem && contexto?.json) {
+      try {
+        mensagem = (await contexto.json())?.error;
+      } catch {
+        // segue com a mensagem genérica
+      }
+    }
+
+    if (!data?.token_hash) {
+      setEntrando(false);
+      setErro(mensagem ?? 'Não foi possível entrar nesta conta.');
+      return;
+    }
+
+    const { error: sessaoError } = await supabase.auth.verifyOtp({
+      token_hash: data.token_hash,
+      type: 'magiclink',
+    });
+
+    if (sessaoError) {
+      setEntrando(false);
+      setErro(`Não foi possível abrir a sessão: ${sessaoError.message}`);
+      return;
+    }
+
+    // Marca para o aviso de modo suporte aparecer no painel. É informação de
+    // tela, não de segurança — quem manda é a sessão, e ela já é do cliente.
+    window.localStorage.setItem(
+      'fornexa:modo-suporte',
+      JSON.stringify({ nome: conta.nome, email: conta.email })
+    );
+
+    window.location.assign('/dashboard');
   };
 
   const formatarData = (valor: string | null) => {
@@ -531,6 +593,16 @@ export default function AcessosAdmin() {
                         >
                           Ajustar
                         </button>
+
+                        <button
+                          onClick={(evento) => {
+                            evento.stopPropagation();
+                            setConfirmarEntrada(conta);
+                          }}
+                          className="ml-3 text-xs font-semibold text-navy-900 dark:text-white underline underline-offset-2 hover:opacity-70 whitespace-nowrap"
+                        >
+                          Entrar
+                        </button>
                       </td>
                     </tr>
                   );
@@ -539,7 +611,7 @@ export default function AcessosAdmin() {
                 {vendedores.length === 0 && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="py-8 text-center text-sm text-gray-500 dark:text-slate-400"
                     >
                       Nenhuma conta encontrada.
@@ -595,6 +667,54 @@ export default function AcessosAdmin() {
             )}
           </div>
         </>
+      )}
+
+      {confirmarEntrada && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
+                Entrar na conta de {confirmarEntrada.nome || confirmarEntrada.email}?
+              </h3>
+
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+                Você vai ver a plataforma exatamente como esta pessoa vê, e o que
+                você fizer lá é como se fosse ela.
+              </p>
+
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+                <strong className="text-navy-900 dark:text-white">
+                  Sua sessão de admin será encerrada.
+                </strong>{' '}
+                Para voltar, saia do modo suporte e entre de novo com sua conta.
+              </p>
+
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+                A entrada fica registrada com seu nome e a data.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2 mt-6 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmarEntrada(null)}
+                  disabled={entrando}
+                  className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => entrarNaConta(confirmarEntrada)}
+                  disabled={entrando}
+                  className="px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-semibold disabled:opacity-50"
+                >
+                  {entrando ? 'Entrando...' : 'Entrar na conta'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       {detalhe && (

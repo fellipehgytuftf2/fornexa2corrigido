@@ -190,9 +190,27 @@ export default function DashboardLayout() {
     await supabase.auth.signOut();
 
     localStorage.removeItem('fornexa_auth_user');
+    localStorage.removeItem('fornexa:modo-suporte');
 
     navigate('/login');
   };
+
+  /**
+   * Quem o admin está vendo de dentro, quando entrou por "Entrar na conta".
+   *
+   * Sem este aviso, o admin esqueceria em que conta está e faria mudanças na
+   * conta do cliente achando que eram dele. A sessão é do cliente de verdade,
+   * então a tela não tem outro jeito de contar isso.
+   */
+  const modoSuporte = (() => {
+    try {
+      const guardado = localStorage.getItem('fornexa:modo-suporte');
+
+      return guardado ? (JSON.parse(guardado) as { nome?: string; email?: string }) : null;
+    } catch {
+      return null;
+    }
+  })();
 
   const isAdminOnlyRoute = adminOnlyPaths.some((path) =>
     location.pathname.startsWith(path)
@@ -413,6 +431,24 @@ export default function DashboardLayout() {
             </div>
           </div>
         </header>
+
+        {modoSuporte && (
+          <div className="flex flex-wrap items-center gap-3 bg-amber-500 px-4 sm:px-6 py-2.5">
+            <p className="text-sm font-semibold text-amber-950 flex-1 min-w-0">
+              Modo suporte — você está dentro da conta de{' '}
+              {modoSuporte.nome || modoSuporte.email}. Tudo o que fizer aqui é
+              como se fosse ela.
+            </p>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="shrink-0 rounded-lg bg-amber-950 px-3 py-1.5 text-xs font-semibold text-amber-50 transition-opacity hover:opacity-90"
+            >
+              Sair do modo suporte
+            </button>
+          </div>
+        )}
 
         <main className="p-4 sm:p-6 bg-gray-50 dark:bg-navy-900 min-h-[calc(100vh-4rem)]">
           {isAdminOnlyRoute && checkingRole
