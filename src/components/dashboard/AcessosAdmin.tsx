@@ -68,6 +68,44 @@ const rotulosDePlano: Record<string, string> = {
   lifetime: 'Vitalício',
 };
 
+/**
+ * Recortes da lista, cada um respondendo uma pergunta de rotina.
+ *
+ * São filtros e não colunas novas porque a tabela já tem dez colunas: o que
+ * faltava não era mais informação na tela, era conseguir olhar um grupo de
+ * cada vez.
+ *
+ * A ordem importa — começa em "quem precisa de mim hoje" e termina em
+ * "como está a base".
+ */
+const FILTROS: { id: string; rotulo: string; aplica: (conta: Conta) => boolean }[] = [
+  { id: 'todas', rotulo: 'Todas', aplica: () => true },
+  { id: 'novas', rotulo: 'Novas', aplica: (conta) => ehNova(conta.criado_em) },
+
+  // Pagou e nunca entrou é reembolso a caminho — o recorte mais urgente.
+  {
+    id: 'nunca_entrou',
+    rotulo: 'Nunca entraram',
+    aplica: (conta) => conta.entra_no_painel && !conta.ultimo_acesso,
+  },
+
+  // Tem acesso e não ligou o Mercado Livre: não vendeu nada ainda, e não vai.
+  {
+    id: 'sem_ml',
+    rotulo: 'Sem Mercado Livre',
+    aplica: (conta) => conta.entra_no_painel && !conta.ml_conectado,
+  },
+
+  { id: 'premium', rotulo: 'Premium', aplica: (conta) => conta.plano === 'premium' },
+  { id: 'basico', rotulo: 'Básico', aplica: (conta) => conta.plano === 'basico' },
+  { id: 'ativas', rotulo: 'Em dia', aplica: (conta) => conta.plan_status === 'ativo' },
+  {
+    id: 'bloqueadas',
+    rotulo: 'Sem acesso',
+    aplica: (conta) => !conta.entra_no_painel,
+  },
+];
+
 const selosDeSituacao: Record<string, { texto: string; cor: string }> = {
   ativo: {
     texto: 'Em dia',
@@ -109,7 +147,7 @@ export default function AcessosAdmin() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [busca, setBusca] = useState('');
-  const [soNovas, setSoNovas] = useState(false);
+  const [filtro, setFiltro] = useState('todas');
 
   const [detalhe, setDetalhe] = useState<Conta | null>(null);
   const [fornecedoresDaConta, setFornecedoresDaConta] = useState<FornecedorDaConta[]>([]);
@@ -144,8 +182,12 @@ export default function AcessosAdmin() {
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
 
+    const recorte = FILTROS.find((item) => item.id === filtro) ?? FILTROS[0];
+
     return contas.filter((conta) => {
-      if (soNovas && !ehNova(conta.criado_em)) {
+      // Fornecedor tem lista própria embaixo e não tem plano nem Mercado
+      // Livre, então nenhum destes recortes se aplica a ele.
+      if (conta.tipo !== 'Fornecedor' && !recorte.aplica(conta)) {
         return false;
       }
 
@@ -158,7 +200,7 @@ export default function AcessosAdmin() {
         (conta.email || '').toLowerCase().includes(termo)
       );
     });
-  }, [contas, busca, soNovas]);
+  }, [contas, busca, filtro]);
 
   // Só vendedores: fornecedor entra por convite do admin, não por cadastro, e
   // contar junto esconderia o número que interessa.
@@ -314,18 +356,54 @@ export default function AcessosAdmin() {
 
           <button
             type="button"
-            onClick={() => setSoNovas((atual) => !atual)}
-            aria-pressed={soNovas}
+            onClick={() => setFiltro((atual) => (atual === 'novas' ? 'todas' : 'novas'))}
+            aria-pressed={filtro === 'novas'}
             className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              soNovas
+              filtro === 'novas'
                 ? 'bg-blue-600 text-white'
                 : 'border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40'
             }`}
           >
-            {soNovas ? 'Mostrar todas' : 'Ver só as novas'}
+            {filtro === 'novas' ? 'Mostrar todas' : 'Ver só as novas'}
           </button>
         </div>
       )}
+
+      {/* Cada recorte mostra quantos são antes de ser clicado: um "0" ao lado
+          de "Nunca entraram" já responde a pergunta sem trocar a tela. */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {FILTROS.map((item) => {
+          const quantos = contas.filter(
+            (conta) => conta.tipo !== 'Fornecedor' && item.aplica(conta)
+          ).length;
+
+          const ativo = filtro === item.id;
+
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setFiltro(item.id)}
+              aria-pressed={ativo}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                ativo
+                  ? 'bg-navy-900 text-white dark:bg-white dark:text-navy-900'
+                  : 'border border-gray-200 dark:border-navy-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-navy-700'
+              }`}
+            >
+              {item.rotulo}
+
+              <span
+                className={`font-mono tabular-nums ${
+                  ativo ? 'opacity-70' : 'text-gray-400 dark:text-slate-500'
+                }`}
+              >
+                {quantos}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
       <div className="relative mb-6">
         <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
