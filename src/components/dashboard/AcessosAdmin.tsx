@@ -43,6 +43,8 @@ interface Conta {
   plan_expira_em: string | null;
   entra_no_painel: boolean;
   ml_conectado: boolean;
+  /** 'nunca' nunca ligou · 'conectada' ligada agora · 'caiu' já ligou e caiu. */
+  ml_situacao: 'nunca' | 'conectada' | 'caiu' | null;
   fornecedores_visiveis: number;
   total_pedidos: number;
   total_produtos: number;
@@ -94,6 +96,14 @@ const FILTROS: { id: string; rotulo: string; aplica: (conta: Conta) => boolean }
     id: 'sem_ml',
     rotulo: 'Sem Mercado Livre',
     aplica: (conta) => conta.entra_no_painel && !conta.ml_conectado,
+  },
+
+  // O recorte mais acionável de todos: já usou, parou de funcionar, e a pessoa
+  // provavelmente nem sabe.
+  {
+    id: 'ml_caiu',
+    rotulo: 'Conexão caiu',
+    aplica: (conta) => conta.entra_no_painel && conta.ml_situacao === 'caiu',
   },
 
   { id: 'premium', rotulo: 'Premium', aplica: (conta) => conta.plano === 'premium' },
@@ -574,9 +584,15 @@ export default function AcessosAdmin() {
                           : 'não expira'}
                       </td>
 
-                      <td className="py-3 pr-4">
+                      {/* "Caiu" e "nunca ligou" pedem conversas diferentes:
+                          uma é reconectar, a outra é ensinar a conectar. */}
+                      <td className="py-3 pr-4 whitespace-nowrap">
                         {conta.ml_conectado ? (
                           <Link2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        ) : conta.ml_situacao === 'caiu' ? (
+                          <span className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                            Caiu
+                          </span>
                         ) : (
                           <span className="text-gray-400 dark:text-slate-600">—</span>
                         )}
