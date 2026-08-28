@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import RepassesAdmin from '../../components/dashboard/RepassesAdmin';
+import ModalPortal from '../../components/ui/modal-portal';
 import AcessosAdmin from '../../components/dashboard/AcessosAdmin';
 import AfiliadosAdmin from '../../components/dashboard/AfiliadosAdmin';
 import {
@@ -120,6 +121,16 @@ export default function Admin() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  /** Remoção do catálogo inteiro de um fornecedor. */
+  const [catalogoAlvo, setCatalogoAlvo] = useState<Supplier | null>(null);
+  const [previaCatalogo, setPreviaCatalogo] = useState<{
+    produtos: number;
+    anuncios_ligados: number;
+    devolucoes_ligadas: number;
+  } | null>(null);
+  const [confirmacaoDigitada, setConfirmacaoDigitada] = useState('');
+  const [removendoCatalogo, setRemovendoCatalogo] = useState(false);
 
   const openAccessForm = (supplier: Supplier) => {
     setAccessSupplierId(supplier.id);
@@ -349,6 +360,62 @@ export default function Admin() {
 
     await loadData();
     showSuccess(`${total} produto(s) importado(s) para o catálogo.`);
+  };
+
+  /**
+   * Abre a remoção do catálogo já com os números na mão.
+   *
+   * A prévia vem antes da confirmação de propósito: apagar catálogo é o tipo
+   * de coisa que se faz uma vez e não se desfaz, e "tem certeza?" sem número
+   * não ajuda ninguém a decidir.
+   */
+  const abrirRemocaoDeCatalogo = async (supplier: Supplier) => {
+    setCatalogoAlvo(supplier);
+    setPreviaCatalogo(null);
+    setConfirmacaoDigitada('');
+    setErrorMessage('');
+
+    const { data, error } = await supabase.rpc('admin_previa_remocao_catalogo', {
+      p_fornecedor: supplier.id,
+    });
+
+    if (error) {
+      setErrorMessage(`Não foi possível ler o catálogo: ${error.message}`);
+      return;
+    }
+
+    const linha = Array.isArray(data) ? data[0] : data;
+
+    setPreviaCatalogo(linha ?? { produtos: 0, anuncios_ligados: 0, devolucoes_ligadas: 0 });
+  };
+
+  const removerCatalogo = async () => {
+    if (!catalogoAlvo) {
+      return;
+    }
+
+    setRemovendoCatalogo(true);
+    setErrorMessage('');
+
+    const { data, error } = await supabase.rpc('admin_remover_catalogo_do_fornecedor', {
+      p_fornecedor: catalogoAlvo.id,
+    });
+
+    setRemovendoCatalogo(false);
+
+    if (error) {
+      setErrorMessage(`Não foi possível remover o catálogo: ${error.message}`);
+      return;
+    }
+
+    const nome = catalogoAlvo.company_name || catalogoAlvo.name;
+
+    setCatalogoAlvo(null);
+    setPreviaCatalogo(null);
+    setConfirmacaoDigitada('');
+
+    await loadData();
+    showSuccess(`${data ?? 0} produto(s) de ${nome} foram removidos do catálogo.`);
   };
 
   const handleRevokeAccess = async (supplier: Supplier) => {
@@ -1054,6 +1121,15 @@ export default function Admin() {
                           Criar acesso
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => abrirRemocaoDeCatalogo(supplier)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-semibold transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remover catálogo
+                      </button>
                     </div>
                   </div>
 
@@ -1872,6 +1948,100 @@ export default function Admin() {
             Cadastre o primeiro produto real do catálogo.
           </p>
         </div>
+      )}
+
+      {catalogoAlvo && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
+                Remover o catálogo de{' '}
+                {catalogoAlvo.company_name || catalogoAlvo.name}?
+              </h3>
+
+              {previaCatalogo === null ? (
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-3">
+                  Conferindo o catálogo...
+                </p>
+              ) : (
+                <>
+                  {/* Número antes da pergunta. "Tem certeza?" sem número não
+                      ajuda ninguém a decidir. */}
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+                    Serão apagados{' '}
+                    <strong className="text-navy-900 dark:text-white">
+                      {previaCatalogo.produtos} produto(s)
+                    </strong>{' '}
+                    do catálogo. Isso não tem volta — para ter o catálogo de novo,
+                    é preciso importar outra vez.
+                  </p>
+
+                  {previaCatalogo.anuncios_ligados > 0 && (
+                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 mt-4">
+                      <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
+                        <strong>
+                          {previaCatalogo.anuncios_ligados} anúncio(s) de vendedores
+                        </strong>{' '}
+                        nasceram destes produtos. Eles continuam no ar no Mercado
+                        Livre e continuam em Meus Produtos — só perdem a ligação
+                        com o catálogo.
+                      </p>
+
+                      <p className="text-sm text-amber-800 dark:text-amber-300 mt-2 leading-relaxed">
+                        Se o preço estava errado, esses anúncios estão com o preço
+                        errado no Mercado Livre. Apagar o catálogo não corrige
+                        isso — precisa avisar os vendedores.
+                      </p>
+                    </div>
+                  )}
+
+                  <label
+                    htmlFor="confirmar-remocao"
+                    className="block text-sm font-medium text-navy-900 dark:text-white mt-5 mb-2"
+                  >
+                    Para confirmar, digite REMOVER
+                  </label>
+
+                  <input
+                    id="confirmar-remocao"
+                    value={confirmacaoDigitada}
+                    onChange={(evento) => setConfirmacaoDigitada(evento.target.value)}
+                    placeholder="REMOVER"
+                    className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                  />
+                </>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3 mt-6 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatalogoAlvo(null);
+                    setPreviaCatalogo(null);
+                    setConfirmacaoDigitada('');
+                  }}
+                  disabled={removendoCatalogo}
+                  className="px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={removerCatalogo}
+                  disabled={
+                    removendoCatalogo ||
+                    previaCatalogo === null ||
+                    confirmacaoDigitada.trim().toUpperCase() !== 'REMOVER'
+                  }
+                  className="px-4 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  {removendoCatalogo ? 'Removendo...' : 'Remover catálogo'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
       )}
 
       <AcessosAdmin />
