@@ -4,6 +4,7 @@ import {
   CheckCircle,
   Package,
   Search,
+  ExternalLink,
   Store,
   Trash2,
   Truck,
@@ -38,7 +39,34 @@ interface UserProduct {
   announcement_price: number;
   announcement_image_url: string;
   created_at: string;
+  /** Endereço do anúncio, como o Mercado Livre devolveu na publicação. */
+  permalink: string | null;
+  /** Id do anúncio. Serve de reserva quando o endereço não foi guardado. */
+  ml_item_id: string | null;
   suppliers?: SupplierFromSupabase | SupplierFromSupabase[] | null;
+}
+
+/**
+ * Onde abrir o anúncio.
+ *
+ * O endereço guardado é sempre o melhor: é o que o Mercado Livre devolveu, com
+ * o nome do produto no meio. Faltando ele — anúncio publicado antes desta
+ * coluna existir —, monta a partir do id: `MLB123` vira `MLB-123-_JM`, forma
+ * que o Mercado Livre aceita e redireciona para o anúncio certo.
+ */
+function enderecoDoAnuncio(produto: UserProduct): string | null {
+  if (produto.permalink) {
+    return produto.permalink;
+  }
+
+  if (!produto.ml_item_id) {
+    return null;
+  }
+
+  return `https://produto.mercadolivre.com.br/${produto.ml_item_id.replace(
+    /^([A-Z]{3})/,
+    '$1-'
+  )}-_JM`;
 }
 
 export default function MyProducts() {
@@ -84,6 +112,8 @@ export default function MyProducts() {
         announcement_price,
         announcement_image_url,
         created_at,
+        permalink,
+        ml_item_id,
         suppliers (
           id,
           name,
@@ -421,6 +451,20 @@ export default function MyProducts() {
                       Livre. Se um dia fizer falta registrar venda de fora,
                       precisa ser um formulário pedindo o comprador real. */}
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
+
+                    {/* Sem isto, o vendedor via o anúncio listado aqui e tinha
+                        que procurá-lo pelo nome dentro do Mercado Livre. */}
+                    {enderecoDoAnuncio(product) && (
+                      <a
+                        href={enderecoDoAnuncio(product) as string}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Ver anúncio
+                      </a>
+                    )}
 
                     <button
                       onClick={() => handleDeleteProduct(product.id)}

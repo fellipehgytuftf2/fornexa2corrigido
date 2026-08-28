@@ -829,6 +829,10 @@ Deno.serve(async (req: Request) => {
         announcement_image_url: body.announcement_image_url,
         published_at: new Date().toISOString(),
         ml_item_id: mlItemId,
+
+        // O endereço do anúncio vinha na resposta e era jogado fora. Sem ele,
+        // o vendedor via o anúncio em Meus Produtos e não tinha como abri-lo.
+        permalink: itemData.permalink ?? null,
       })
       .select("*")
       .single();
