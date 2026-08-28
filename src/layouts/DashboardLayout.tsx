@@ -212,6 +212,49 @@ export default function DashboardLayout() {
     }
   })();
 
+  /**
+   * Volta o admin para a própria conta.
+   *
+   * A sessão do admin foi guardada antes da troca. Restaurando os tokens, ele
+   * volta ao lugar sem digitar senha — que era o incômodo real de dar suporte
+   * dentro da conta de alguém.
+   *
+   * Falhando (sessão velha demais, tokens já invalidados), cai no logout
+   * normal. Deixar o admin preso na conta do cliente seria pior do que pedir
+   * um login.
+   */
+  const sairDoModoSuporte = async () => {
+    localStorage.removeItem('fornexa:modo-suporte');
+
+    let guardada: { access_token?: string; refresh_token?: string } | null = null;
+
+    try {
+      const bruto = localStorage.getItem('fornexa:sessao-admin');
+      guardada = bruto ? JSON.parse(bruto) : null;
+    } catch {
+      guardada = null;
+    }
+
+    localStorage.removeItem('fornexa:sessao-admin');
+
+    if (guardada?.access_token && guardada?.refresh_token) {
+      const { error } = await supabase.auth.setSession({
+        access_token: guardada.access_token,
+        refresh_token: guardada.refresh_token,
+      });
+
+      if (!error) {
+        // Recarrega em vez de navegar: as telas já montadas carregaram os
+        // dados do cliente, e trocar de usuário por baixo delas deixaria
+        // resto da conta antiga na tela.
+        window.location.assign('/dashboard/admin');
+        return;
+      }
+    }
+
+    await handleLogout();
+  };
+
   const isAdminOnlyRoute = adminOnlyPaths.some((path) =>
     location.pathname.startsWith(path)
   );
@@ -442,10 +485,10 @@ export default function DashboardLayout() {
 
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={sairDoModoSuporte}
               className="shrink-0 rounded-lg bg-amber-950 px-3 py-1.5 text-xs font-semibold text-amber-50 transition-opacity hover:opacity-90"
             >
-              Sair do modo suporte
+              Voltar para minha conta
             </button>
           </div>
         )}

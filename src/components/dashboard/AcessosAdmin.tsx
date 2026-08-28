@@ -314,6 +314,25 @@ export default function AcessosAdmin() {
       return;
     }
 
+    // Guarda a sessão do admin ANTES de trocar por a do cliente.
+    //
+    // O navegador guarda uma sessão só, então entrar no cliente sempre
+    // substitui a do admin — não há como ter as duas ao mesmo tempo na mesma
+    // aba. O que dá para evitar é ter que digitar a senha de novo: com os
+    // tokens guardados aqui, sair do modo suporte devolve o admin ao lugar em
+    // um clique.
+    const { data: sessaoAtual } = await supabase.auth.getSession();
+
+    if (sessaoAtual.session) {
+      window.localStorage.setItem(
+        'fornexa:sessao-admin',
+        JSON.stringify({
+          access_token: sessaoAtual.session.access_token,
+          refresh_token: sessaoAtual.session.refresh_token,
+        })
+      );
+    }
+
     const { error: sessaoError } = await supabase.auth.verifyOtp({
       token_hash: data.token_hash,
       type: 'magiclink',
@@ -321,6 +340,7 @@ export default function AcessosAdmin() {
 
     if (sessaoError) {
       setEntrando(false);
+      window.localStorage.removeItem('fornexa:sessao-admin');
       setErro(`Não foi possível abrir a sessão: ${sessaoError.message}`);
       return;
     }
@@ -684,9 +704,9 @@ export default function AcessosAdmin() {
 
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
                 <strong className="text-navy-900 dark:text-white">
-                  Sua sessão de admin será encerrada.
+                  Para voltar, é só sair do modo suporte.
                 </strong>{' '}
-                Para voltar, saia do modo suporte e entre de novo com sua conta.
+                Sua conta de admin volta sozinha, sem precisar digitar a senha.
               </p>
 
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
