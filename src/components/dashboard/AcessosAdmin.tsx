@@ -7,10 +7,31 @@ import {
   Loader2,
   Search,
   Truck,
+  UserPlus,
   X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ModalPortal from '../ui/modal-portal';
+
+/** Janela do que ainda conta como cadastro novo. */
+const DIAS_DE_NOVIDADE = 7;
+
+/**
+ * Conta criada dentro da janela de novidade.
+ *
+ * Sete dias porque é o intervalo em que ainda dá para agir: se a pessoa pagou e
+ * não entrou, ou entrou e não conectou o Mercado Livre, é aí que um contato
+ * resolve — depois disso vira reembolso.
+ */
+function ehNova(criadoEm: string | null): boolean {
+  if (!criadoEm) {
+    return false;
+  }
+
+  const dias = (Date.now() - new Date(criadoEm).getTime()) / 86400000;
+
+  return dias >= 0 && dias <= DIAS_DE_NOVIDADE;
+}
 
 interface Conta {
   user_id: string;
@@ -88,6 +109,7 @@ export default function AcessosAdmin() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [busca, setBusca] = useState('');
+  const [soNovas, setSoNovas] = useState(false);
 
   const [detalhe, setDetalhe] = useState<Conta | null>(null);
   const [fornecedoresDaConta, setFornecedoresDaConta] = useState<FornecedorDaConta[]>([]);
@@ -122,16 +144,27 @@ export default function AcessosAdmin() {
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
 
-    if (!termo) {
-      return contas;
-    }
+    return contas.filter((conta) => {
+      if (soNovas && !ehNova(conta.criado_em)) {
+        return false;
+      }
 
-    return contas.filter(
-      (conta) =>
+      if (!termo) {
+        return true;
+      }
+
+      return (
         (conta.nome || '').toLowerCase().includes(termo) ||
         (conta.email || '').toLowerCase().includes(termo)
-    );
-  }, [contas, busca]);
+      );
+    });
+  }, [contas, busca, soNovas]);
+
+  // Só vendedores: fornecedor entra por convite do admin, não por cadastro, e
+  // contar junto esconderia o número que interessa.
+  const novasDaSemana = contas.filter(
+    (conta) => conta.tipo !== 'Fornecedor' && ehNova(conta.criado_em)
+  );
 
   const vendedores = filtradas.filter((conta) => conta.tipo !== 'Fornecedor');
   const fornecedores = filtradas.filter((conta) => conta.tipo === 'Fornecedor');
@@ -268,6 +301,32 @@ export default function AcessosAdmin() {
         </div>
       )}
 
+      {novasDaSemana.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3.5 mb-4">
+          <UserPlus className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+
+          <p className="text-sm text-blue-700 dark:text-blue-300 flex-1 min-w-0">
+            {novasDaSemana.length === 1
+              ? '1 conta nova nos últimos 7 dias.'
+              : `${novasDaSemana.length} contas novas nos últimos 7 dias.`}{' '}
+            É a janela em que um contato ainda resolve.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setSoNovas((atual) => !atual)}
+            aria-pressed={soNovas}
+            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              soNovas
+                ? 'bg-blue-600 text-white'
+                : 'border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+            }`}
+          >
+            {soNovas ? 'Mostrar todas' : 'Ver só as novas'}
+          </button>
+        </div>
+      )}
+
       <div className="relative mb-6">
         <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
 
@@ -297,6 +356,7 @@ export default function AcessosAdmin() {
                   <th className="pb-3 pr-4 font-medium">ML</th>
                   <th className="pb-3 pr-4 font-medium">Fornec.</th>
                   <th className="pb-3 pr-4 font-medium">Pedidos</th>
+                  <th className="pb-3 pr-4 font-medium">Criada</th>
                   <th className="pb-3 pr-4 font-medium">Último acesso</th>
                   <th className="pb-3" />
                 </tr>
@@ -321,6 +381,12 @@ export default function AcessosAdmin() {
                           {conta.tipo === 'Administrador' && (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
                               Admin
+                            </span>
+                          )}
+
+                          {ehNova(conta.criado_em) && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                              Nova
                             </span>
                           )}
                         </p>
@@ -366,6 +432,10 @@ export default function AcessosAdmin() {
 
                       <td className="py-3 pr-4 text-gray-600 dark:text-slate-300">
                         {conta.total_pedidos}
+                      </td>
+
+                      <td className="py-3 pr-4 text-gray-600 dark:text-slate-300 whitespace-nowrap">
+                        {formatarData(conta.criado_em)}
                       </td>
 
                       <td className="py-3 pr-4 text-gray-600 dark:text-slate-300 whitespace-nowrap">
