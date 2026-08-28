@@ -32,6 +32,8 @@ export interface ConexaoMercadoLivre {
   refresh_token: string;
   expires_at: string | null;
   ml_user_id?: string | number | null;
+  /** Opcional: quando vem, permite devolver a conexão ao ar sozinha. */
+  status?: string | null;
 }
 
 export interface ResultadoDoToken {
@@ -72,6 +74,17 @@ export async function obterAccessToken(
   conexao: ConexaoMercadoLivre
 ): Promise<ResultadoDoToken> {
   if (estaValido(conexao.expires_at)) {
+    // Token bom numa conexão marcada como caída significa que alguém a
+    // derrubou sem motivo — uma falha passageira, uma corrida. Como o token
+    // funciona, a conexão está viva: devolve ao ar em vez de deixar o vendedor
+    // olhando "desconectado" e reconectando à toa.
+    if (conexao.status && conexao.status !== 'connected') {
+      await supabase
+        .from('ml_connections')
+        .update({ status: 'connected' })
+        .eq('id', conexao.id);
+    }
+
     return { accessToken: conexao.access_token, ok: true, precisaReconectar: false };
   }
 

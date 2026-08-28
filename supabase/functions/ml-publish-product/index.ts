@@ -265,7 +265,19 @@ Deno.serve(async (req: Request) => {
       .from("ml_connections")
       .select("*")
       .eq("user_id", vendedorId)
-      .eq("status", "connected")
+      // Sem filtro por status, de proposito.
+      //
+      // Filtrar por 'connected' aqui tornava QUALQUER queda permanente: uma
+      // falha de rede marcava a conexao como caida, e a partir dai esta
+      // consulta nao achava mais a linha — nem para tentar renovar. O refresh
+      // token continuava valido meses no banco e ninguem o usava.
+      //
+      // Era isso que obrigava o vendedor a reconectar toda hora: nao era a
+      // conexao que morria, era o sistema que desistia dela e nunca mais
+      // tentava.
+      //
+      // Quem decide se o token serve e `obterAccessToken`, logo abaixo. Ele
+      // renova quando da, e devolve o status para 'connected' sozinho.
       .maybeSingle();
 
     if (connectionError || !connection) {
