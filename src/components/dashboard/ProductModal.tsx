@@ -250,7 +250,9 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
       if (error) {
         setEnviandoFoto(false);
         setErroFoto(
-          `Não foi possível enviar a foto: ${error.message}. Se o erro for de permissão, sua conta não pode gravar imagens.`
+          /row-level security|violates|permission/i.test(error.message)
+            ? 'Sua conta ainda não tem permissão para enviar fotos. Avise o suporte do FORNEXA — é ajuste do nosso lado, não da sua conta.'
+            : `Não foi possível enviar a foto: ${error.message}`
         );
         return;
       }
