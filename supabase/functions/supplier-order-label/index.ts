@@ -73,9 +73,10 @@ function traduzErroMl(status: number, corpo: string): string {
   // sistema estava quebrado — quando o certo era esperar.
   if (corpo.includes('NOT_PRINTABLE_STATUS') || corpo.includes('SHPLAB0200')) {
     return (
-      'A etiqueta ainda não está disponível: o Mercado Livre não confirmou o ' +
-      'pagamento do comprador. Ele só gera a etiqueta depois disso. ' +
-      'Aguarde e tente de novo mais tarde — não é preciso fazer nada.'
+      'A etiqueta ainda não foi liberada pelo Mercado Livre. Acontece quando o ' +
+      'pagamento do comprador ainda não foi confirmado, ou quando o Mercado ' +
+      'Livre está segurando o envio para liberar junto com outros. ' +
+      'Tente de novo mais tarde — não é preciso fazer nada.'
     );
   }
 

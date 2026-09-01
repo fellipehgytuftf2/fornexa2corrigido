@@ -45,6 +45,24 @@ function json(body: unknown, status = 200) {
  * Lê o modo de envio e diz, em português, o que ele significa para a fase 4.
  * A conclusão é a razão de ser desta função.
  */
+/**
+ * A data em que a etiqueta passa a existir, quando o envio está represado.
+ *
+ * `substatus: "buffered"` quer dizer que o Mercado Livre está segurando o
+ * envio de propósito — junta despachos e libera todos numa data marcada. Até
+ * lá a etiqueta não é impressa e o pedido de PDF volta com
+ * `NOT_PRINTABLE_STATUS`, que na tela do fornecedor parecia defeito.
+ *
+ * A própria API diz quando: o campo `buffering.date`. Sem ler isso, a única
+ * resposta possível era "espera" — sem dizer até quando.
+ */
+function dataDeLiberacao(envio: Record<string, unknown>): string | null {
+  const buffering = envio.buffering as Record<string, unknown> | null | undefined;
+  const data = buffering?.date;
+
+  return typeof data === 'string' && data ? data : null;
+}
+
 function interpretaModo(envio: Record<string, unknown>): string {
   const mode = String(envio.mode ?? '');
   const logisticType = String(
@@ -52,6 +70,23 @@ function interpretaModo(envio: Record<string, unknown>): string {
       ((envio.logistic as Record<string, unknown>)?.type as string) ??
       ''
   );
+
+  // Vem primeiro porque é a pergunta que a pessoa tem na cabeça ao abrir esta
+  // tela: "por que a etiqueta não sai?".
+  if (String(envio.substatus ?? '') === 'buffered') {
+    const data = dataDeLiberacao(envio);
+
+    return (
+      'O Mercado Livre está segurando este envio para liberar junto com outros. ' +
+      'A etiqueta não existe até lá. ' +
+      (data
+        ? `Ele libera em ${new Date(data).toLocaleString('pt-BR', {
+            timeZone: 'America/Sao_Paulo',
+          })}.`
+        : 'A API não informou a data de liberação.') +
+      ' Não é preciso fazer nada — nem pelo vendedor, nem pelo fornecedor.'
+    );
+  }
 
   if (mode === 'custom' || mode === 'not_specified') {
     return 'Envio por conta do vendedor. A fase 4 se aplica: dá para confirmar o despacho por API, informando o código de rastreio.';
@@ -211,6 +246,7 @@ Deno.serve(async (req: Request) => {
     substatus: envio.substatus ?? null,
     tracking_number: envio.tracking_number ?? null,
     tracking_method: envio.tracking_method ?? null,
+    liberacao_da_etiqueta: dataDeLiberacao(envio),
 
     conclusao: interpretaModo(envio),
 
