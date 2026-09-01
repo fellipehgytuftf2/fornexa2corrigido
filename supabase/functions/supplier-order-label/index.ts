@@ -50,8 +50,8 @@ function traduzErroMl(status: number, corpo: string): string {
 
   if (status === 403) {
     return (
-      'O Mercado Livre recusou o acesso à etiqueta (403). Normalmente significa que a conta do vendedor não tem permissão para este recurso, ou que a aplicação está sem o escopo necessário. Detalhe do Mercado Livre: ' +
-      corpo
+      'O Mercado Livre recusou o acesso à etiqueta. Normalmente é permissão ' +
+      'na conta do vendedor. Avise o suporte do FORNEXA.'
     );
   }
 
@@ -59,7 +59,29 @@ function traduzErroMl(status: number, corpo: string): string {
     return 'O Mercado Livre não encontrou este envio. Ele pode ter sido cancelado.';
   }
 
-  return `O Mercado Livre recusou a solicitação (${status}). Detalhe: ${corpo}`;
+  // O caso mais comum de todos, e o primeiro que apareceu em produção:
+  //
+  //   SHPLAB0200 · NOT_PRINTABLE_STATUS
+  //   "Shipment 47907037298 status is pending"
+  //
+  // Não é erro de ninguém. O Mercado Livre só gera etiqueta depois de
+  // confirmar o pagamento do comprador; até lá o envio fica em `pending` e a
+  // etiqueta não existe. Boleto e Pix fora do horário bancário seguram isso
+  // por horas.
+  //
+  // Sem tradução, o fornecedor recebia o JSON cru na tela e concluía que o
+  // sistema estava quebrado — quando o certo era esperar.
+  if (corpo.includes('NOT_PRINTABLE_STATUS') || corpo.includes('SHPLAB0200')) {
+    return (
+      'A etiqueta ainda não está disponível: o Mercado Livre não confirmou o ' +
+      'pagamento do comprador. Ele só gera a etiqueta depois disso. ' +
+      'Aguarde e tente de novo mais tarde — não é preciso fazer nada.'
+    );
+  }
+
+  // O corpo cru fica no log, não na tela. Ele é JSON do Mercado Livre e não
+  // ajuda quem está separando pedido.
+  return `O Mercado Livre recusou a solicitação (${status}). Se continuar, avise o suporte do FORNEXA.`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -240,6 +262,19 @@ Deno.serve(async (req: Request) => {
   if (!labelResponse.ok) {
     const corpo = await labelResponse.text();
     console.error('Mercado Livre recusou a etiqueta:', labelResponse.status, corpo);
+
+    // O JSON cru sai da tela do fornecedor e passa a viver aqui. Quem separa
+    // pedido não tem o que fazer com ele; quem dá suporte, tem.
+    await admin.from('log_integracao_ml').insert({
+      contexto: 'supplier-order-label',
+      mensagem: `Mercado Livre recusou a etiqueta (${labelResponse.status})`,
+      detalhes: {
+        pedido_id: pedido.id,
+        shipment_id: pedido.ml_shipment_id,
+        status: labelResponse.status,
+        resposta: corpo.slice(0, 2000),
+      },
+    });
 
     return json(
       { error: traduzErroMl(labelResponse.status, corpo.slice(0, 500)) },
