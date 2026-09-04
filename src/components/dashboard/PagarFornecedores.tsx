@@ -87,14 +87,33 @@ export default function PagarFornecedores({ pedidos, onMudou }: Props) {
     );
 
   const copiarPix = async (grupo: Grupo) => {
+    setErro('');
+
+    // O identificador é criado no banco, não aqui. Ele precisa existir do lado
+    // de lá para o aviso do PIX poder ser reconhecido depois — e precisa ser o
+    // MESMO se o vendedor copiar duas vezes sem pagar, senão a mesma dívida
+    // ganharia dois códigos e alguém pagaria duas vezes.
+    const { data, error } = await supabase.rpc('abrir_repasse', {
+      p_fornecedor: grupo.id,
+    });
+
+    const lote = (Array.isArray(data) ? data[0] : data) as
+      | { txid?: string; valor?: number }
+      | null;
+
+    if (error || !lote?.txid) {
+      setErro(error?.message ?? 'Não foi possível preparar o pagamento.');
+      return;
+    }
+
     const codigo = montarCodigoPix({
       chave: grupo.chavePix ?? '',
       nome: grupo.nome,
       cidade: grupo.cidade ?? 'BRASIL',
-      valor: grupo.total,
+      valor: Number(lote.valor ?? grupo.total),
       // Vai no extrato do fornecedor. Sem isso ele vê o valor cair e não sabe
       // a que se refere.
-      identificador: `FORNEXA ${grupo.pedidos.length}PED`,
+      identificador: lote.txid,
     });
 
     if (!codigo) {
@@ -236,7 +255,9 @@ export default function PagarFornecedores({ pedidos, onMudou }: Props) {
           <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
             O código já vai com o valor e a chave certos. Cole no seu banco e
             confirme. O dinheiro sai da sua conta direto para a do fornecedor —
-            o FORNEXA não passa no meio.
+            o FORNEXA não passa no meio. Cada código carrega um identificador
+            que aparece no extrato do fornecedor, então ele reconhece o
+            pagamento sem precisar perguntar.
           </p>
         </div>
       )}
