@@ -66,8 +66,8 @@ interface SupplierOrder {
   repasse_txid: string | null;
   repasse_valor: number | null;
   repasse_pedidos: number | null;
-  /** Comprovante do PIX deste pedido, enviado pelo vendedor. */
-  comprovante_url: string | null;
+  /** Caminho do comprovante no bucket fechado. Nulo quando não há. */
+  comprovante_path: string | null;
   /** Endereço e etiqueta estão trancados esperando o pagamento. */
   aguardando_pagamento: boolean;
   /** Este fornecedor exige pagamento antes do despacho. */
@@ -565,6 +565,28 @@ export default function SupplierPortal() {
    * endereço e etiqueta — por isso recarrega a lista em vez de só mexer na
    * linha: os campos ocultos passam a vir preenchidos.
    */
+  /**
+   * Abre o comprovante do vendedor num endereço temporário.
+   *
+   * O arquivo fica num lugar fechado e não tem endereço fixo: ele é assinado
+   * na hora, para quem tem direito, e vale poucos minutos.
+   */
+  const abrirComprovante = async (order: SupplierOrder) => {
+    setErrorMessage('');
+
+    const { data, error } = await supabase.functions.invoke<{ url?: string }>(
+      'comprovante-link',
+      { body: { order_id: order.id } }
+    );
+
+    if (error || !data?.url) {
+      setErrorMessage('Não foi possível abrir o comprovante.');
+      return;
+    }
+
+    window.open(data.url, '_blank', 'noopener,noreferrer');
+  };
+
   const alternarRecebimento = async (order: SupplierOrder) => {
     setConfirmandoId(order.id);
     setErrorMessage('');
@@ -917,16 +939,15 @@ export default function SupplierPortal() {
                             {/* A prova que sustenta a contestação de um MED.
                                 Fica junto do identificador porque é o par que
                                 o banco pede: qual pagamento, e de qual pedido. */}
-                            {order.comprovante_url && (
-                              <a
-                                href={order.comprovante_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                            {order.comprovante_path && (
+                              <button
+                                type="button"
+                                onClick={() => abrirComprovante(order)}
                                 className="inline-flex items-center gap-2 mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-white/5"
                               >
                                 <FileText className="w-4 h-4 text-gold" aria-hidden="true" />
                                 Ver comprovante do pagamento
-                              </a>
+                              </button>
                             )}
 
                             {order.repasse_txid && !order.recebimento_confirmado_em && (

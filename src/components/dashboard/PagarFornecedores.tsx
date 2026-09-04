@@ -10,7 +10,7 @@ export interface PedidoAPagar {
   supplier_price: number | null;
   supplier_id: string | null;
   pago_ao_fornecedor_em: string | null;
-  comprovante_url: string | null;
+  comprovante_path: string | null;
   fornecedor?: {
     id: string;
     nome: string;
@@ -161,11 +161,13 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
     setErro('');
 
     const extensao = arquivo.name.split('.').pop() || 'jpg';
-    const nome = `comprovantes/${pedido.id}-${Date.now()}.${extensao}`;
+    const caminho = `${pedido.id}/${Date.now()}.${extensao}`;
 
+    // Bucket fechado. O arquivo não é legível por endereço — quem abre é a
+    // função que confere de quem é o pedido.
     const { error: envioError } = await supabase.storage
-      .from('product-images')
-      .upload(nome, arquivo, { cacheControl: '3600', upsert: false });
+      .from('comprovantes')
+      .upload(caminho, arquivo, { cacheControl: '3600', upsert: false });
 
     if (envioError) {
       setOcupadoId(null);
@@ -173,11 +175,11 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
       return;
     }
 
-    const { data } = supabase.storage.from('product-images').getPublicUrl(nome);
-
+    // Guarda o caminho, nunca um endereço: endereço guardado é endereço que
+    // continua valendo depois de vazar.
     const { error } = await supabase
       .from('orders')
-      .update({ comprovante_url: data.publicUrl })
+      .update({ comprovante_path: caminho })
       .eq('id', pedido.id);
 
     setOcupadoId(null);
@@ -188,6 +190,28 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
     }
 
     onMudou();
+  };
+
+  /**
+   * Abre o comprovante num endereço temporário.
+   *
+   * O arquivo fica fechado, então não há link fixo para pendurar num href: o
+   * endereço é pedido na hora e vale poucos minutos.
+   */
+  const abrirComprovante = async (pedido: PedidoAPagar) => {
+    setErro('');
+
+    const { data, error } = await supabase.functions.invoke<{ url?: string }>(
+      'comprovante-link',
+      { body: { order_id: pedido.id } }
+    );
+
+    if (error || !data?.url) {
+      setErro('Não foi possível abrir o comprovante.');
+      return;
+    }
+
+    window.open(data.url, '_blank', 'noopener,noreferrer');
   };
 
   const marcarPago = async (pedido: PedidoAPagar) => {
@@ -319,12 +343,12 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
                       >
                         {ocupadoId === pedido.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : pedido.comprovante_url ? (
+                        ) : pedido.comprovante_path ? (
                           <FileText className="w-4 h-4" />
                         ) : (
                           <Upload className="w-4 h-4" />
                         )}
-                        {pedido.comprovante_url ? 'Trocar comprovante' : 'Enviar comprovante'}
+                        {pedido.comprovante_path ? 'Trocar comprovante' : 'Enviar comprovante'}
                       </button>
 
                       <button
@@ -337,15 +361,14 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
                       </button>
                     </div>
 
-                    {pedido.comprovante_url && (
-                      <a
-                        href={pedido.comprovante_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    {pedido.comprovante_path && (
+                      <button
+                        type="button"
+                        onClick={() => abrirComprovante(pedido)}
                         className="inline-block text-xs text-gray-500 dark:text-slate-400 underline underline-offset-2 mt-3"
                       >
                         Ver comprovante enviado
-                      </a>
+                      </button>
                     )}
                   </li>
                 ))}
