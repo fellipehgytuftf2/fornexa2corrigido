@@ -61,6 +61,11 @@ interface SupplierOrder {
   pago_em: string | null;
   /** Quando o próprio fornecedor confirmou que o dinheiro chegou. */
   recebimento_confirmado_em: string | null;
+  /** O lote de repasse a que este pedido pertence. Nulo em pedido antigo. */
+  repasse_id: string | null;
+  repasse_txid: string | null;
+  repasse_valor: number | null;
+  repasse_pedidos: number | null;
   /** Endereço e etiqueta estão trancados esperando o pagamento. */
   aguardando_pagamento: boolean;
   /** Este fornecedor exige pagamento antes do despacho. */
@@ -564,10 +569,21 @@ export default function SupplierPortal() {
 
     const confirmar = !order.recebimento_confirmado_em;
 
-    const { error } = await supabase.rpc('fornecedor_confirma_recebimento', {
-      p_order_id: order.id,
-      p_confirmado: confirmar,
-    });
+    // Confirmando um pedido que faz parte de um lote, confirma o lote inteiro.
+    // O PIX que caiu foi um só, com o valor de todos — repetir o mesmo
+    // julgamento cinco vezes sobre um pagamento só é onde se erra uma delas.
+    //
+    // Desfazer continua sendo pedido a pedido: corrigir um engano é o oposto
+    // de aplicar em massa.
+    const { error } =
+      confirmar && order.repasse_id
+        ? await supabase.rpc('fornecedor_confirma_repasse', {
+            p_repasse: order.repasse_id,
+          })
+        : await supabase.rpc('fornecedor_confirma_recebimento', {
+            p_order_id: order.id,
+            p_confirmado: confirmar,
+          });
 
     setConfirmandoId(null);
 
@@ -891,6 +907,28 @@ export default function SupplierPortal() {
                                   ? 'Endereço e etiqueta liberam quando você confirmar.'
                                   : 'Confirme quando o dinheiro cair na sua conta.'}
                             </p>
+
+                            {/* O identificador é o mesmo texto que aparece no
+                                extrato do banco. Com ele na tela, conferir
+                                deixa de ser adivinhar a que se refere o valor
+                                que caiu: é comparar dois números iguais. */}
+                            {order.repasse_txid && !order.recebimento_confirmado_em && (
+                              <div className="mt-3 rounded-lg bg-navy-900/80 border border-white/5 px-3 py-2.5">
+                                <p className="text-xs text-slate-400">
+                                  Procure no seu extrato por
+                                </p>
+
+                                <p className="font-mono text-sm text-gold mt-0.5 break-all">
+                                  {order.repasse_txid}
+                                </p>
+
+                                <p className="text-xs text-slate-400 mt-1.5">
+                                  {formatCurrency(Number(order.repasse_valor ?? 0))}
+                                  {Number(order.repasse_pedidos ?? 0) > 1 &&
+                                    ` · um PIX para ${order.repasse_pedidos} pedidos`}
+                                </p>
+                              </div>
+                            )}
                           </div>
 
                           <button
