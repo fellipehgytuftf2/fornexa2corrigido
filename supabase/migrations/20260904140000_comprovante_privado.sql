@@ -34,6 +34,11 @@ create policy "conta logada envia comprovante"
   with check (bucket_id = 'comprovantes');
 
 
+-- A view sai primeiro. Ela lê `comprovante_url`, e o Postgres não deixa apagar
+-- uma coluna com alguém dependendo dela — nem uma view, que é só uma consulta
+-- guardada. Apagar a view antes é a ordem certa; ela é recriada logo abaixo.
+drop view if exists public.pedidos_do_fornecedor;
+
 alter table public.orders
   add column if not exists comprovante_path text;
 
@@ -46,9 +51,7 @@ alter table public.orders
   drop column if exists comprovante_url;
 
 
-/** A view do Portal passa a expor o caminho, não o endereço. */
-drop view if exists public.pedidos_do_fornecedor;
-
+/** A view do Portal volta, agora expondo o caminho e não o endereço. */
 create view public.pedidos_do_fornecedor
 with (security_invoker = false) as
 select
