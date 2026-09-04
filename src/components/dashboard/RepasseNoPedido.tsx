@@ -53,9 +53,10 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
       Number(numero || 0)
     );
 
-  // O destravamento olha para o banco, não para o clique. Recarregar a página
-  // não pode fazer o vendedor perder o caminho andado.
-  const cobrancaAberta = Boolean(order.repasse_id);
+  // O destravamento olha para o banco, mas aceita o que acabou de acontecer
+  // nesta tela: a cobrança nasce no clique e a lista só é relida depois. Sem
+  // `copiado` aqui, o botão do comprovante continuaria travado até um F5.
+  const cobrancaAberta = Boolean(order.repasse_id) || copiado;
   const temComprovante = Boolean(order.comprovante_path);
   const pago = Boolean(order.pago_ao_fornecedor_em);
 
@@ -95,12 +96,14 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
     }
 
     await navigator.clipboard.writeText(codigo);
-    setCopiado(true);
-    window.setTimeout(() => setCopiado(false), 2000);
 
-    // Recarrega para o botão do comprovante destravar sozinho: o que libera é
-    // a cobrança existir no banco, e ela acabou de nascer.
-    onMudou();
+    // Fica verde e assim continua. Voltar a "Copiar PIX" depois de dois
+    // segundos apagaria a única marca de que este pedido já foi cobrado — e é
+    // ela que diz ao vendedor onde ele parou numa lista de dez pedidos.
+    //
+    // Aqui não se recarrega a lista: recarregar remonta este bloco do zero e o
+    // botão voltaria ao começo no instante seguinte ao clique.
+    setCopiado(true);
   };
 
   const enviarComprovante = async (arquivo: File) => {
@@ -225,10 +228,12 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
             type="button"
             onClick={copiarPix}
             disabled={ocupado || pago}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+            className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-50 ${
+              copiado ? 'bg-green-600 hover:bg-green-700' : 'bg-black hover:bg-gray-900'
+            }`}
           >
             {copiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copiado ? 'Código copiado' : 'Copiar PIX'}
+            {copiado ? 'PIX copiado' : 'Copiar PIX'}
           </button>
         )}
 
