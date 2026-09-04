@@ -108,7 +108,19 @@ export default function RecebimentoFornecedor() {
           className="w-full mt-4 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
         />
 
-        {/* Aviso curto porque o risco é grande e específico. */}
+        {/* A chave tem que ser IGUAL à que está registrada no banco. Formatada
+            de outro jeito, o aplicativo do pagador responde "chave não
+            encontrada" — mesmo ela existindo. */}
+        <p className="text-sm text-slate-400 mt-3 leading-relaxed">
+          Escreva do mesmo jeito que ela está registrada no seu banco:
+        </p>
+
+        <ul className="text-sm text-slate-400 mt-2 space-y-1 list-disc pl-5">
+          <li>CNPJ ou CPF: só números</li>
+          <li>Celular: com o +55 na frente</li>
+          <li>E-mail ou chave aleatória: exatamente como aparece lá</li>
+        </ul>
+
         <p className="text-sm text-slate-400 mt-3 leading-relaxed">
           Confira caractere por caractere. O dinheiro vai direto do banco do
           vendedor para o seu — o FORNEXA não passa no meio e não tem como

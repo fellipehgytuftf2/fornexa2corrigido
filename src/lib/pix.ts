@@ -58,6 +58,45 @@ function crc16(texto: string): string {
   return resultado.toString(16).toUpperCase().padStart(4, '0');
 }
 
+/**
+ * Deixa a chave no formato que o diretório do PIX entende.
+ *
+ * O banco recusa com "a chave não foi encontrada" quando ela vai formatada do
+ * jeito que a pessoa escreve. Um CNPJ está cadastrado como 12345678000190, mas
+ * quem digita escreve 12.345.678/0001-90 — e aí a busca não acha nada, mesmo a
+ * chave existindo.
+ *
+ * O reconhecimento é pelo que a pessoa DIGITOU, não por adivinhação de tipo:
+ * onze dígitos podem ser um CPF ou um celular com DDD, e chutar errado troca a
+ * chave por outra que pode ser de outra pessoa. Só normaliza o que a pontuação
+ * deixa claro; o resto vai exatamente como foi escrito.
+ */
+export function normalizarChavePix(chave: string): string {
+  const original = (chave || '').trim();
+
+  if (!original) {
+    return '';
+  }
+
+  if (original.includes('@')) {
+    return original.toLowerCase();
+  }
+
+  // Parênteses ou o + na frente só aparecem em telefone.
+  if (original.startsWith('+') || /[()]/.test(original)) {
+    const digitos = original.replace(/\D/g, '');
+
+    return `+${digitos.startsWith('55') ? digitos : `55${digitos}`}`;
+  }
+
+  // Ponto e barra só aparecem em CPF e CNPJ.
+  if (/[./]/.test(original)) {
+    return original.replace(/\D/g, '');
+  }
+
+  return original;
+}
+
 export interface DadosDoPix {
   chave: string;
   /** Quem recebe. Aparece na tela do banco antes de confirmar. */
@@ -76,7 +115,7 @@ export interface DadosDoPix {
  * positivo — sem isso o banco aceitaria um código que não cobra nada.
  */
 export function montarCodigoPix(dados: DadosDoPix): string {
-  const chave = (dados.chave || '').trim();
+  const chave = normalizarChavePix(dados.chave || '');
   const valor = Number(dados.valor || 0);
 
   if (!chave || !(valor > 0)) {
@@ -94,9 +133,11 @@ export function montarCodigoPix(dados: DadosDoPix): string {
 
   const corpo =
     campo('00', '01') +
-    // 12 = código de uso único. Sem ele o banco pode guardar como favorito e
-    // reaproveitar o valor antigo numa próxima cobrança.
-    campo('01', '12') +
+    // "11" é o código estático: a chave e o valor vão dentro do próprio texto.
+    // "12" é o dinâmico, em que o texto carrega só um endereço que o banco
+    // consulta para descobrir o valor. Marcar como dinâmico um código que não
+    // tem endereço nenhum faz o aplicativo procurar o que não existe.
+    campo('01', '11') +
     campo('26', contaDoRecebedor) +
     campo('52', '0000') +
     campo('53', '986') +
