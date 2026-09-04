@@ -56,6 +56,7 @@ interface Order {
   lucro_liquido: number | null;
   custos_apurados_em: string | null;
   pago_ao_fornecedor_em: string | null;
+  comprovante_url: string | null;
   status: OrderStatus;
   tracking_code: string | null;
   ml_shipment_id: string | null;
@@ -267,6 +268,7 @@ export default function Orders() {
         lucro_liquido,
         custos_apurados_em,
         pago_ao_fornecedor_em,
+        comprovante_url,
         status,
         tracking_code,
         ml_shipment_id,
@@ -696,6 +698,7 @@ export default function Orders() {
             supplier_price: order.supplier_price,
             supplier_id: order.supplier_id,
             pago_ao_fornecedor_em: order.pago_ao_fornecedor_em,
+            comprovante_url: order.comprovante_url,
             fornecedor: fornecedor
               ? {
                   id: fornecedor.id,

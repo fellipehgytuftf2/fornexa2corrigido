@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Check, ChevronDown, Copy, Loader2, Wallet } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, Copy, FileText, Loader2, Upload, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { montarCodigoPix } from '../../lib/pix';
 
@@ -10,6 +10,7 @@ export interface PedidoAPagar {
   supplier_price: number | null;
   supplier_id: string | null;
   pago_ao_fornecedor_em: string | null;
+  comprovante_url: string | null;
   fornecedor?: {
     id: string;
     nome: string;
@@ -24,8 +25,7 @@ interface Props {
    * Quem está logado.
    *
    * O admin enxerga os pedidos de todos os vendedores, e sem este filtro o
-   * card somava dívida alheia — depois o banco procurava pedidos dele e não
-   * achava nenhum. Dívida é de quem vendeu, não de quem está olhando.
+   * card somava dívida alheia. Dívida é de quem vendeu, não de quem olha.
    */
   usuarioId: string | null;
   onMudou: () => void;
@@ -41,24 +41,30 @@ interface Grupo {
 }
 
 /**
- * O que o vendedor deve a cada fornecedor, num lugar só.
+ * O que o vendedor deve, pedido a pedido.
  *
- * Antes, pagar era: achar o pedido, procurar o WhatsApp do fornecedor,
- * perguntar a chave PIX, esperar responder, digitar chave e valor, pagar,
- * mandar comprovante. Oito passos por pedido — e o fornecedor recebendo doze
- * PIX de dezessete reais no mesmo dia.
+ * A primeira versão juntava tudo de um fornecedor num PIX só. Menos cliques,
+ * menos lançamentos no extrato — e uma defesa mais fraca do outro lado.
  *
- * Aqui é um código por fornecedor, com a soma de tudo que está em aberto. Um
- * PIX, um clique, todos os pedidos quitados.
+ * MED é o mecanismo em que quem pagou um PIX pede o dinheiro de volta alegando
+ * fraude, e o valor é bloqueado na conta de quem recebeu. Para contestar, o
+ * fornecedor precisa provar aquele pagamento ligado àquele pedido, com o
+ * rastreio. Com cinco pedidos num PIX só, o comprovante mostra R$ 192,45 e o
+ * pedido contestado vale R$ 17,36: os números não batem e a defesa cai.
  *
- * O dinheiro não passa pelo FORNEXA: o código é só texto, e o PIX sai do banco
- * do vendedor direto para o do fornecedor.
+ * Então cada pedido tem o seu PIX, o seu identificador e o seu comprovante. Os
+ * pedidos continuam agrupados por fornecedor na tela, mas só para achar — o
+ * pagamento é um por um.
  */
 export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props) {
   const [aberto, setAberto] = useState(false);
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
-  const [quitandoId, setQuitandoId] = useState<string | null>(null);
+  const [ocupadoId, setOcupadoId] = useState<string | null>(null);
   const [erro, setErro] = useState('');
+
+  /** Qual pedido está esperando o arquivo escolhido no seletor. */
+  const aguardandoArquivo = useRef<PedidoAPagar | null>(null);
+  const seletorDeArquivo = useRef<HTMLInputElement | null>(null);
 
   const grupos = useMemo<Grupo[]>(() => {
     const porFornecedor = new Map<string, Grupo>();
@@ -66,14 +72,10 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
     pedidos.forEach((pedido) => {
       const fornecedor = pedido.fornecedor;
 
-      // Sem fornecedor ou já pago não entra: a lista existe para o que falta
-      // fazer, não para o histórico.
       if (!fornecedor?.id || pedido.pago_ao_fornecedor_em) {
         return;
       }
 
-      // Pedido de outro vendedor também não. Só o admin chega a ver isso, e
-      // para ele o número certo é zero: quem deve é quem vendeu.
       if (!usuarioId || pedido.user_id !== usuarioId) {
         return;
       }
@@ -101,16 +103,19 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
       Number(valor || 0)
     );
 
-  const copiarPix = async (grupo: Grupo) => {
+  const copiarPix = async (grupo: Grupo, pedido: PedidoAPagar) => {
     setErro('');
+    setOcupadoId(pedido.id);
 
     // O identificador é criado no banco, não aqui. Ele precisa existir do lado
     // de lá para o aviso do PIX poder ser reconhecido depois — e precisa ser o
     // MESMO se o vendedor copiar duas vezes sem pagar, senão a mesma dívida
     // ganharia dois códigos e alguém pagaria duas vezes.
-    const { data, error } = await supabase.rpc('abrir_repasse', {
-      p_fornecedor: grupo.id,
+    const { data, error } = await supabase.rpc('abrir_repasse_do_pedido', {
+      p_order_id: pedido.id,
     });
+
+    setOcupadoId(null);
 
     const lote = (Array.isArray(data) ? data[0] : data) as
       | { txid?: string; valor?: number }
@@ -125,9 +130,7 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
       chave: grupo.chavePix ?? '',
       nome: grupo.nome,
       cidade: grupo.cidade ?? 'BRASIL',
-      valor: Number(lote.valor ?? grupo.total),
-      // Vai no extrato do fornecedor. Sem isso ele vê o valor cair e não sabe
-      // a que se refere.
+      valor: Number(lote.valor ?? pedido.supplier_price ?? 0),
       identificador: lote.txid,
     });
 
@@ -137,23 +140,66 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
     }
 
     await navigator.clipboard.writeText(codigo);
-    setCopiadoId(grupo.id);
-    window.setTimeout(() => setCopiadoId((atual) => (atual === grupo.id ? null : atual)), 2000);
+    setCopiadoId(pedido.id);
+    window.setTimeout(() => setCopiadoId((atual) => (atual === pedido.id ? null : atual)), 2000);
   };
 
-  const marcarTodosPagos = async (grupo: Grupo) => {
-    setQuitandoId(grupo.id);
+  const escolherComprovante = (pedido: PedidoAPagar) => {
+    aguardandoArquivo.current = pedido;
+    seletorDeArquivo.current?.click();
+  };
+
+  const enviarComprovante = async (arquivo: File) => {
+    const pedido = aguardandoArquivo.current;
+    aguardandoArquivo.current = null;
+
+    if (!pedido) {
+      return;
+    }
+
+    setOcupadoId(pedido.id);
+    setErro('');
+
+    const extensao = arquivo.name.split('.').pop() || 'jpg';
+    const nome = `comprovantes/${pedido.id}-${Date.now()}.${extensao}`;
+
+    const { error: envioError } = await supabase.storage
+      .from('product-images')
+      .upload(nome, arquivo, { cacheControl: '3600', upsert: false });
+
+    if (envioError) {
+      setOcupadoId(null);
+      setErro(`Não foi possível enviar o comprovante: ${envioError.message}`);
+      return;
+    }
+
+    const { data } = supabase.storage.from('product-images').getPublicUrl(nome);
+
+    const { error } = await supabase
+      .from('orders')
+      .update({ comprovante_url: data.publicUrl })
+      .eq('id', pedido.id);
+
+    setOcupadoId(null);
+
+    if (error) {
+      setErro(`Não foi possível salvar o comprovante: ${error.message}`);
+      return;
+    }
+
+    onMudou();
+  };
+
+  const marcarPago = async (pedido: PedidoAPagar) => {
+    setOcupadoId(pedido.id);
     setErro('');
 
     const { error } = await supabase
       .from('orders')
       .update({ pago_ao_fornecedor_em: new Date().toISOString() })
-      .in(
-        'id',
-        grupo.pedidos.map((pedido) => pedido.id)
-      );
+      .eq('id', pedido.id);
 
-    setQuitandoId(null);
+    setOcupadoId(null);
 
     if (error) {
       setErro(`Não foi possível marcar como pago: ${error.message}`);
@@ -169,9 +215,25 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
   }
 
   const totalGeral = grupos.reduce((soma, grupo) => soma + grupo.total, 0);
+  const quantosPedidos = grupos.reduce((soma, grupo) => soma + grupo.pedidos.length, 0);
 
   return (
     <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
+      <input
+        ref={seletorDeArquivo}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={(evento) => {
+          const arquivo = evento.target.files?.[0];
+          evento.target.value = '';
+
+          if (arquivo) {
+            enviarComprovante(arquivo);
+          }
+        }}
+      />
+
       <button
         type="button"
         onClick={() => setAberto((atual) => !atual)}
@@ -184,8 +246,8 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
           <p className="font-semibold text-navy-900 dark:text-white">A pagar aos fornecedores</p>
 
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-            {formatar(totalGeral)} em {grupos.length} fornecedor
-            {grupos.length > 1 ? 'es' : ''}
+            {formatar(totalGeral)} em {quantosPedidos} pedido
+            {quantosPedidos > 1 ? 's' : ''}
           </p>
         </div>
 
@@ -196,83 +258,108 @@ export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props
       </button>
 
       {aberto && (
-        <div className="border-t border-gray-200 dark:border-navy-700 p-5 space-y-4">
-          {erro && (
-            <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>
-          )}
+        <div className="border-t border-gray-200 dark:border-navy-700 p-5 space-y-5">
+          {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
 
           {grupos.map((grupo) => (
-            <div
-              key={grupo.id}
-              className="rounded-xl border border-gray-200 dark:border-navy-600 p-4"
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div key={grupo.id}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
                 <p className="font-semibold text-navy-900 dark:text-white">{grupo.nome}</p>
 
-                <p className="text-lg font-bold text-navy-900 dark:text-white tabular-nums">
-                  {formatar(grupo.total)}
+                <p className="text-sm text-gray-500 dark:text-slate-400 tabular-nums">
+                  {formatar(grupo.total)} no total
                 </p>
               </div>
 
-              <ul className="mt-3 space-y-1">
+              {!grupo.chavePix && (
+                <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
+                  Este fornecedor ainda não cadastrou a chave PIX no Portal dele.
+                  Combine o pagamento direto com ele.
+                </p>
+              )}
+
+              <ul className="space-y-3">
                 {grupo.pedidos.map((pedido) => (
                   <li
                     key={pedido.id}
-                    className="flex flex-wrap justify-between gap-2 text-sm text-gray-600 dark:text-slate-300"
+                    className="rounded-xl border border-gray-200 dark:border-navy-600 p-4"
                   >
-                    <span className="truncate">{pedido.product_name}</span>
-                    <span className="tabular-nums shrink-0">
-                      {formatar(Number(pedido.supplier_price || 0))}
-                    </span>
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <p className="text-sm text-navy-900 dark:text-white font-medium">
+                        {pedido.product_name}
+                      </p>
+
+                      <p className="font-bold text-navy-900 dark:text-white tabular-nums shrink-0">
+                        {formatar(Number(pedido.supplier_price || 0))}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-3">
+                      {grupo.chavePix && (
+                        <button
+                          type="button"
+                          onClick={() => copiarPix(grupo, pedido)}
+                          disabled={ocupadoId === pedido.id}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                        >
+                          {copiadoId === pedido.id ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                          {copiadoId === pedido.id ? 'Código copiado' : 'Copiar PIX'}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => escolherComprovante(pedido)}
+                        disabled={ocupadoId === pedido.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {ocupadoId === pedido.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : pedido.comprovante_url ? (
+                          <FileText className="w-4 h-4" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        {pedido.comprovante_url ? 'Trocar comprovante' : 'Enviar comprovante'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => marcarPago(pedido)}
+                        disabled={ocupadoId === pedido.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        Marcar como pago
+                      </button>
+                    </div>
+
+                    {pedido.comprovante_url && (
+                      <a
+                        href={pedido.comprovante_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-xs text-gray-500 dark:text-slate-400 underline underline-offset-2 mt-3"
+                      >
+                        Ver comprovante enviado
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
-
-              <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                {grupo.chavePix ? (
-                  <button
-                    type="button"
-                    onClick={() => copiarPix(grupo)}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors"
-                  >
-                    {copiadoId === grupo.id ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                    {copiadoId === grupo.id
-                      ? 'Código copiado'
-                      : `Copiar PIX de ${formatar(grupo.total)}`}
-                  </button>
-                ) : (
-                  // Fornecedor sem chave cadastrada: dizer o que falta, e de
-                  // quem é o passo, em vez de esconder o botão sem explicação.
-                  <p className="text-sm text-gray-500 dark:text-slate-400 flex-1">
-                    Este fornecedor ainda não cadastrou a chave PIX no Portal
-                    dele. Combine o pagamento direto com ele.
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => marcarTodosPagos(grupo)}
-                  disabled={quitandoId === grupo.id}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
-                >
-                  {quitandoId === grupo.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Marcar {grupo.pedidos.length} como pago
-                  {grupo.pedidos.length > 1 ? 's' : ''}
-                </button>
-              </div>
             </div>
           ))}
 
+          {/* O porquê de ser um por um fica escrito: sem isso, a primeira
+              pessoa a achar repetitivo vai querer juntar de novo. */}
           <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-            O código já vai com o valor e a chave certos. Cole no seu banco e
-            confirme. O dinheiro sai da sua conta direto para a do fornecedor —
-            o FORNEXA não passa no meio. Cada código carrega um identificador
-            que aparece no extrato do fornecedor, então ele reconhece o
-            pagamento sem precisar perguntar.
+            Um PIX por pedido, de propósito. Se alguém contestar um pagamento
+            junto ao banco, o fornecedor precisa provar aquele PIX ligado
+            àquele pedido e ao rastreio. Um pagamento somado não serve de prova
+            para nenhum deles em separado.
           </p>
         </div>
       )}

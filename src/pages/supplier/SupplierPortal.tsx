@@ -66,6 +66,8 @@ interface SupplierOrder {
   repasse_txid: string | null;
   repasse_valor: number | null;
   repasse_pedidos: number | null;
+  /** Comprovante do PIX deste pedido, enviado pelo vendedor. */
+  comprovante_url: string | null;
   /** Endereço e etiqueta estão trancados esperando o pagamento. */
   aguardando_pagamento: boolean;
   /** Este fornecedor exige pagamento antes do despacho. */
@@ -912,6 +914,21 @@ export default function SupplierPortal() {
                                 extrato do banco. Com ele na tela, conferir
                                 deixa de ser adivinhar a que se refere o valor
                                 que caiu: é comparar dois números iguais. */}
+                            {/* A prova que sustenta a contestação de um MED.
+                                Fica junto do identificador porque é o par que
+                                o banco pede: qual pagamento, e de qual pedido. */}
+                            {order.comprovante_url && (
+                              <a
+                                href={order.comprovante_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-white/5"
+                              >
+                                <FileText className="w-4 h-4 text-gold" aria-hidden="true" />
+                                Ver comprovante do pagamento
+                              </a>
+                            )}
+
                             {order.repasse_txid && !order.recebimento_confirmado_em && (
                               <div className="mt-3 rounded-lg bg-navy-900/80 border border-white/5 px-3 py-2.5">
                                 <p className="text-xs text-slate-400">
