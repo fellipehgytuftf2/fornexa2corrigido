@@ -5,17 +5,15 @@ import {
   CheckCircle,
   Clock,
   Link2,
-  MessageCircle,
   Package,
   RefreshCw,
-  Send,
   Trash2,
   Truck,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
 import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
-import PagarFornecedores from '../../components/dashboard/PagarFornecedores';
+import RepasseNoPedido from '../../components/dashboard/RepasseNoPedido';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 type OrderStatus =
@@ -57,6 +55,7 @@ interface Order {
   custos_apurados_em: string | null;
   pago_ao_fornecedor_em: string | null;
   comprovante_path: string | null;
+  repasse_id: string | null;
   status: OrderStatus;
   tracking_code: string | null;
   ml_shipment_id: string | null;
@@ -97,7 +96,6 @@ interface PendingIssue {
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [marcandoPagamentoId, setMarcandoPagamentoId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
@@ -106,13 +104,6 @@ export default function Orders() {
   /** Devolução aberta de cada pedido, por order_id. */
   const [devolucoes, setDevolucoes] = useState<Record<string, Devolucao>>({});
 
-  /**
-   * Quem está logado.
-   *
-   * Precisa aqui porque o admin enxerga os pedidos de todos os vendedores, e o
-   * card de repasse tem que somar só o que é dívida de quem está olhando.
-   */
-  const [usuarioId, setUsuarioId] = useState<string | null>(null);
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
   const [showIssues, setShowIssues] = useState(false);
@@ -242,12 +233,6 @@ export default function Orders() {
     setLoading(true);
     setErrorMessage('');
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    setUsuarioId(user?.id ?? null);
-
     const { data, error } = await supabase
       .from('orders')
       .select(`
@@ -269,6 +254,7 @@ export default function Orders() {
         custos_apurados_em,
         pago_ao_fornecedor_em,
         comprovante_path,
+        repasse_id,
         status,
         tracking_code,
         ml_shipment_id,
@@ -339,41 +325,6 @@ export default function Orders() {
     return order.suppliers || null;
   };
 
-  /**
-   * Registra que o fornecedor foi pago, ou desfaz o registro.
-   *
-   * O dinheiro sai por fora do FORNEXA — PIX, transferência, o que os dois
-   * combinarem. O que o sistema guarda é a declaração de quem pagou, para os
-   * dois lados pararem de contar de cabeça o que já foi quitado.
-   */
-  const alternarPagamentoAoFornecedor = async (order: Order) => {
-    setMarcandoPagamentoId(order.id);
-
-    const pago = !order.pago_ao_fornecedor_em;
-
-    const { error } = await supabase.rpc('marcar_pago_ao_fornecedor', {
-      p_order_id: order.id,
-      p_pago: pago,
-    });
-
-    setMarcandoPagamentoId(null);
-
-    if (error) {
-      console.error('Erro ao marcar pagamento ao fornecedor:', error);
-      setErrorMessage(`Não foi possível salvar: ${error.message}`);
-      return;
-    }
-
-    // Atualiza só a linha mexida em vez de recarregar tudo: a lista pode ser
-    // longa e o retrabalho apagaria a rolagem de quem está conferindo pedidos.
-    setOrders((atuais) =>
-      atuais.map((atual) =>
-        atual.id === order.id
-          ? { ...atual, pago_ao_fornecedor_em: pago ? new Date().toISOString() : null }
-          : atual
-      )
-    );
-  };
 
   const formatCurrency = (value: number) => {
     return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
@@ -389,58 +340,7 @@ export default function Orders() {
     });
   };
 
-  const cleanWhatsappNumber = (phone?: string | null) => {
-    const onlyNumbers = String(phone || '').replace(/\D/g, '');
 
-    if (!onlyNumbers) {
-      return '';
-    }
-
-    if (onlyNumbers.startsWith('55')) {
-      return onlyNumbers;
-    }
-
-    return `55${onlyNumbers}`;
-  };
-
-  const buildSupplierWhatsAppMessage = (order: Order) => {
-    const supplier = getSupplier(order);
-
-    const message = [
-      'Olá, tudo bem?',
-      '',
-      'Novo pedido pelo FORNEXA:',
-      '',
-      `Produto: ${order.product_name || 'Produto não informado'}`,
-      `Cliente: ${order.customer_name || 'Cliente não informado'}`,
-      `Telefone do cliente: ${order.customer_phone || 'Não informado'}`,
-      `E-mail do cliente: ${order.customer_email || 'Não informado'}`,
-      `Fornecedor: ${supplier?.name || 'Fornecedor não informado'}`,
-      `Empresa: ${supplier?.company_name || 'Empresa não informada'}`,
-      `Preço do fornecedor: ${formatCurrency(order.supplier_price || 0)}`,
-      `Preço de venda: ${formatCurrency(order.sale_price || 0)}`,
-      `Lucro estimado: ${formatCurrency(order.profit || 0)}`,
-      `Código do pedido: ${order.id}`,
-      '',
-      'Pode confirmar o envio desse pedido?',
-    ].join('\n');
-
-    return encodeURIComponent(message);
-  };
-
-  const openSupplierWhatsApp = (order: Order) => {
-    const supplier = getSupplier(order);
-    const whatsappNumber = cleanWhatsappNumber(order.supplier_whatsapp || supplier?.whatsapp);
-
-    if (!whatsappNumber) {
-      alert('Este pedido não possui WhatsApp do fornecedor cadastrado.');
-      return;
-    }
-
-    const message = buildSupplierWhatsAppMessage(order);
-
-    window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
-  };
 
   const getStatusStyle = (status: OrderStatus) => {
     if (status === 'pending') {
@@ -467,78 +367,6 @@ export default function Orders() {
     return 'bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300';
   };
 
-  const getNextStatus = (status: OrderStatus): OrderStatus | null => {
-    if (status === 'pending') {
-      return 'sent_to_supplier';
-    }
-
-    // O fornecedor pode marcar "em separação" pelo Portal, mas o vendedor
-    // segue podendo pular direto para enviado.
-    if (status === 'sent_to_supplier' || status === 'separating') {
-      return 'shipped';
-    }
-
-    if (status === 'shipped') {
-      return 'delivered';
-    }
-
-    return null;
-  };
-
-  const getNextStatusLabel = (status: OrderStatus) => {
-    if (status === 'pending') {
-      return 'Marcar enviado ao fornecedor';
-    }
-
-    if (status === 'sent_to_supplier' || status === 'separating') {
-      return 'Marcar como enviado';
-    }
-
-    if (status === 'shipped') {
-      return 'Marcar como entregue';
-    }
-
-    return 'Pedido finalizado';
-  };
-
-  const handleAdvanceStatus = async (order: Order) => {
-    const nextStatus = getNextStatus(order.status);
-
-    if (!nextStatus) {
-      return;
-    }
-
-    setActionId(order.id);
-    setErrorMessage('');
-
-    // Só o status. O código de rastreio era inventado aqui quando o pedido
-    // virava "enviado" sem código — um "FX" seguido de seis dígitos ao acaso.
-    // Ele ia para o portal do fornecedor como se fosse rastreio de verdade, e
-    // de lá podia chegar ao comprador, que digitaria no site dos Correios e
-    // não acharia nada.
-    //
-    // Rastreio real vem do Mercado Livre, gravado por `ml-sync-orders` a
-    // partir do envio. Vazio é resposta honesta enquanto ele não existe.
-    const payload: Partial<Order> = {
-      status: nextStatus,
-    };
-
-    const { error } = await supabase
-      .from('orders')
-      .update(payload)
-      .eq('id', order.id);
-
-    setActionId(null);
-
-    if (error) {
-      console.error('Erro ao atualizar pedido:', error);
-      setErrorMessage(`Não foi possível atualizar o pedido: ${error.message}`);
-      return;
-    }
-
-    await loadOrders();
-    showSuccess('Status do pedido atualizado.');
-  };
 
   const handleDeleteOrder = async (orderId: string) => {
     const confirmDelete = window.confirm('Tem certeza que deseja excluir este pedido?');
@@ -685,34 +513,6 @@ export default function Orders() {
         </div>
       )}
 
-      {/* Dinheiro que o vendedor ainda deve, agrupado por fornecedor. Vem
-          antes de tudo porque é o que trava o despacho dos pedidos abaixo. */}
-      <PagarFornecedores
-        pedidos={orders.map((order) => {
-          const fornecedor = getSupplier(order);
-
-          return {
-            id: order.id,
-            user_id: order.user_id,
-            product_name: order.product_name,
-            supplier_price: order.supplier_price,
-            supplier_id: order.supplier_id,
-            pago_ao_fornecedor_em: order.pago_ao_fornecedor_em,
-            comprovante_path: order.comprovante_path,
-            fornecedor: fornecedor
-              ? {
-                  id: fornecedor.id,
-                  nome: fornecedor.company_name || fornecedor.name || 'Fornecedor',
-                  cidade: fornecedor.city ?? null,
-                  chave_pix: fornecedor.chave_pix ?? null,
-                }
-              : null,
-          };
-        })}
-        usuarioId={usuarioId}
-        onMudou={loadOrders}
-      />
-
       {/* Só aparece quando há algo parado. Fica acima dos números porque é
           dinheiro que os números não mostram. */}
       <ParadosNoCD />
@@ -772,7 +572,6 @@ export default function Orders() {
           {orders.map((order) => {
             const supplier = getSupplier(order);
             const supplierWhatsapp = order.supplier_whatsapp || supplier?.whatsapp;
-            const nextStatus = getNextStatus(order.status);
 
             return (
               <div
@@ -876,46 +675,19 @@ export default function Orders() {
                       </div>
                     </div>
 
-                    {/* Acerto com o fornecedor. A venda cair na conta do vendedor
-                        não paga ninguém: o repasse é feito por fora, e sem
-                        registro os dois lados perdem a conta do que já foi
-                        quitado. */}
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-navy-600 p-3">
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">
-                          Repasse ao fornecedor
-                        </p>
-
-                        <p className="text-sm font-semibold text-navy-900 dark:text-white mt-0.5">
-                          {formatCurrency(
-                            Number(order.supplier_price || 0) * Number(order.quantidade || 1)
-                          )}
-
-                          {order.pago_ao_fornecedor_em ? (
-                            <span className="ml-2 text-xs font-medium text-green-600 dark:text-green-400">
-                              pago em{' '}
-                              {new Date(order.pago_ao_fornecedor_em).toLocaleDateString('pt-BR')}
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-                              em aberto
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => alternarPagamentoAoFornecedor(order)}
-                        disabled={marcandoPagamentoId === order.id}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 ${
-                          order.pago_ao_fornecedor_em
-                            ? 'border border-gray-200 dark:border-navy-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-navy-700'
-                            : 'bg-navy-900 dark:bg-gold text-white dark:text-navy-900 hover:opacity-90'
-                        }`}
-                      >
-                        {order.pago_ao_fornecedor_em ? 'Desmarcar' : 'Marcar como pago'}
-                      </button>
-                    </div>
+                    <RepasseNoPedido
+                      order={order}
+                      fornecedor={
+                        supplier
+                          ? {
+                              nome: supplier.company_name || supplier.name,
+                              cidade: supplier.city ?? null,
+                              chave_pix: supplier.chave_pix ?? null,
+                            }
+                          : null
+                      }
+                      onMudou={loadOrders}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
@@ -957,11 +729,9 @@ export default function Orders() {
                           </p>
 
                           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                            Empresa: {supplier?.company_name || 'Não informada'}
-                          </p>
-
-                          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                            WhatsApp: {supplierWhatsapp || 'Não informado'}
+                            {supplier?.city
+                              ? `${supplier.city}${supplier.state ? `/${supplier.state}` : ''}`
+                              : 'Local não informado'}
                           </p>
                         </div>
                       </div>
@@ -969,24 +739,6 @@ export default function Orders() {
                   </div>
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={() => openSupplierWhatsApp(order)}
-                      disabled={!supplierWhatsapp}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      Enviar ao fornecedor
-                    </button>
-
-                    <button
-                      onClick={() => handleAdvanceStatus(order)}
-                      disabled={!nextStatus || actionId === order.id}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Send className="w-4 h-4" />
-                      {actionId === order.id ? 'Atualizando...' : getNextStatusLabel(order.status)}
-                    </button>
-
                     {/* Só depois de entregue: antes disso não existe devolução
                         para avisar, e o pedido ainda segue o fluxo normal. */}
                     {order.status === 'delivered' && !devolucoes[order.id] && (
