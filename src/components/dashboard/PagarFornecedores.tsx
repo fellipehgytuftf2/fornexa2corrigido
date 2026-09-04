@@ -5,6 +5,7 @@ import { montarCodigoPix } from '../../lib/pix';
 
 export interface PedidoAPagar {
   id: string;
+  user_id: string;
   product_name: string;
   supplier_price: number | null;
   supplier_id: string | null;
@@ -19,6 +20,14 @@ export interface PedidoAPagar {
 
 interface Props {
   pedidos: PedidoAPagar[];
+  /**
+   * Quem está logado.
+   *
+   * O admin enxerga os pedidos de todos os vendedores, e sem este filtro o
+   * card somava dívida alheia — depois o banco procurava pedidos dele e não
+   * achava nenhum. Dívida é de quem vendeu, não de quem está olhando.
+   */
+  usuarioId: string | null;
   onMudou: () => void;
 }
 
@@ -45,7 +54,7 @@ interface Grupo {
  * O dinheiro não passa pelo FORNEXA: o código é só texto, e o PIX sai do banco
  * do vendedor direto para o do fornecedor.
  */
-export default function PagarFornecedores({ pedidos, onMudou }: Props) {
+export default function PagarFornecedores({ pedidos, usuarioId, onMudou }: Props) {
   const [aberto, setAberto] = useState(false);
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
@@ -60,6 +69,12 @@ export default function PagarFornecedores({ pedidos, onMudou }: Props) {
       // Sem fornecedor ou já pago não entra: a lista existe para o que falta
       // fazer, não para o histórico.
       if (!fornecedor?.id || pedido.pago_ao_fornecedor_em) {
+        return;
+      }
+
+      // Pedido de outro vendedor também não. Só o admin chega a ver isso, e
+      // para ele o número certo é zero: quem deve é quem vendeu.
+      if (!usuarioId || pedido.user_id !== usuarioId) {
         return;
       }
 
@@ -79,7 +94,7 @@ export default function PagarFornecedores({ pedidos, onMudou }: Props) {
     });
 
     return [...porFornecedor.values()].sort((a, b) => b.total - a.total);
-  }, [pedidos]);
+  }, [pedidos, usuarioId]);
 
   const formatar = (valor: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(

@@ -104,6 +104,14 @@ export default function Orders() {
 
   /** Devolução aberta de cada pedido, por order_id. */
   const [devolucoes, setDevolucoes] = useState<Record<string, Devolucao>>({});
+
+  /**
+   * Quem está logado.
+   *
+   * Precisa aqui porque o admin enxerga os pedidos de todos os vendedores, e o
+   * card de repasse tem que somar só o que é dívida de quem está olhando.
+   */
+  const [usuarioId, setUsuarioId] = useState<string | null>(null);
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
   const [showIssues, setShowIssues] = useState(false);
@@ -232,6 +240,12 @@ export default function Orders() {
   const loadOrders = async () => {
     setLoading(true);
     setErrorMessage('');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    setUsuarioId(user?.id ?? null);
 
     const { data, error } = await supabase
       .from('orders')
@@ -677,6 +691,7 @@ export default function Orders() {
 
           return {
             id: order.id,
+            user_id: order.user_id,
             product_name: order.product_name,
             supplier_price: order.supplier_price,
             supplier_id: order.supplier_id,
@@ -691,6 +706,7 @@ export default function Orders() {
               : null,
           };
         })}
+        usuarioId={usuarioId}
         onMudou={loadOrders}
       />
 
