@@ -262,7 +262,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
           disabled={ocupado || (!temComprovante && !pago)}
           title={
             temComprovante || pago
-              ? undefined
+              ? 'Avisa o fornecedor. Só a partir daqui ele vê o comprovante e confirma.'
               : 'Envie o comprovante primeiro — é a prova que o fornecedor precisa.'
           }
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-40"
@@ -280,6 +280,16 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
           </button>
         )}
       </div>
+
+      {/* Diz onde termina a preparação e começa o compromisso. Sem isto, o
+          vendedor não tem como saber que copiar e anexar são passos privados. */}
+      {!pago && (
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+          {temComprovante
+            ? 'Falta avisar o fornecedor: "Marcar como pago" é o que mostra o comprovante a ele e libera a confirmação do outro lado.'
+            : 'Copiar o PIX e anexar o comprovante ficam só com você. O fornecedor só é avisado quando você marcar como pago.'}
+        </p>
+      )}
     </div>
   );
 }

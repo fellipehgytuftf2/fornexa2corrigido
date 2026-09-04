@@ -924,12 +924,17 @@ export default function SupplierPortal() {
                               Recebimento
                             </p>
 
+                            {/* Antes da declaração do vendedor não há o que
+                                conferir: ele ainda está montando o pagamento e
+                                pode trocar o comprovante ou pagar amanhã. */}
                             <p className="text-sm text-white mt-1.5">
                               {order.recebimento_confirmado_em
                                 ? 'Você confirmou que recebeu este pagamento.'
-                                : order.aguardando_pagamento
-                                  ? 'Endereço e etiqueta liberam quando você confirmar.'
-                                  : 'Confirme quando o dinheiro cair na sua conta.'}
+                                : !order.pago_em
+                                  ? 'O vendedor ainda não informou o pagamento deste pedido.'
+                                  : order.aguardando_pagamento
+                                    ? 'Endereço e etiqueta liberam quando você confirmar.'
+                                    : 'Confirme quando o dinheiro cair na sua conta.'}
                             </p>
 
                             {/* O identificador é o mesmo texto que aparece no
@@ -969,9 +974,14 @@ export default function SupplierPortal() {
                             )}
                           </div>
 
+                          {/* Sem declaração do vendedor não há botão. Confirmar
+                              o recebimento de um pagamento que ninguém disse ter
+                              feito é a única forma de o carimbo do fornecedor
+                              perder o valor que ele tem. */}
                           <button
                             onClick={() => alternarRecebimento(order)}
                             disabled={confirmandoId === order.id}
+                            hidden={!order.pago_em && !order.recebimento_confirmado_em}
                             className={
                               order.recebimento_confirmado_em
                                 ? 'rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-50'
