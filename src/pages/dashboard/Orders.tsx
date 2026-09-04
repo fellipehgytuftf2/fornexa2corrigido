@@ -15,6 +15,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
 import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
+import PagarFornecedores from '../../components/dashboard/PagarFornecedores';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 type OrderStatus =
@@ -33,6 +34,8 @@ interface Supplier {
   city: string;
   state: string;
   status: 'active' | 'inactive';
+  /** Cadastrada pelo próprio fornecedor no Portal. Nula até ele preencher. */
+  chave_pix: string | null;
 }
 
 interface Order {
@@ -262,7 +265,8 @@ export default function Orders() {
           whatsapp,
           city,
           state,
-          status
+          status,
+          chave_pix
         )
       `)
       .order('created_at', { ascending: false });
@@ -664,6 +668,31 @@ export default function Orders() {
           )}
         </div>
       )}
+
+      {/* Dinheiro que o vendedor ainda deve, agrupado por fornecedor. Vem
+          antes de tudo porque é o que trava o despacho dos pedidos abaixo. */}
+      <PagarFornecedores
+        pedidos={orders.map((order) => {
+          const fornecedor = getSupplier(order);
+
+          return {
+            id: order.id,
+            product_name: order.product_name,
+            supplier_price: order.supplier_price,
+            supplier_id: order.supplier_id,
+            pago_ao_fornecedor_em: order.pago_ao_fornecedor_em,
+            fornecedor: fornecedor
+              ? {
+                  id: fornecedor.id,
+                  nome: fornecedor.company_name || fornecedor.name || 'Fornecedor',
+                  cidade: fornecedor.city ?? null,
+                  chave_pix: fornecedor.chave_pix ?? null,
+                }
+              : null,
+          };
+        })}
+        onMudou={loadOrders}
+      />
 
       {/* Só aparece quando há algo parado. Fica acima dos números porque é
           dinheiro que os números não mostram. */}
