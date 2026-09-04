@@ -154,3 +154,81 @@ grant execute on function public.fornecedor_confirma_repasse(uuid) to authentica
 -- permitiria quitar um repasse alheio a quem descobrisse o identificador —
 -- e ele viaja no extrato de outra pessoa.
 revoke execute on function public.confirmar_repasse(text, text) from authenticated;
+
+
+/**
+ * Um identificador nunca cobre dois pagamentos.
+ *
+ * A versão anterior reaproveitava qualquer lote ainda aberto. Bastava o
+ * vendedor pagar um pedido e receber outra venda antes de a confirmação chegar
+ * para o mesmo identificador ser reusado — e aí o banco avisaria dois
+ * pagamentos com o mesmo número, sem como saber qual deles quitar.
+ *
+ * Agora o lote só é reaproveitado enquanto nenhum pedido dele tiver sido pago.
+ * Depois do primeiro pagamento, a próxima cobrança nasce com identificador
+ * próprio.
+ */
+create or replace function public.abrir_repasse(p_fornecedor uuid)
+returns table (id uuid, txid text, valor numeric, pedidos integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_repasse public.repasses;
+  v_total numeric;
+  v_quantos integer;
+begin
+  select
+    coalesce(sum(o.supplier_price), 0),
+    count(*)
+  into v_total, v_quantos
+  from public.orders o
+  where o.user_id = auth.uid()
+    and o.supplier_id = p_fornecedor
+    and o.pago_ao_fornecedor_em is null;
+
+  if v_quantos = 0 then
+    raise exception 'não há pedidos em aberto com este fornecedor';
+  end if;
+
+  select * into v_repasse
+  from public.repasses r
+  where r.user_id = auth.uid()
+    and r.supplier_id = p_fornecedor
+    and r.status = 'aberto'
+    and not exists (
+      select 1 from public.orders pagos
+      where pagos.repasse_id = r.id
+        and pagos.pago_ao_fornecedor_em is not null
+    )
+  limit 1;
+
+  if v_repasse.id is null then
+    insert into public.repasses (user_id, supplier_id, valor, txid)
+    values (
+      auth.uid(),
+      p_fornecedor,
+      v_total,
+      'FNX' || upper(substring(replace(gen_random_uuid()::text, '-', '') from 1 for 22))
+    )
+    returning * into v_repasse;
+  else
+    update public.repasses
+    set valor = v_total
+    where repasses.id = v_repasse.id
+    returning * into v_repasse;
+  end if;
+
+  update public.orders o
+  set repasse_id = v_repasse.id
+  where o.user_id = auth.uid()
+    and o.supplier_id = p_fornecedor
+    and o.pago_ao_fornecedor_em is null;
+
+  return query
+  select v_repasse.id, v_repasse.txid, v_total, v_quantos;
+end;
+$$;
+
+grant execute on function public.abrir_repasse(uuid) to authenticated;
