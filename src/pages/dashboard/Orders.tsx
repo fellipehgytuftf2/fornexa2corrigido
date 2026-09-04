@@ -674,21 +674,24 @@ export default function Orders() {
                         )}
                       </div>
                     </div>
-
-                    <RepasseNoPedido
-                      order={order}
-                      fornecedor={
-                        supplier
-                          ? {
-                              nome: supplier.company_name || supplier.name,
-                              cidade: supplier.city ?? null,
-                              chave_pix: supplier.chave_pix ?? null,
-                            }
-                          : null
-                      }
-                      onMudou={loadOrders}
-                    />
                   </div>
+
+                  {/* Fora da linha de cima, e não dentro dela: ali seria uma
+                      terceira coluna disputando largura com o nome do produto,
+                      que acabava quebrando uma palavra por linha. */}
+                  <RepasseNoPedido
+                    order={order}
+                    fornecedor={
+                      supplier
+                        ? {
+                            nome: supplier.company_name || supplier.name,
+                            cidade: supplier.city ?? null,
+                            chave_pix: supplier.chave_pix ?? null,
+                          }
+                        : null
+                    }
+                    onMudou={loadOrders}
+                  />
 
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
                     <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-4">
