@@ -43,6 +43,35 @@ function json(body: unknown, status = 200) {
  * Mantém o status original: 403 de elegibilidade e 404 de envio inexistente
  * exigem providências completamente diferentes.
  */
+/**
+ * Por que o Mercado Livre não gerou a etiqueta, no vocabulário de quem despacha.
+ *
+ * A recusa do endpoint de etiqueta vem sempre igual — NOT_PRINTABLE_STATUS —
+ * sem dizer o que falta. O motivo está no envio, no campo `substatus`, e é ele
+ * que separa "espere" de "alguém precisa fazer alguma coisa".
+ *
+ * A primeira versão desta função supunha que era sempre pagamento em aberto.
+ * Estava errada: apareceu um pedido esperando NOTA FISCAL, e o fornecedor leu
+ * "não é preciso fazer nada" enquanto o vendedor precisava agir.
+ */
+function motivoPeloSubstatus(substatus: string): string | null {
+  const motivos: Record<string, string> = {
+    invoice_pending:
+      'O Mercado Livre está esperando a nota fiscal deste pedido. Avise o vendedor: enquanto ela não for enviada no painel do Mercado Livre, a etiqueta não é gerada.',
+
+    buffered:
+      'O Mercado Livre está segurando este envio para liberar junto com outros. Não é preciso fazer nada — tente de novo mais tarde.',
+
+    fraudulent:
+      'O Mercado Livre bloqueou este envio por suspeita de fraude. NÃO despache este pedido: o pagamento pode ser revertido e a mercadoria se perde.',
+
+    delivery_failed:
+      'Este envio consta como entrega falhada no Mercado Livre. Fale com o vendedor antes de despachar de novo.',
+  };
+
+  return motivos[substatus] ?? null;
+}
+
 function traduzErroMl(status: number, corpo: string): string {
   if (status === 401) {
     return 'A conexão do vendedor com o Mercado Livre expirou. Peça para ele reconectar em Integrações.';
@@ -59,24 +88,13 @@ function traduzErroMl(status: number, corpo: string): string {
     return 'O Mercado Livre não encontrou este envio. Ele pode ter sido cancelado.';
   }
 
-  // O caso mais comum de todos, e o primeiro que apareceu em produção:
-  //
-  //   SHPLAB0200 · NOT_PRINTABLE_STATUS
-  //   "Shipment 47907037298 status is pending"
-  //
-  // Não é erro de ninguém. O Mercado Livre só gera etiqueta depois de
-  // confirmar o pagamento do comprador; até lá o envio fica em `pending` e a
-  // etiqueta não existe. Boleto e Pix fora do horário bancário seguram isso
-  // por horas.
-  //
-  // Sem tradução, o fornecedor recebia o JSON cru na tela e concluía que o
-  // sistema estava quebrado — quando o certo era esperar.
+  // Última linha de defesa. Quando o substatus do envio explica o motivo, quem
+  // responde é `motivoPeloSubstatus`, lá em cima — esta frase só aparece se o
+  // Mercado Livre recusar com um substatus que ainda não conhecemos.
   if (corpo.includes('NOT_PRINTABLE_STATUS') || corpo.includes('SHPLAB0200')) {
     return (
-      'A etiqueta ainda não foi liberada pelo Mercado Livre. Acontece quando o ' +
-      'pagamento do comprador ainda não foi confirmado, ou quando o Mercado ' +
-      'Livre está segurando o envio para liberar junto com outros. ' +
-      'Tente de novo mais tarde — não é preciso fazer nada.'
+      'A etiqueta ainda não foi liberada pelo Mercado Livre para este envio. ' +
+      'Avise o suporte do FORNEXA para descobrirmos o motivo exato.'
     );
   }
 
@@ -264,6 +282,28 @@ Deno.serve(async (req: Request) => {
     const corpo = await labelResponse.text();
     console.error('Mercado Livre recusou a etiqueta:', labelResponse.status, corpo);
 
+    // A recusa não diz o que falta — só que não dá para imprimir. O motivo
+    // está no envio, e uma consulta a mais separa "espere" de "o vendedor
+    // precisa enviar a nota fiscal". Sem ela, o fornecedor ficava esperando um
+    // pedido que nunca ia liberar sozinho.
+    let motivoDoEnvio: string | null = null;
+
+    try {
+      const envioResposta = await fetch(
+        `https://api.mercadolibre.com/shipments/${pedido.ml_shipment_id}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (envioResposta.ok) {
+        const envio = await envioResposta.json();
+        motivoDoEnvio = motivoPeloSubstatus(String(envio?.substatus ?? ''));
+      }
+    } catch (erro) {
+      // Diagnóstico é bônus: falhar aqui não pode trocar a mensagem do erro
+      // original por uma sobre a consulta que tentamos fazer.
+      console.error('Falha ao consultar o envio para diagnosticar:', erro);
+    }
+
     // O JSON cru sai da tela do fornecedor e passa a viver aqui. Quem separa
     // pedido não tem o que fazer com ele; quem dá suporte, tem.
     await admin.from('log_integracao_ml').insert({
@@ -278,7 +318,7 @@ Deno.serve(async (req: Request) => {
     });
 
     return json(
-      { error: traduzErroMl(labelResponse.status, corpo.slice(0, 500)) },
+      { error: motivoDoEnvio ?? traduzErroMl(labelResponse.status, corpo.slice(0, 500)) },
       labelResponse.status === 401 ? 409 : labelResponse.status
     );
   }
