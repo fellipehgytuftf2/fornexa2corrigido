@@ -435,7 +435,13 @@ export default function Admin() {
       let specificMessage: string | undefined = data?.error;
 
       const errorContext = (
-        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+        error as {
+          context?: {
+            status?: number;
+            json?: () => Promise<{ error?: string }>;
+            text?: () => Promise<string>;
+          };
+        } | null
       )?.context;
 
       if (!specificMessage && errorContext?.json) {
@@ -443,12 +449,24 @@ export default function Admin() {
           const errorBody = await errorContext.json();
           specificMessage = errorBody?.error;
         } catch {
-          // segue com a mensagem genérica
+          // Resposta sem JSON — é o caso em que a função quebrou antes de
+          // responder. O texto cru diz mais do que a frase genérica.
+          try {
+            const cru = await errorContext.text?.();
+            specificMessage = cru?.slice(0, 300) || undefined;
+          } catch {
+            // segue para a mensagem genérica, agora com o código HTTP
+          }
         }
       }
 
       setRevokingId(null);
-      setErrorMessage(specificMessage ?? 'Não foi possível remover o acesso do fornecedor.');
+      setErrorMessage(
+        specificMessage ??
+          `Não foi possível remover o acesso do fornecedor${
+            errorContext?.status ? ` (erro ${errorContext.status})` : ''
+          }.`
+      );
       return;
     }
 

@@ -32,7 +32,41 @@ function json(body: unknown, status = 200) {
   });
 }
 
+// Rede geral de erros.
+//
+// Sem ela, qualquer exceção não prevista subia até o runtime e virava uma
+// resposta 500 SEM JSON. Do outro lado, a tela tenta ler `error` do corpo, não
+// consegue, e cai na frase genérica "Não foi possível remover o acesso" — que
+// não diz nada a quem está tentando resolver, nem a quem escreveu o código.
+//
+// Agora toda falha sai como JSON, com o motivo real, e fica registrada.
 Deno.serve(async (req: Request) => {
+  try {
+    return await tratar(req);
+  } catch (erro) {
+    const motivo = erro instanceof Error ? erro.message : String(erro);
+
+    console.error('Erro inesperado em supplier-revoke-access:', erro);
+
+    try {
+      const admin = createClient(urlDoProjeto()!, chaveSecreta()!, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+
+      await admin.from('log_integracao_ml').insert({
+        contexto: 'supplier-revoke-access',
+        mensagem: 'Erro inesperado ao remover acesso',
+        detalhes: { motivo },
+      });
+    } catch {
+      // Registrar é bônus. Falhar ao registrar não pode esconder o erro real.
+    }
+
+    return json({ error: `Erro inesperado: ${motivo}` }, 500);
+  }
+});
+
+async function tratar(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -163,4 +197,4 @@ Deno.serve(async (req: Request) => {
     supplier_name: supplier.company_name || supplier.name,
     account_was_missing: deleteError?.status === 404,
   });
-});
+}
