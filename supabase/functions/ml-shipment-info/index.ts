@@ -1,27 +1,25 @@
 // ============================================================================
 // ml-shipment-info
 //
-// Diagnóstico: mostra como o Mercado Livre classifica o envio de um pedido.
+// Pergunta ao Mercado Livre o que está acontecendo com o envio de um pedido.
 //
 // POR QUE ISTO EXISTE
-// A fase 4 do Portal do Fornecedor deveria confirmar o despacho no Mercado
-// Livre quando o fornecedor marca o pedido como enviado. Só que o caminho
-// depende do modo de envio, e os dois são incompatíveis:
 //
-//   - envio personalizado (logística do vendedor): confirma-se por
-//     PUT /shipments/{id} ou POST /shipments/{id}/seller_notifications
-//   - Mercado Envios (logística do ML, etiqueta pré-paga): o vendedor NÃO
-//     confirma nada por API; o status muda quando a transportadora bipa o
-//     pacote
+// "Por que a etiqueta não sai?" é a dúvida mais cara da operação: o fornecedor
+// para de despachar, o vendedor não sabe o que responder, e a resposta está o
+// tempo todo no Mercado Livre — em campos que ninguém aqui lia.
 //
-// Chamar o endpoint errado num envio gerenciado pelo ML, na melhor hipótese,
-// é recusado; na pior, deixa o pedido inconsistente com o marketplace.
+// São quase sempre três motivos, e cada um pede uma coisa diferente:
 //
-// Esta função responde qual é o caso, com dado real, antes de escrevermos a
-// fase 4. Só lê — nunca altera nada no Mercado Livre.
+//   invoice_pending  falta a nota fiscal; o vendedor envia pelo painel do ML
+//   buffered         o ML represou o envio; só esperar a data que ele mesmo diz
+//   ready_to_print   está liberada; o fornecedor pode baixar agora
 //
-// Restrita a admin: expõe a resposta bruta do ML, útil para diagnóstico mas
-// não para o fornecedor.
+// A função traduz isso para uma frase em português com o que fazer. Só lê —
+// nunca altera nada no Mercado Livre.
+//
+// Restrita a admin porque devolve também a resposta bruta do ML, útil para
+// diagnóstico e ruído para quem só quer despachar.
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -42,10 +40,6 @@ function json(body: unknown, status = 200) {
 }
 
 /**
- * Lê o modo de envio e diz, em português, o que ele significa para a fase 4.
- * A conclusão é a razão de ser desta função.
- */
-/**
  * A data em que a etiqueta passa a existir, quando o envio está represado.
  *
  * `substatus: "buffered"` quer dizer que o Mercado Livre está segurando o
@@ -63,6 +57,48 @@ function dataDeLiberacao(envio: Record<string, unknown>): string | null {
   return typeof data === 'string' && data ? data : null;
 }
 
+/**
+ * O substatus em português, com o que fazer.
+ *
+ * Ele é o campo que realmente responde "por que a etiqueta não sai", e vinha
+ * cru na tela: `invoice_pending` não diz nada a quem está vendendo. Sem isso, a
+ * tela mostrava quatro palavras em inglês e um parágrafo sobre "fase 4" — que
+ * era anotação de quem investigava, não resposta a quem usa.
+ */
+function interpretaSubstatus(envio: Record<string, unknown>): string | null {
+  const substatus = String(envio.substatus ?? '');
+
+  const explicacoes: Record<string, string> = {
+    invoice_pending:
+      'O Mercado Livre está esperando a nota fiscal deste pedido. Enquanto ela não chegar, a etiqueta não é gerada. Envie a nota pelo painel do Mercado Livre, em Vendas.',
+
+    ready_to_print:
+      'A etiqueta já pode ser impressa. O fornecedor consegue baixá-la pelo Portal agora.',
+
+    printed:
+      'A etiqueta já foi impressa. O próximo passo é postar o pacote.',
+
+    picked_up:
+      'A transportadora já retirou o pacote.',
+
+    stale:
+      'O Mercado Livre marcou este envio como parado — passou do prazo esperado sem movimentação. Vale conferir no painel dele.',
+
+    delivery_failed:
+      'A entrega falhou. O Mercado Livre costuma tentar de novo; acompanhe pelo painel.',
+
+    fraudulent:
+      'O Mercado Livre bloqueou este envio por suspeita de fraude. NÃO despache: o pagamento pode ser revertido e a mercadoria se perde.',
+  };
+
+  return explicacoes[substatus] ?? null;
+}
+
+/**
+ * A frase que a tela mostra: o que está acontecendo com este envio, e o que
+ * fazer. O substatus responde primeiro porque é ele que explica por que a
+ * etiqueta sai ou não; o modo entra quando o substatus não diz nada de útil.
+ */
 function interpretaModo(envio: Record<string, unknown>): string {
   const mode = String(envio.mode ?? '');
   const logisticType = String(
@@ -71,8 +107,14 @@ function interpretaModo(envio: Record<string, unknown>): string {
       ''
   );
 
-  // Vem primeiro porque é a pergunta que a pessoa tem na cabeça ao abrir esta
-  // tela: "por que a etiqueta não sai?".
+  const doSubstatus = interpretaSubstatus(envio);
+
+  if (doSubstatus) {
+    return doSubstatus;
+  }
+
+  // Vem antes do modo porque é a pergunta que traz a pessoa a esta tela:
+  // "por que a etiqueta não sai?".
   if (String(envio.substatus ?? '') === 'buffered') {
     const data = dataDeLiberacao(envio);
 
@@ -89,14 +131,16 @@ function interpretaModo(envio: Record<string, unknown>): string {
   }
 
   if (mode === 'custom' || mode === 'not_specified') {
-    return 'Envio por conta do vendedor. A fase 4 se aplica: dá para confirmar o despacho por API, informando o código de rastreio.';
+    return 'O envio é por conta do vendedor: não passa pelo Mercado Envios, e não existe etiqueta do Mercado Livre para baixar. O rastreio é informado por quem despacha.';
   }
 
   if (mode === 'me2' || logisticType) {
-    return `Mercado Envios (mode=${mode}, logistic_type=${logisticType}). O vendedor não confirma despacho por API: o status muda quando a transportadora bipa o pacote. A fase 4, como planejada, não se aplica a este envio.`;
+    return 'Envio pelo Mercado Envios. Quem move o status é a transportadora, ao bipar o pacote — nem o vendedor nem o fornecedor conseguem adiantar isso por aqui.';
   }
 
-  return `Modo não reconhecido (mode=${mode}, logistic_type=${logisticType}). Vale conferir a resposta bruta abaixo antes de decidir.`;
+  return `Modo de envio não reconhecido (${mode || 'sem modo'}${
+    logisticType ? `, ${logisticType}` : ''
+  }). Avise o suporte do FORNEXA com o número deste pedido.`;
 }
 
 Deno.serve(async (req: Request) => {
