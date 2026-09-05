@@ -110,6 +110,15 @@ export default function Orders() {
   /** Devolução aberta de cada pedido, por order_id. */
   const [devolucoes, setDevolucoes] = useState<Record<string, Devolucao>>({});
 
+  /**
+   * Recorte por situação do repasse.
+   *
+   * Marcar um pedido como pago não o tira da lista — ele continua andando na
+   * logística. Mas quem está pagando quer ver só o que falta, e sem separar
+   * isso a lista de pagos e a de pendentes viram a mesma pilha.
+   */
+  const [filtroRepasse, setFiltroRepasse] = useState<'todos' | 'pagar' | 'pagos'>('todos');
+
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
   const [showIssues, setShowIssues] = useState(false);
@@ -401,6 +410,18 @@ export default function Orders() {
     showSuccess('Pedido excluído.');
   };
 
+  const pedidosVisiveis = useMemo(() => {
+    if (filtroRepasse === 'pagar') {
+      return orders.filter((order) => !order.pago_ao_fornecedor_em);
+    }
+
+    if (filtroRepasse === 'pagos') {
+      return orders.filter((order) => order.pago_ao_fornecedor_em);
+    }
+
+    return orders;
+  }, [orders, filtroRepasse]);
+
   const summary = useMemo(() => {
     const totalOrders = orders.length;
     const revenue = orders.reduce((total, order) => total + Number(order.sale_price || 0), 0);
@@ -568,6 +589,32 @@ export default function Orders() {
         </div>
       </div>
 
+      {/* Contagem em cada recorte, para o número responder antes do clique. */}
+      <div className="flex flex-wrap gap-2">
+        {(
+          [
+            ['todos', 'Todos', orders.length],
+            ['pagar', 'A pagar', orders.filter((o) => !o.pago_ao_fornecedor_em).length],
+            ['pagos', 'Pagos', orders.filter((o) => o.pago_ao_fornecedor_em).length],
+          ] as ['todos' | 'pagar' | 'pagos', string, number][]
+        ).map(([id, rotulo, quantos]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setFiltroRepasse(id)}
+            aria-pressed={filtroRepasse === id}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-colors ${
+              filtroRepasse === id
+                ? 'bg-navy-900 text-white dark:bg-white dark:text-navy-900'
+                : 'border border-gray-200 dark:border-navy-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-navy-700'
+            }`}
+          >
+            {rotulo}
+            <span className="font-mono tabular-nums opacity-70">{quantos}</span>
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
           <div className="w-10 h-10 border-4 border-gray-200 border-t-black dark:border-navy-700 dark:border-t-white rounded-full animate-spin mx-auto" />
@@ -576,9 +623,9 @@ export default function Orders() {
             Carregando pedidos...
           </p>
         </div>
-      ) : orders.length > 0 ? (
+      ) : pedidosVisiveis.length > 0 ? (
         <div className="space-y-5">
-          {orders.map((order) => {
+          {pedidosVisiveis.map((order) => {
             const supplier = getSupplier(order);
             const supplierWhatsapp = order.supplier_whatsapp || supplier?.whatsapp;
 

@@ -60,6 +60,27 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
   const temComprovante = Boolean(order.comprovante_path);
   const pago = Boolean(order.pago_ao_fornecedor_em);
 
+  /**
+   * Qual dos três é o passo de agora.
+   *
+   * Só ele fica em destaque. Com os três iguais, "Marcar como pago" tinha o
+   * mesmo peso visual de "Trocar comprovante" — e é o único deles que avisa o
+   * fornecedor e não deveria ser clicado por engano.
+   */
+  const proximoPasso: 'copiar' | 'comprovante' | 'pagar' | null = pago
+    ? null
+    : !cobrancaAberta
+      ? 'copiar'
+      : !temComprovante
+        ? 'comprovante'
+        : 'pagar';
+
+  const destaque =
+    'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50';
+
+  const neutro =
+    'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-40';
+
   const copiarPix = async () => {
     setErro('');
     setOcupado(true);
@@ -228,9 +249,13 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
             type="button"
             onClick={copiarPix}
             disabled={ocupado || pago}
-            className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-semibold transition-colors disabled:opacity-50 ${
-              copiado ? 'bg-green-600 hover:bg-green-700' : 'bg-black hover:bg-gray-900'
-            }`}
+            className={
+              copiado
+                ? 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-50'
+                : proximoPasso === 'copiar'
+                  ? destaque
+                  : neutro
+            }
           >
             {copiado ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             {copiado ? 'PIX copiado' : 'Copiar PIX'}
@@ -244,7 +269,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
           title={
             cobrancaAberta ? undefined : 'Copie o PIX primeiro — é ele que gera a cobrança.'
           }
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-40"
+          className={proximoPasso === 'comprovante' ? destaque : neutro}
         >
           {ocupado ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -265,7 +290,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
               ? 'Avisa o fornecedor. Só a partir daqui ele vê o comprovante e confirma.'
               : 'Envie o comprovante primeiro — é a prova que o fornecedor precisa.'
           }
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-40"
+          className={proximoPasso === 'pagar' ? destaque : neutro}
         >
           {pago ? 'Desmarcar pagamento' : 'Marcar como pago'}
         </button>
