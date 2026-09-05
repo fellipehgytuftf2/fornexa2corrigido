@@ -92,12 +92,15 @@ export function situacaoDoCorte(
   }
 
   if (minutos >= corte) {
-    const amanhaEhSexta = diaDaSemana === 5;
+    // Sexta depois do corte pula o fim de semana inteiro: o próximo dia em que
+    // alguém está no galpão é segunda. Dizer "amanhã" numa sexta à noite seria
+    // prometer ao comprador dois dias que não existem.
+    const hojeEhSexta = diaDaSemana === 5;
 
     return {
       saiHoje: false,
       texto: `Passou do corte das ${hora} (${rotulo}) — sai ${
-        amanhaEhSexta ? 'na segunda' : 'amanhã'
+        hojeEhSexta ? 'na segunda' : 'amanhã'
       }.`,
     };
   }
