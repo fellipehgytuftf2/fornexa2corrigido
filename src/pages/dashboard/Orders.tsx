@@ -15,6 +15,7 @@ import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/Devoluc
 import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
 import RepasseNoPedido from '../../components/dashboard/RepasseNoPedido';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
+import { situacaoDoCorte } from '../../lib/horarioDeCorte';
 
 type OrderStatus =
   | 'pending'
@@ -34,6 +35,11 @@ interface Supplier {
   status: 'active' | 'inactive';
   /** Cadastrada pelo próprio fornecedor no Portal. Nula até ele preencher. */
   chave_pix: string | null;
+  /** Até que horas ele ainda despacha no mesmo dia. Nulo = não trabalha assim. */
+  horario_corte: string | null;
+  horario_corte_flex: string | null;
+  /** O que o vendedor precisa saber antes de vender com ele. */
+  avisos: string | null;
 }
 
 interface Order {
@@ -268,7 +274,10 @@ export default function Orders() {
           city,
           state,
           status,
-          chave_pix
+          chave_pix,
+          horario_corte,
+          horario_corte_flex,
+          avisos
         )
       `)
       .order('created_at', { ascending: false });
@@ -720,6 +729,34 @@ export default function Orders() {
                               ? `${supplier.city}${supplier.state ? `/${supplier.state}` : ''}`
                               : 'Local não informado'}
                           </p>
+
+                          {/* O corte do fornecedor, comparado com a hora agora
+                              no Brasil. Antes isso vivia no WhatsApp, e o
+                              vendedor descobria errando: mandava as 14h achando
+                              que sairia no mesmo dia. */}
+                          {[
+                            situacaoDoCorte(supplier?.horario_corte ?? null, 'etiqueta normal'),
+                            situacaoDoCorte(supplier?.horario_corte_flex ?? null, 'Flex'),
+                          ]
+                            .filter(Boolean)
+                            .map((situacao) => (
+                              <p
+                                key={situacao!.texto}
+                                className={`text-sm mt-1 ${
+                                  situacao!.saiHoje
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-amber-600 dark:text-amber-400'
+                                }`}
+                              >
+                                {situacao!.texto}
+                              </p>
+                            ))}
+
+                          {supplier?.avisos && (
+                            <p className="text-sm text-gray-600 dark:text-slate-300 mt-2 leading-relaxed whitespace-pre-line border-l-2 border-gray-300 dark:border-navy-600 pl-3">
+                              {supplier.avisos}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

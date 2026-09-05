@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Loader2, Wallet } from 'lucide-react';
+import { AlertCircle, Check, Clock, Loader2, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type TipoDeChave = 'celular' | 'cpf' | 'cnpj' | 'email' | 'aleatoria';
@@ -74,6 +74,11 @@ export default function RecebimentoFornecedor() {
   const [tipo, setTipo] = useState<TipoDeChave>('celular');
   const [chavePix, setChavePix] = useState('');
 
+  /** Como o fornecedor opera: até que horas despacha, e o que avisar antes. */
+  const [corte, setCorte] = useState('');
+  const [corteFlex, setCorteFlex] = useState('');
+  const [avisos, setAvisos] = useState('');
+
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
@@ -89,9 +94,14 @@ export default function RecebimentoFornecedor() {
 
       const { data, error } = await supabase
         .from('suppliers')
-        .select('chave_pix')
+        .select('chave_pix, horario_corte, horario_corte_flex, avisos')
         .eq('auth_user_id', user?.id ?? '')
-        .maybeSingle<{ chave_pix: string | null }>();
+        .maybeSingle<{
+          chave_pix: string | null;
+          horario_corte: string | null;
+          horario_corte_flex: string | null;
+          avisos: string | null;
+        }>();
 
       setCarregando(false);
 
@@ -104,6 +114,11 @@ export default function RecebimentoFornecedor() {
 
       setChavePix(guardada);
       setTipo(adivinharTipo(guardada));
+
+      // O campo de hora do navegador quer "13:00"; o banco devolve "13:00:00".
+      setCorte((data?.horario_corte ?? '').slice(0, 5));
+      setCorteFlex((data?.horario_corte_flex ?? '').slice(0, 5));
+      setAvisos(data?.avisos ?? '');
     };
 
     carregar();
@@ -116,9 +131,18 @@ export default function RecebimentoFornecedor() {
     setErro('');
     setSalvo(false);
 
-    const { error } = await supabase.rpc('fornecedor_define_recebimento', {
-      p_chave_pix: chaveFinal || null,
-    });
+    const [recebimento, operacao] = await Promise.all([
+      supabase.rpc('fornecedor_define_recebimento', {
+        p_chave_pix: chaveFinal || null,
+      }),
+      supabase.rpc('fornecedor_define_operacao', {
+        p_corte: corte || null,
+        p_corte_flex: corteFlex || null,
+        p_avisos: avisos || null,
+      }),
+    ]);
+
+    const error = recebimento.error ?? operacao.error;
 
     setSalvando(false);
 
@@ -217,6 +241,78 @@ export default function RecebimentoFornecedor() {
           banco do vendedor para o seu — o FORNEXA não passa no meio e não tem
           como desfazer um envio para a chave errada.
         </p>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <p className="font-semibold text-white flex items-center gap-2">
+          <Clock className="w-4 h-4 text-gold" aria-hidden="true" />
+          Horário de corte
+        </p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          Até que horas o pedido ainda sai no mesmo dia. O vendedor passa a ver
+          um aviso em cada pedido dizendo se ainda dá tempo hoje.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+          <div>
+            <label htmlFor="corte" className="block text-sm text-slate-300 mb-2">
+              Etiqueta normal
+            </label>
+
+            <input
+              id="corte"
+              type="time"
+              value={corte}
+              onChange={(evento) => setCorte(evento.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="corte-flex" className="block text-sm text-slate-300 mb-2">
+              Flex
+            </label>
+
+            <input
+              id="corte-flex"
+              type="time"
+              value={corteFlex}
+              onChange={(evento) => setCorteFlex(evento.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-400 mt-3 leading-relaxed">
+          Deixe em branco o que não se aplica. Sem Flex, é só não preencher o
+          segundo campo.
+        </p>
+      </div>
+
+      {/* Texto livre de propósito: cada fornecedor tem uma regra que ninguém
+          previu, e criar uma coluna por regra é como o cadastro incha até
+          ninguém preencher. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <p className="font-semibold text-white">Avisos para os vendedores</p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          O que eles precisam saber antes de vender: cadastro em transportadora,
+          dias sem expediente, pedido mínimo. Aparece em todo pedido seu.
+        </p>
+
+        <label htmlFor="avisos" className="sr-only">
+          Avisos
+        </label>
+
+        <textarea
+          id="avisos"
+          value={avisos}
+          onChange={(evento) => setAvisos(evento.target.value)}
+          rows={4}
+          placeholder="Ex: envio Flex é feito pela transportadora J3 — o vendedor precisa ter cadastro com eles antes de despachar."
+          className="w-full mt-4 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 resize-y"
+        />
       </div>
 
       <button
