@@ -424,7 +424,26 @@ export default function Integrations() {
                           .{' '}
                           {statusDaConta.pessoa_juridica
                             ? 'Contas com CNPJ emitem nota fiscal, o que alguns tipos de envio exigem antes de liberar a etiqueta.'
-                            : 'Contas com CPF não emitem nota fiscal. Se um pedido ficar esperando nota para liberar a etiqueta, é isso que está no caminho.'}
+                            : 'Contas com CPF normalmente não emitem nota fiscal.'}
+                        </p>
+                      )}
+
+                      {/* A armadilha que custou dias em 2026-09.
+                          Cinco vendas de um cliente ficaram travadas em
+                          invoice_pending, e a causa não era ser pessoa física:
+                          a conta tinha o Emissor de NF-e ligado com certificado
+                          inválido. Ligado, o Mercado Livre espera nota em toda
+                          venda; sem certificado válido, a nota nunca sai. O
+                          resultado é etiqueta que não libera nunca, sem
+                          explicação em lugar nenhum. */}
+                      {!statusDaConta.pessoa_juridica && (
+                        <p className="text-sm text-green-800/80 dark:text-green-200/80 mt-2 leading-relaxed">
+                          <strong>Se algum pedido travar esperando nota fiscal:</strong>{' '}
+                          confira, nas configurações do Mercado Livre, se o
+                          Emissor de NF-e está ligado na sua conta. Ligado sem
+                          certificado válido, ele faz o Mercado Livre esperar uma
+                          nota que nunca é emitida — e a etiqueta não libera. Quem
+                          não emite nota deve mantê-lo desligado.
                         </p>
                       )}
 
