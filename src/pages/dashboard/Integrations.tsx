@@ -44,6 +44,9 @@ interface StatusDaConta {
   pode_vender?: boolean;
   pode_anunciar?: boolean;
   apelido?: string | null;
+  /** 'CPF' ou 'CNPJ', direto do cadastro no Mercado Livre. */
+  tipo_de_documento?: string | null;
+  pessoa_juridica?: boolean;
   erro_de_leitura?: boolean;
   mensagem?: string;
   pendencias: Pendencia[];
@@ -404,6 +407,26 @@ export default function Integrations() {
                         Conta apta a vender. Seus anúncios podem ser publicados
                         normalmente.
                       </p>
+
+                      {/* O tipo da conta decide se ela emite nota fiscal, e é
+                          isso que separa um envio que imprime etiqueta de um
+                          que fica esperando. Ficou visível porque um pedido
+                          travou nisso e a conversa inteira correu supondo o
+                          tipo, sem ninguém ter conferido. */}
+                      {statusDaConta.tipo_de_documento && (
+                        <p className="text-sm text-green-800/80 dark:text-green-200/80 mt-2 leading-relaxed">
+                          Cadastrada como{' '}
+                          <strong>
+                            {statusDaConta.pessoa_juridica
+                              ? 'pessoa jurídica (CNPJ)'
+                              : 'pessoa física (CPF)'}
+                          </strong>
+                          .{' '}
+                          {statusDaConta.pessoa_juridica
+                            ? 'Contas com CNPJ emitem nota fiscal, o que alguns tipos de envio exigem antes de liberar a etiqueta.'
+                            : 'Contas com CPF não emitem nota fiscal. Se um pedido ficar esperando nota para liberar a etiqueta, é isso que está no caminho.'}
+                        </p>
+                      )}
 
                       {/* Aviso em outro tom: não é impedimento de conta, é
                           limite de quantos anúncios ela sustenta sem pagar. */}

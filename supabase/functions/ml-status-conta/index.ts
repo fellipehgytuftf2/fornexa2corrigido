@@ -203,6 +203,19 @@ Deno.serve(async (req: Request) => {
   // quantos anúncios ela pode ter no ar sem pagar.
   const limiteDeAnuncios = apto && !podeAnunciar;
 
+  // Pessoa física ou jurídica, segundo o próprio Mercado Livre.
+  //
+  // Deixou de ser detalhe no dia em que um envio parou em `invoice_pending`,
+  // esperando nota fiscal. A conversa toda foi conduzida supondo que a conta
+  // era CPF, e ninguém tinha conferido — supor o tipo da conta muda o
+  // diagnóstico inteiro e leva a mandar o cliente atrás da coisa errada.
+  //
+  // `identification.type` é o campo direto; `company` só existe em conta
+  // jurídica e serve de conferência.
+  const identificacao = (dados?.identification ?? {}) as Record<string, unknown>;
+  const tipoDeDocumento = String(identificacao?.type ?? '').toUpperCase() || null;
+  const temEmpresa = Boolean(dados?.company);
+
   return json({
     conectado: true,
     apto,
@@ -210,6 +223,8 @@ Deno.serve(async (req: Request) => {
     pode_vender: podeVender,
     pode_anunciar: podeAnunciar,
     apelido: dados?.nickname ?? null,
+    tipo_de_documento: tipoDeDocumento,
+    pessoa_juridica: tipoDeDocumento === 'CNPJ' || temEmpresa,
     pendencias,
   });
 });
