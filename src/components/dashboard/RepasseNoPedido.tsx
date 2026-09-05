@@ -81,6 +81,12 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
   const neutro =
     'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-40';
 
+  // Desfazer é a única ação de um pedido já pago, então precisa ser achável.
+  // Em âmbar e não em preto: preto na tela toda quer dizer "faça isto agora", e
+  // desmarcar um pagamento não é o que se espera de quem abriu o pedido.
+  const desfazer =
+    'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-sm font-semibold transition-colors disabled:opacity-40';
+
   const copiarPix = async () => {
     setErro('');
     setOcupado(true);
@@ -290,7 +296,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
               ? 'Avisa o fornecedor. Só a partir daqui ele vê o comprovante e confirma.'
               : 'Envie o comprovante primeiro — é a prova que o fornecedor precisa.'
           }
-          className={proximoPasso === 'pagar' ? destaque : neutro}
+          className={pago ? desfazer : proximoPasso === 'pagar' ? destaque : neutro}
         >
           {pago ? 'Desmarcar pagamento' : 'Marcar como pago'}
         </button>

@@ -113,11 +113,14 @@ export default function Orders() {
   /**
    * Recorte por situação do repasse.
    *
-   * Marcar um pedido como pago não o tira da lista — ele continua andando na
-   * logística. Mas quem está pagando quer ver só o que falta, e sem separar
-   * isso a lista de pagos e a de pendentes viram a mesma pilha.
+   * Dois recortes, e nenhum "Todos": a lista misturada era o problema que este
+   * filtro veio resolver, e mantê-la como opção convidaria a voltar a ela.
+   *
+   * Abre em "A pagar" porque é a que tem trabalho pendente. O que já foi pago
+   * continua existindo em "Pagos" — o pedido segue andando na logística depois
+   * do repasse.
    */
-  const [filtroRepasse, setFiltroRepasse] = useState<'todos' | 'pagar' | 'pagos'>('todos');
+  const [filtroRepasse, setFiltroRepasse] = useState<'pagar' | 'pagos'>('pagar');
 
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
@@ -410,17 +413,13 @@ export default function Orders() {
     showSuccess('Pedido excluído.');
   };
 
-  const pedidosVisiveis = useMemo(() => {
-    if (filtroRepasse === 'pagar') {
-      return orders.filter((order) => !order.pago_ao_fornecedor_em);
-    }
-
-    if (filtroRepasse === 'pagos') {
-      return orders.filter((order) => order.pago_ao_fornecedor_em);
-    }
-
-    return orders;
-  }, [orders, filtroRepasse]);
+  const pedidosVisiveis = useMemo(
+    () =>
+      filtroRepasse === 'pagar'
+        ? orders.filter((order) => !order.pago_ao_fornecedor_em)
+        : orders.filter((order) => order.pago_ao_fornecedor_em),
+    [orders, filtroRepasse]
+  );
 
   const summary = useMemo(() => {
     const totalOrders = orders.length;
@@ -593,10 +592,9 @@ export default function Orders() {
       <div className="flex flex-wrap gap-2">
         {(
           [
-            ['todos', 'Todos', orders.length],
             ['pagar', 'A pagar', orders.filter((o) => !o.pago_ao_fornecedor_em).length],
             ['pagos', 'Pagos', orders.filter((o) => o.pago_ao_fornecedor_em).length],
-          ] as ['todos' | 'pagar' | 'pagos', string, number][]
+          ] as ['pagar' | 'pagos', string, number][]
         ).map(([id, rotulo, quantos]) => (
           <button
             key={id}
