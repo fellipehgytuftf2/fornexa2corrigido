@@ -129,6 +129,57 @@ export default function Orders() {
   const [diagnostico, setDiagnostico] = useState<DiagnosticoEnvio | null>(null);
 
   /**
+   * Sonda da API de DC-e do Mercado Livre.
+   *
+   * Provisório, e para admin. Existe para responder uma pergunta: o endpoint de
+   * emissão de DC-e existe mesmo? A resposta crua decide se dá para automatizar
+   * a emissão ou se o vendedor vai continuar emitindo na mão, venda por venda.
+   */
+  const [dcePedidoId, setDcePedidoId] = useState<string | null>(null);
+  const [dceResultado, setDceResultado] = useState<{
+    pedidoId: string;
+    conteudo: string;
+  } | null>(null);
+
+  const consultarDce = async (order: Order) => {
+    setDcePedidoId(order.id);
+    setDceResultado(null);
+    setErrorMessage('');
+
+    const { data, error } = await supabase.functions.invoke('ml-dce', {
+      body: { pedido_id: order.id },
+    });
+
+    setDcePedidoId(null);
+
+    // A resposta crua é o produto, não um detalhe: é ela que prova se o
+    // caminho existe. Erro também serve — o status já responde.
+    let conteudo = JSON.stringify(data ?? {}, null, 2);
+
+    if (error) {
+      const contexto = (
+        error as { context?: { status?: number; text?: () => Promise<string> } } | null
+      )?.context;
+
+      let corpo = '';
+
+      try {
+        corpo = (await contexto?.text?.()) ?? '';
+      } catch {
+        corpo = '';
+      }
+
+      conteudo = [
+        `status ${contexto?.status ?? '?'}`,
+        '',
+        corpo || error.message,
+      ].join('\n');
+    }
+
+    setDceResultado({ pedidoId: order.id, conteudo });
+  };
+
+  /**
    * Consulta o Mercado Livre sobre como o envio deste pedido é classificado.
    * Só lê — não altera nada lá.
    */
@@ -846,6 +897,16 @@ export default function Orders() {
                       </button>
                     )}
 
+                    {order.ml_shipment_id && (
+                      <button
+                        onClick={() => consultarDce(order)}
+                        disabled={dcePedidoId === order.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {dcePedidoId === order.id ? 'Consultando...' : 'Testar DC-e'}
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleDeleteOrder(order.id)}
                       disabled={actionId === order.id}
@@ -866,6 +927,18 @@ export default function Orders() {
                       supplierWhatsapp={supplierWhatsapp}
                       onMudou={loadOrders}
                     />
+                  )}
+
+                  {dceResultado?.pedidoId === order.id && (
+                    <div className="mt-4 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 p-4">
+                      <p className="text-sm font-semibold text-navy-900 dark:text-white">
+                        Resposta da API de DC-e
+                      </p>
+
+                      <pre className="mt-3 text-xs text-navy-900 dark:text-slate-200 overflow-x-auto whitespace-pre-wrap break-words">
+                        {dceResultado.conteudo}
+                      </pre>
+                    </div>
                   )}
 
                   {/* Diagnóstico de envio — decide qual caminho a confirmação
