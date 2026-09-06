@@ -16,6 +16,7 @@ import { Link } from 'react-router-dom';
 import { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import PublishFlowOverlay from './PublishFlowOverlay';
+import DeclararOrigem from './DeclararOrigem';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
   COMISSAO_CLASSICO,
@@ -158,6 +159,20 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
    * marcado como tal na tela.
    */
   const [publishErrorDetalhe, setPublishErrorDetalhe] = useState('');
+
+  /**
+   * O passo do remetente, quando a publicação para por causa dele.
+   *
+   * Não é um erro que se lê e se fecha: é uma coisa a fazer. Por isso vira uma
+   * tela própria, com o endereço e o caminho no Mercado Livre, em vez de uma
+   * frase vermelha pedindo que o vendedor descubra sozinho o que fazer.
+   */
+  const [precisaDeclararOrigem, setPrecisaDeclararOrigem] = useState<{
+    supplierId: string;
+    fornecedor: string;
+    endereco: string;
+    cepDoFornecedor: string | null;
+  } | null>(null);
   const [publishedPermalink, setPublishedPermalink] = useState('');
 
   useEffect(() => {
@@ -358,6 +373,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
       // publishInvokeError.context (um objeto Response).
       let mensagemEspecifica: string | undefined = publishResult?.error;
       let detalheCru: unknown;
+      let corpoDoErro: Record<string, unknown> | undefined;
 
       const errorContext = (
         publishInvokeError as {
@@ -370,10 +386,24 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           const errorBody = await errorContext.json();
           mensagemEspecifica = errorBody?.error;
           detalheCru = errorBody?.detalhes;
+          corpoDoErro = errorBody as Record<string, unknown>;
         } catch {
           // Se não der pra ler o corpo (ex: não é JSON), seguimos com a
           // mensagem genérica abaixo.
         }
+      }
+
+      // Falta configurar o remetente. Isso não é mensagem de erro, é um passo:
+      // abre a tela que ensina, e a publicação continua depois dela.
+      if (corpoDoErro?.precisa_declarar_origem) {
+        setFlowStage('idle');
+        setPrecisaDeclararOrigem({
+          supplierId: String(corpoDoErro.supplier_id ?? product.supplierId),
+          fornecedor: String(corpoDoErro.fornecedor ?? 'seu fornecedor'),
+          endereco: String(corpoDoErro.endereco_do_fornecedor ?? ''),
+          cepDoFornecedor: (corpoDoErro.cep_do_fornecedor as string) ?? null,
+        });
+        return;
       }
 
       setPublishError(
@@ -901,6 +931,20 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           </div>
         </div>
       </div>
+
+      {precisaDeclararOrigem && (
+        <DeclararOrigem
+          supplierId={precisaDeclararOrigem.supplierId}
+          fornecedor={precisaDeclararOrigem.fornecedor}
+          endereco={precisaDeclararOrigem.endereco}
+          cepDoFornecedor={precisaDeclararOrigem.cepDoFornecedor}
+          onCancelar={() => setPrecisaDeclararOrigem(null)}
+          onDeclarado={() => {
+            setPrecisaDeclararOrigem(null);
+            handlePublishClick();
+          }}
+        />
+      )}
 
       {flowStage !== 'idle' && (
         <PublishFlowOverlay

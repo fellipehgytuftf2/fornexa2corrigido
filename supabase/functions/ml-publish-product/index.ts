@@ -32,7 +32,7 @@
 // }
 // ============================================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
 import { obterAccessToken } from "../_shared/tokenMercadoLivre.ts";
 
@@ -85,6 +85,182 @@ function montarFotos(body: PublishBody): { source: string }[] {
   const semRepetir = [...new Set(urls)].slice(0, 10);
 
   return semRepetir.map((source) => ({ source }));
+}
+
+/** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
+function nomeDe(valor: unknown): string | null {
+  if (typeof valor === "string") return valor || null;
+  if (valor && typeof valor === "object") {
+    const nome = (valor as Record<string, unknown>).name;
+    return typeof nome === "string" ? nome : null;
+  }
+  return null;
+}
+
+/** "São José dos Pinhais" e "sao jose dos pinhais" são a mesma cidade. */
+function mesmaCidade(uma: string, outra: string): boolean {
+  const simplificar = (texto: string) =>
+    texto
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .trim()
+      .toLowerCase();
+
+  return simplificar(uma) === simplificar(outra);
+}
+
+/**
+ * Decide se este vendedor pode publicar produto deste fornecedor.
+ *
+ * Duas perguntas, nesta ordem, porque uma vale mais que a outra:
+ *
+ * 1. O ENVIO JÁ DISSE? Quem já vendeu tem um envio, e o envio revela de onde o
+ *    pacote saiu de verdade. É prova, e dispensa qualquer declaração — para os
+ *    dois lados: confirma quem está certo e barra quem está errado.
+ *
+ * 2. O VENDEDOR DECLAROU? Quem nunca vendeu não tem envio, e aí não há como
+ *    provar nada. Resta exigir que ele diga que configurou — o que não é prova,
+ *    mas o obriga a saber que a configuração existe, e fica registrado.
+ *
+ * Devolve `null` quando pode publicar.
+ */
+async function conferirRemetente(
+  supabase: SupabaseClient,
+  { vendedorId, supplierId, accessToken }: {
+    vendedorId: string;
+    supplierId: string;
+    accessToken: string;
+  }
+): Promise<{ status: number; corpo: Record<string, unknown> } | null> {
+  const { data: fornecedor } = await supabase
+    .from("suppliers")
+    .select("id, name, company_name, cep, logradouro, numero, bairro, complemento, city, state")
+    .eq("id", supplierId)
+    .maybeSingle();
+
+  // Fornecedor sem endereço cadastrado não dá para cobrar de ninguém: não há o
+  // que o vendedor configurar. A falta é do outro lado, e travar a publicação
+  // por isso puniria quem não pode resolver.
+  if (!fornecedor?.city) return null;
+
+  // 1. O envio já disse?
+  const { data: pedido } = await supabase
+    .from("orders")
+    .select("ml_shipment_id")
+    .eq("user_id", vendedorId)
+    .not("ml_shipment_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let cidadeDeOrigem: string | null = null;
+  let estadoDeOrigem: string | null = null;
+
+  if (pedido?.ml_shipment_id) {
+    try {
+      const resposta = await fetch(
+        `https://api.mercadolibre.com/shipments/${encodeURIComponent(pedido.ml_shipment_id)}`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (resposta.ok) {
+        const envio = await resposta.json();
+        const remetente = (envio?.sender_address ?? {}) as Record<string, unknown>;
+        cidadeDeOrigem = nomeDe(remetente?.city);
+        estadoDeOrigem = nomeDe(remetente?.state);
+      }
+    } catch (erro) {
+      // Sem prova, cai na declaração. Falha de leitura não pode travar
+      // publicação — nem liberar quem já foi desmentido.
+      console.error("Falha ao ler o envio para conferir o remetente:", erro);
+    }
+  }
+
+  const origemEmTexto = [cidadeDeOrigem, estadoDeOrigem].filter(Boolean).join("/");
+  const enderecoDoFornecedor = [
+    [fornecedor.logradouro, fornecedor.numero].filter(Boolean).join(", "),
+    fornecedor.complemento,
+    fornecedor.bairro,
+    [fornecedor.city, fornecedor.state].filter(Boolean).join("/"),
+    fornecedor.cep,
+  ]
+    .filter(Boolean)
+    .join(" — ");
+
+  if (cidadeDeOrigem) {
+    if (mesmaCidade(cidadeDeOrigem, fornecedor.city)) {
+      // Prova a favor. Registra, para nunca mais perguntar.
+      await supabase
+        .from("origem_declarada")
+        .upsert(
+          {
+            user_id: vendedorId,
+            supplier_id: supplierId,
+            cep: String(fornecedor.cep ?? "").replace(/\D/g, ""),
+            confirmada_em: new Date().toISOString(),
+            desmentida_em: null,
+            origem_no_envio: null,
+          },
+          { onConflict: "user_id" }
+        );
+
+      return null;
+    }
+
+    // Prova contra. Não há o que declarar: o pacote saiu de outro lugar.
+    await supabase
+      .from("origem_declarada")
+      .upsert(
+        {
+          user_id: vendedorId,
+          supplier_id: supplierId,
+          cep: String(fornecedor.cep ?? "").replace(/\D/g, ""),
+          confirmada_em: null,
+          desmentida_em: new Date().toISOString(),
+          origem_no_envio: origemEmTexto,
+        },
+        { onConflict: "user_id" }
+      );
+
+    return {
+      status: 409,
+      corpo: {
+        error:
+          `Seus envios estão saindo de ${origemEmTexto}, e não do galpão do ` +
+          `fornecedor (${fornecedor.city}/${fornecedor.state}). Corrija o endereço ` +
+          "de origem no Mercado Livre, em Configurações → Preferências de venda → " +
+          "Endereço do Mercado Envios, e publique de novo.",
+        origem_errada: true,
+        origem_no_envio: origemEmTexto,
+        endereco_do_fornecedor: enderecoDoFornecedor,
+        fornecedor: fornecedor.company_name || fornecedor.name,
+      },
+    };
+  }
+
+  // 2. O vendedor declarou?
+  const { data: declaracao } = await supabase
+    .from("origem_declarada")
+    .select("user_id")
+    .eq("user_id", vendedorId)
+    .maybeSingle();
+
+  if (declaracao) return null;
+
+  return {
+    status: 428,
+    corpo: {
+      error:
+        "Antes de publicar, cadastre o endereço do fornecedor como remetente no " +
+        "Mercado Livre. Sem isso suas encomendas saem declarando seu endereço, e " +
+        "as devoluções voltam para você.",
+      precisa_declarar_origem: true,
+      supplier_id: fornecedor.id,
+      fornecedor: fornecedor.company_name || fornecedor.name,
+      endereco_do_fornecedor: enderecoDoFornecedor,
+      cep_do_fornecedor: fornecedor.cep,
+    },
+  };
 }
 
 interface PublishBody {
@@ -353,6 +529,29 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: mensagem, ml_status_codes: codes }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // 2.6 O remetente está configurado?
+    //
+    // A etiqueta sai com o endereço cadastrado na conta do vendedor, e em
+    // dropshipping ele precisa ser o do fornecedor — senão a devolução volta
+    // para a casa de quem não tem o que fazer com ela.
+    //
+    // A cobrança é aqui, e não na etiqueta, porque na etiqueta é tarde: o
+    // Mercado Livre congela o endereço do envio no momento da venda, e o
+    // pedido já está pago com o prazo de cancelamento correndo. Aqui o
+    // vendedor está mexendo na loja, com a conta do Mercado Livre aberta.
+    const bloqueio = await conferirRemetente(supabase, {
+      vendedorId,
+      supplierId: body.supplier_id,
+      accessToken,
+    });
+
+    if (bloqueio) {
+      return new Response(JSON.stringify(bloqueio.corpo), {
+        status: bloqueio.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // 3. Descobrir a categoria automaticamente
