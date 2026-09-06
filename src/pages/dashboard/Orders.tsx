@@ -131,10 +131,12 @@ export default function Orders() {
   /**
    * Emissão da DC-e, e a resposta crua da API do Mercado Livre.
    *
-   * Só para admin, e a tela precisa saber disso: o botão chama uma função que
-   * já recusa quem não é admin, mas deixar o botão à vista para o vendedor era
-   * oferecer um ato fiscal em nome dele que ele não pode executar — e ainda
-   * despejava JSON da API na tela de quem só quer despachar um pedido.
+   * Emitir é do vendedor: a DC-e o declara como remetente, e sem ela o envio
+   * fica parado em `invoice_pending` e a etiqueta não existe.
+   *
+   * A RESPOSTA CRUA é que é só para admin. É JSON da API do Mercado Livre, e
+   * quem só quer despachar um pedido não tem o que fazer com ele — nem deve
+   * levar isso como se fosse instrução.
    */
   const [ehAdmin, setEhAdmin] = useState(false);
   const [dcePedidoId, setDcePedidoId] = useState<string | null>(null);
@@ -931,7 +933,7 @@ export default function Orders() {
                     {/* A sonda "Testar DC-e" saiu daqui. Existia para descobrir
                         se a API de emissão existia — descobriu, e virou a
                         emissão de verdade logo abaixo. */}
-                    {ehAdmin && order.ml_shipment_id && (
+                    {order.ml_shipment_id && (
                       <button
                         onClick={() => consultarDce(order, 'emitir')}
                         disabled={dcePedidoId === order.id}

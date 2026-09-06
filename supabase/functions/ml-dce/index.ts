@@ -31,7 +31,8 @@
 // emissão exige `acao: "emitir"` explícito — nunca é o comportamento padrão
 // desta função.
 //
-// Restrita a admin: é diagnóstico, e devolve resposta bruta do Mercado Livre.
+// Quem chama é o dono do pedido, ou o admin. A DC-e declara o vendedor como
+// remetente — é documento dele, sobre venda dele.
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -94,9 +95,7 @@ Deno.serve(async (req: Request) => {
     .eq('id', caller.id)
     .maybeSingle();
 
-  if (perfil?.role !== 'admin') {
-    return json({ error: 'Apenas administradores podem consultar a DC-e.' }, 403);
-  }
+  const ehAdmin = perfil?.role === 'admin';
 
   let payload: { pedido_id?: string; acao?: 'info' | 'emitir' };
 
@@ -118,7 +117,22 @@ Deno.serve(async (req: Request) => {
     .eq('id', pedidoId)
     .maybeSingle();
 
-  if (!pedido?.ml_order_id) {
+  if (!pedido) {
+    return json({ error: 'Pedido não encontrado.' }, 404);
+  }
+
+  // Quem emite é o dono do pedido — ou o admin, dando suporte.
+  //
+  // A DC-e declara o VENDEDOR como remetente: é documento dele, sobre venda
+  // dele. Deixar só o admin emitir punha uma pessoa no meio de cada venda de
+  // cada cliente, e ainda assim em nome do vendedor. E o admin dentro da conta
+  // de alguém não vale como admin: a sessão do modo suporte é a do vendedor,
+  // então a função recusava justamente onde ele estava.
+  if (!ehAdmin && pedido.user_id !== caller.id) {
+    return json({ error: 'Este pedido não é seu.' }, 403);
+  }
+
+  if (!pedido.ml_order_id) {
     return json({ error: 'Este pedido não tem número de venda no Mercado Livre.' }, 404);
   }
 
