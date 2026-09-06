@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
   // 1. Quem chamou é fornecedor?
   const { data: supplier, error: supplierError } = await admin
     .from('suppliers')
-    .select('id, name, company_name, city, state')
+    .select('id, name, company_name, cep, city, state')
     .eq('auth_user_id', caller.id)
     .maybeSingle();
 
@@ -341,8 +341,14 @@ Deno.serve(async (req: Request) => {
   // Só bloqueia o que dá para provar errado. Sem cidade legível não há prova —
   // e travar por falha de leitura pararia o despacho por um soluço da API,
   // não por endereço errado. Fica registrado para não passar despercebido.
+  //
+  // O CEP entra na condição mesmo sem ser comparado: sem ele o cadastro do
+  // fornecedor está pela metade, e endereço pela metade não trava despacho.
   const origemErrada = Boolean(
-    cidadeDeOrigem && supplier.city && !mesmaCidade(cidadeDeOrigem, supplier.city)
+    cidadeDeOrigem &&
+      supplier.city &&
+      supplier.cep &&
+      !mesmaCidade(cidadeDeOrigem, supplier.city)
   );
 
   if (origemErrada) {

@@ -141,7 +141,11 @@ async function conferirRemetente(
   // Fornecedor sem endereço cadastrado não dá para cobrar de ninguém: não há o
   // que o vendedor configurar. A falta é do outro lado, e travar a publicação
   // por isso puniria quem não pode resolver.
-  if (!fornecedor?.city) return null;
+  //
+  // Exige CEP *e* cidade, e não uma coisa ou outra: a cidade é o que a trava
+  // compara, e o CEP é o que a declaração confere. Só cidade, sem CEP, deixava
+  // o vendedor preso numa tela que ele não conseguia concluir.
+  if (!fornecedor?.city || !fornecedor?.cep) return null;
 
   // 1. O envio já disse?
   const { data: pedido } = await supabase
