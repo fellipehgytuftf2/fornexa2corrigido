@@ -32,9 +32,18 @@
 //
 // O caminho que funciona é o envio: cada pedido carrega o endereço de origem
 // que o Mercado Livre usou, e a leitura de envios já é permitida. Então a
-// conferência olha o último pedido do vendedor e compara o CEP de origem.
+// conferência olha o último pedido do vendedor.
 //
-// A limitação disso é honesta e está na tela: antes da primeira venda não há
+// E NEM ASSIM VEM O CEP
+//
+// No envio, o Mercado Livre mascara CEP, rua e número do remetente para
+// aplicações de terceiros: devolve `XXXXXXX` no lugar. Cidade e estado ele
+// deixa à vista — e é por eles que a conferência é feita.
+//
+// É menos preciso e é suficiente: o galpão do fornecedor fica em outra cidade
+// que a casa do vendedor, que é justamente o erro que se quer pegar.
+//
+// A outra limitação é honesta e está na tela: antes da primeira venda não há
 // envio para consultar, e aí resta a instrução.
 // ============================================================================
 
@@ -57,6 +66,19 @@ function json(body: unknown, status = 200) {
 
 /** Só os dígitos: "01310-100" e "01310100" são o mesmo CEP. */
 const soDigitos = (texto: unknown) => String(texto ?? '').replace(/\D/g, '');
+
+/**
+ * Cidade e estado vêm ora como texto, ora como `{ id, name }`, conforme o
+ * formato do envio. Só interessa o nome.
+ */
+const nomeDe = (valor: unknown): string | null => {
+  if (typeof valor === 'string') return valor || null;
+  if (valor && typeof valor === 'object') {
+    const nome = (valor as Record<string, unknown>).name;
+    return typeof nome === 'string' ? nome : null;
+  }
+  return null;
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -128,38 +150,97 @@ Deno.serve(async (req: Request) => {
     return json({ conectado: true, sem_envio_ainda: true });
   }
 
-  const resposta = await fetch(
-    `https://api.mercadolibre.com/shipments/${pedido.ml_shipment_id}`,
-    { headers: { Authorization: `Bearer ${token.accessToken}` } }
-  );
+  const url = `https://api.mercadolibre.com/shipments/${encodeURIComponent(
+    pedido.ml_shipment_id
+  )}`;
 
-  if (!resposta.ok) {
-    const corpo = await resposta.text();
+  /**
+   * O envio, no formato padrão.
+   *
+   * Sem `x-format-new` de propósito: no formato novo o endereço de origem vem
+   * como `origin.snapshot`, que é só `{ id, version }` — uma referência, sem
+   * endereço nenhum. O formato padrão traz `sender_address` inteiro.
+   */
+  const lerEnvio = async () => {
+    const resposta = await fetch(url, {
+      headers: { Authorization: `Bearer ${token.accessToken}` },
+    });
 
+    if (!resposta.ok) {
+      return { ok: false as const, status: resposta.status, corpo: await resposta.text() };
+    }
+
+    return { ok: true as const, envio: (await resposta.json()) as Record<string, unknown> };
+  };
+
+  /**
+   * Onde o endereço pode estar, conforme o formato.
+   *
+   * Serve o primeiro que tiver CEP; se nenhum tiver, serve o primeiro que ao
+   * menos diga a cidade. O Mercado Livre mascara CEP, rua e número do
+   * remetente para aplicações de terceiros — devolve `XXXXXXX` no lugar —, mas
+   * deixa cidade e estado à vista. É pouco, e é o bastante: o galpão do
+   * fornecedor fica em outra cidade que a casa do vendedor.
+   */
+  const acharEndereco = (envio: Record<string, unknown>) => {
+    const origem = (envio?.origin ?? {}) as Record<string, unknown>;
+
+    const candidatos = [
+      envio?.sender_address,
+      origem?.shipping_address,
+      origem?.snapshot,
+      envio?.origin_address,
+    ].map((candidato) => (candidato ?? {}) as Record<string, unknown>);
+
+    const comCep = candidatos.find((endereco) => soDigitos(endereco?.zip_code));
+    if (comCep) return { endereco: comCep, cep: soDigitos(comCep?.zip_code) };
+
+    const comCidade = candidatos.find((endereco) => nomeDe(endereco?.city));
+    if (comCidade) return { endereco: comCidade, cep: '' };
+
+    return null;
+  };
+
+  const antigo = await lerEnvio();
+
+  if (!antigo.ok) {
     await admin.from('log_integracao_ml').insert({
       contexto: 'ml-endereco-de-envio',
-      mensagem: `Mercado Livre recusou a leitura do envio (${resposta.status})`,
+      mensagem: `Mercado Livre recusou a leitura do envio (${antigo.status})`,
       detalhes: {
         user_id: user.id,
         shipment_id: pedido.ml_shipment_id,
-        status: resposta.status,
-        resposta: corpo.slice(0, 1000),
+        status: antigo.status,
+        resposta: antigo.corpo.slice(0, 1000),
       },
     });
 
-    return json({ conectado: true, erro_de_leitura: true, status: resposta.status });
+    return json({ conectado: true, erro_de_leitura: true, status: antigo.status });
   }
 
-  const envio = (await resposta.json()) as Record<string, unknown>;
-  const origem = (envio?.origin ?? {}) as Record<string, unknown>;
-  const enderecoDeOrigem = (origem?.shipping_address ??
-    envio?.sender_address ??
-    {}) as Record<string, unknown>;
+  const achado = acharEndereco(antigo.envio);
+
+  if (!achado) {
+    // Sem isto a tela só sabe dizer "não conseguimos conferir", e o motivo
+    // fica escondido. Guarda o envio inteiro, para poder ler o certo.
+    await admin.from('log_integracao_ml').insert({
+      contexto: 'ml-endereco-de-envio',
+      mensagem: 'Envio lido, e sem nem cidade de origem',
+      detalhes: {
+        user_id: user.id,
+        shipment_id: pedido.ml_shipment_id,
+        campos_do_envio: Object.keys(antigo.envio ?? {}),
+        envio: antigo.envio ?? null,
+      },
+    });
+
+    return json({ conectado: true, sem_endereco_na_resposta: true });
+  }
 
   return json({
     conectado: true,
-    cep: soDigitos(enderecoDeOrigem?.zip_code),
-    cidade: (enderecoDeOrigem?.city as Record<string, unknown>)?.name ?? null,
-    estado: (enderecoDeOrigem?.state as Record<string, unknown>)?.name ?? null,
+    cep: achado.cep,
+    cidade: nomeDe(achado.endereco?.city),
+    estado: nomeDe(achado.endereco?.state),
   });
 });

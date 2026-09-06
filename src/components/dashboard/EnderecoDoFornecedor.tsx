@@ -40,6 +40,19 @@ export default function EnderecoDoFornecedor() {
    */
   const [cepNoMercadoLivre, setCepNoMercadoLivre] = useState<string | null>(null);
 
+  /**
+   * A cidade e o estado de origem do último envio.
+   *
+   * É por aqui que a conferência realmente acontece: o Mercado Livre mascara o
+   * CEP do remetente para aplicações de terceiros, mas deixa cidade e estado à
+   * vista. Menos preciso, e suficiente — o galpão do fornecedor fica em outra
+   * cidade que a casa do vendedor.
+   */
+  const [origemNoMercadoLivre, setOrigemNoMercadoLivre] = useState<{
+    cidade: string | null;
+    estado: string | null;
+  } | null>(null);
+
   /** Antes da primeira venda não há envio para consultar. Não é erro: é cedo. */
   const [semEnvioAinda, setSemEnvioAinda] = useState(false);
 
@@ -61,6 +74,8 @@ export default function EnderecoDoFornecedor() {
       const { data } = await supabase.functions.invoke<{
         conectado?: boolean;
         cep?: string;
+        cidade?: string | null;
+        estado?: string | null;
         sem_envio_ainda?: boolean;
       }>('ml-endereco-de-envio');
 
@@ -69,8 +84,17 @@ export default function EnderecoDoFornecedor() {
         return;
       }
 
-      if (data?.conectado && data.cep) {
+      if (!data?.conectado) return;
+
+      if (data.cep) {
         setCepNoMercadoLivre(data.cep);
+      }
+
+      if (data.cidade) {
+        setOrigemNoMercadoLivre({
+          cidade: data.cidade ?? null,
+          estado: data.estado ?? null,
+        });
       }
     };
 
@@ -103,14 +127,34 @@ export default function EnderecoDoFornecedor() {
     return null;
   }
 
-  // Compara só o CEP: é o campo que o Mercado Livre usa para roteirizar, e o
-  // único que a resposta dele traz de forma confiável para comparar.
-  const jaConfigurado =
-    Boolean(cepNoMercadoLivre) &&
-    enderecos.some(
-      (endereco) =>
-        endereco.cep && endereco.cep.replace(/\D/g, '') === cepNoMercadoLivre
-    );
+  /** "São José dos Pinhais" e "sao jose dos pinhais" são a mesma cidade. */
+  const simplificar = (texto: string) =>
+    texto
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toLowerCase();
+
+  // O CEP é o ideal, e quase nunca vem: o Mercado Livre o mascara. A cidade é
+  // o que sobra, e resolve — o galpão do fornecedor fica longe da casa do
+  // vendedor, que é o erro que interessa pegar.
+  const jaConfigurado = cepNoMercadoLivre
+    ? enderecos.some(
+        (endereco) =>
+          endereco.cep && endereco.cep.replace(/\D/g, '') === cepNoMercadoLivre
+      )
+    : Boolean(origemNoMercadoLivre?.cidade) &&
+      enderecos.some(
+        (endereco) =>
+          endereco.cidade &&
+          simplificar(endereco.cidade) === simplificar(origemNoMercadoLivre!.cidade!)
+      );
+
+  const conferiu = Boolean(cepNoMercadoLivre || origemNoMercadoLivre?.cidade);
+
+  const origemEmTexto = [origemNoMercadoLivre?.cidade, origemNoMercadoLivre?.estado]
+    .filter(Boolean)
+    .join('/');
 
   return (
     <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
@@ -146,11 +190,22 @@ export default function EnderecoDoFornecedor() {
 
           <div>
             <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
-              {cepNoMercadoLivre
-                ? 'Suas etiquetas ainda saem do seu endereço, não do fornecedor.'
-                : semEnvioAinda
-                  ? 'Configure agora: a conferência só é possível depois da primeira venda, e aí já é tarde para aquele envio.'
-                  : 'Ainda não conseguimos conferir seu endereço no Mercado Livre.'}
+              {conferiu ? (
+                <>
+                  Suas etiquetas ainda saem do seu endereço, não do fornecedor.
+                  {origemEmTexto && (
+                    <>
+                      {' '}
+                      O último envio saiu de{' '}
+                      <strong>{origemEmTexto}</strong>.
+                    </>
+                  )}
+                </>
+              ) : semEnvioAinda ? (
+                'Configure agora: a conferência só é possível depois da primeira venda, e aí já é tarde para aquele envio.'
+              ) : (
+                'Ainda não conseguimos conferir seu endereço no Mercado Livre.'
+              )}
             </p>
 
             <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mt-1">
