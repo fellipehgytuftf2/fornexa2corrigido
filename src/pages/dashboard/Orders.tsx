@@ -129,12 +129,14 @@ export default function Orders() {
   const [diagnostico, setDiagnostico] = useState<DiagnosticoEnvio | null>(null);
 
   /**
-   * Sonda da API de DC-e do Mercado Livre.
+   * Emissão da DC-e, e a resposta crua da API do Mercado Livre.
    *
-   * Provisório, e para admin. Existe para responder uma pergunta: o endpoint de
-   * emissão de DC-e existe mesmo? A resposta crua decide se dá para automatizar
-   * a emissão ou se o vendedor vai continuar emitindo na mão, venda por venda.
+   * Só para admin, e a tela precisa saber disso: o botão chama uma função que
+   * já recusa quem não é admin, mas deixar o botão à vista para o vendedor era
+   * oferecer um ato fiscal em nome dele que ele não pode executar — e ainda
+   * despejava JSON da API na tela de quem só quer despachar um pedido.
    */
+  const [ehAdmin, setEhAdmin] = useState(false);
   const [dcePedidoId, setDcePedidoId] = useState<string | null>(null);
   const [dceResultado, setDceResultado] = useState<{
     pedidoId: string;
@@ -316,6 +318,20 @@ export default function Orders() {
   const loadOrders = async () => {
     setLoading(true);
     setErrorMessage('');
+
+    const {
+      data: { user: usuarioAtual },
+    } = await supabase.auth.getUser();
+
+    if (usuarioAtual) {
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', usuarioAtual.id)
+        .maybeSingle();
+
+      setEhAdmin(perfil?.role === 'admin');
+    }
 
     const { data, error } = await supabase
       .from('orders')
@@ -912,17 +928,10 @@ export default function Orders() {
                       </button>
                     )}
 
-                    {order.ml_shipment_id && (
-                      <button
-                        onClick={() => consultarDce(order)}
-                        disabled={dcePedidoId === order.id}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
-                      >
-                        {dcePedidoId === order.id ? 'Consultando...' : 'Testar DC-e'}
-                      </button>
-                    )}
-
-                    {order.ml_shipment_id && (
+                    {/* A sonda "Testar DC-e" saiu daqui. Existia para descobrir
+                        se a API de emissão existia — descobriu, e virou a
+                        emissão de verdade logo abaixo. */}
+                    {ehAdmin && order.ml_shipment_id && (
                       <button
                         onClick={() => consultarDce(order, 'emitir')}
                         disabled={dcePedidoId === order.id}
@@ -954,7 +963,7 @@ export default function Orders() {
                     />
                   )}
 
-                  {dceResultado?.pedidoId === order.id && (
+                  {ehAdmin && dceResultado?.pedidoId === order.id && (
                     <div className="mt-4 rounded-xl bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 p-4">
                       <p className="text-sm font-semibold text-navy-900 dark:text-white">
                         Resposta da API de DC-e
