@@ -65,6 +65,7 @@ interface Order {
   status: OrderStatus;
   tracking_code: string | null;
   ml_shipment_id: string | null;
+  taxa_embalagem: number | null;
   dce_emitida_em: string | null;
   dce_emitida_pelo_sistema: boolean | null;
   marketplace: string;
@@ -362,6 +363,7 @@ export default function Orders() {
         status,
         tracking_code,
         ml_shipment_id,
+        taxa_embalagem,
         dce_emitida_em,
         dce_emitida_pelo_sistema,
         marketplace,

@@ -8,6 +8,7 @@ interface Props {
     id: string;
     supplier_price: number;
     quantidade: number | null;
+    taxa_embalagem: number | null;
     pago_ao_fornecedor_em: string | null;
     comprovante_path: string | null;
     repasse_id: string | null;
@@ -46,7 +47,15 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
 
   const seletorDeArquivo = useRef<HTMLInputElement | null>(null);
 
-  const valor = Number(order.supplier_price || 0) * Number(order.quantidade || 1);
+  // O mesmo que `abrir_repasse_do_pedido` calcula no banco: produto vezes a
+  // quantidade, mais UMA embalagem — três peças no mesmo pacote levam uma só.
+  //
+  // Repetir a conta aqui incomoda, e a alternativa incomoda mais: o valor
+  // precisa aparecer antes de o vendedor clicar em nada, e o PIX só nasce no
+  // clique. Se as duas contas divergirem, é esta que está errada.
+  const embalagem = Number(order.taxa_embalagem || 0);
+  const produto = Number(order.supplier_price || 0) * Number(order.quantidade || 1);
+  const valor = produto + embalagem;
 
   const formatar = (numero: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -226,6 +235,15 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
 
         <p className="text-sm font-semibold text-navy-900 dark:text-white tabular-nums">
           {formatar(valor)}
+
+          {/* Sem isto o vendedor vê um total que não bate com o preço do
+              produto e não descobre sozinho de onde vieram os centavos a
+              mais. */}
+          {embalagem > 0 && (
+            <span className="ml-2 text-xs font-normal text-gray-500 dark:text-slate-400">
+              ({formatar(produto)} + {formatar(embalagem)} de embalagem)
+            </span>
+          )}
 
           {pago ? (
             <span className="ml-2 text-xs font-medium text-green-600 dark:text-green-400">
