@@ -80,6 +80,9 @@ const rotulosDePlano: Record<string, string> = {
  * A ordem importa — começa em "quem precisa de mim hoje" e termina em
  * "como está a base".
  */
+/** Contas desenhadas por vez na tabela. Ver `quantasMostrar`. */
+const POR_VEZ = 25;
+
 const FILTROS: { id: string; rotulo: string; aplica: (conta: Conta) => boolean }[] = [
   { id: 'todas', rotulo: 'Todas', aplica: () => true },
   { id: 'novas', rotulo: 'Novas', aplica: (conta) => ehNova(conta.criado_em) },
@@ -157,6 +160,16 @@ export default function AcessosAdmin() {
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
   const [busca, setBusca] = useState('');
+
+  /**
+   * Quantas contas a tabela desenha por vez.
+   *
+   * Cada conta é uma linha com selo, plano e datas. Com a base inteira de uma
+   * vez o navegador engasga — a página demora a abrir e a rolagem trava. Como
+   * o admin quase sempre procura UMA conta, e para isso já existe a busca, ver
+   * todas de uma vez custa caro e serve pouco.
+   */
+  const [quantasMostrar, setQuantasMostrar] = useState(POR_VEZ);
   const [filtro, setFiltro] = useState('todas');
   const [confirmarEntrada, setConfirmarEntrada] = useState<Conta | null>(null);
   const [entrando, setEntrando] = useState(false);
@@ -191,6 +204,12 @@ export default function AcessosAdmin() {
     carregar();
   }, []);
 
+  // Busca ou filtro novo recomeça a contagem: senão o admin filtra três
+  // resultados e a tabela continua carregando o peso de duzentas linhas.
+  useEffect(() => {
+    setQuantasMostrar(POR_VEZ);
+  }, [busca, filtro]);
+
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
 
@@ -221,6 +240,7 @@ export default function AcessosAdmin() {
   );
 
   const vendedores = filtradas.filter((conta) => conta.tipo !== 'Fornecedor');
+  const vendedoresNaTela = vendedores.slice(0, quantasMostrar);
   const fornecedores = filtradas.filter((conta) => conta.tipo === 'Fornecedor');
 
   const administradores = contas.filter((conta) => conta.tipo === 'Administrador');
@@ -533,7 +553,7 @@ export default function AcessosAdmin() {
               </thead>
 
               <tbody>
-                {vendedores.map((conta) => {
+                {vendedoresNaTela.map((conta) => {
                   const selo =
                     selosDeSituacao[conta.plan_status || 'inativo'] ||
                     selosDeSituacao.inativo;
@@ -657,6 +677,23 @@ export default function AcessosAdmin() {
               </tbody>
             </table>
           </div>
+
+          {vendedores.length > vendedoresNaTela.length && (
+            <div className="mt-4 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setQuantasMostrar((atual) => atual + POR_VEZ)}
+                className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors"
+              >
+                Mostrar mais {POR_VEZ}
+              </button>
+
+              <span className="text-xs text-gray-500 dark:text-slate-400">
+                {vendedoresNaTela.length} de {vendedores.length}. Procurando
+                alguém? Use a busca acima.
+              </span>
+            </div>
+          )}
 
           {/* Fornecedores à parte: sem plano, sem marketplace, sem anúncio. */}
           <div className="mt-8 pt-6 border-t border-gray-200 dark:border-navy-600">
