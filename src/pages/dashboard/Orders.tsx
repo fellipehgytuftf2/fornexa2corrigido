@@ -141,13 +141,28 @@ export default function Orders() {
     conteudo: string;
   } | null>(null);
 
-  const consultarDce = async (order: Order) => {
+  const consultarDce = async (order: Order, acao: 'info' | 'emitir' = 'info') => {
+    // Emitir é ato fiscal: a DC-e declara o que vai dentro da caixa e acompanha
+    // a carga. Um clique por engano vira documento errado em nome do vendedor.
+    if (acao === 'emitir') {
+      const confirmado = window.confirm(
+        `Emitir a Declaração de Conteúdo (DC-e) desta venda no Mercado Livre?\n\n` +
+          `${order.product_name}\n\n` +
+          `É um documento fiscal e não dá para desfazer por aqui. Depois de emitido, ` +
+          `a etiqueta libera e o fornecedor consegue despachar.`
+      );
+
+      if (!confirmado) {
+        return;
+      }
+    }
+
     setDcePedidoId(order.id);
     setDceResultado(null);
     setErrorMessage('');
 
     const { data, error } = await supabase.functions.invoke('ml-dce', {
-      body: { pedido_id: order.id },
+      body: { pedido_id: order.id, acao },
     });
 
     setDcePedidoId(null);
@@ -904,6 +919,16 @@ export default function Orders() {
                         className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
                       >
                         {dcePedidoId === order.id ? 'Consultando...' : 'Testar DC-e'}
+                      </button>
+                    )}
+
+                    {order.ml_shipment_id && (
+                      <button
+                        onClick={() => consultarDce(order, 'emitir')}
+                        disabled={dcePedidoId === order.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        Emitir DC-e
                       </button>
                     )}
 

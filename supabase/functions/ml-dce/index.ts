@@ -16,14 +16,20 @@
 //   GET  /mlb/order/{id}/dce/info         consulta o resultado
 //   GET  /mlb/order/{id}/dce/info/{DCE}?doctype=pdf
 //
-// A informação NÃO ESTÁ CONFIRMADA. A documentação do Mercado Livre bloqueia
-// leitura automática, e hoje mesmo a assistente deles deu um diagnóstico
-// inventado sobre certificado digital. Escrever a emissão em cima disso seria
-// repetir o erro.
+// A rota foi CONFIRMADA por sonda em 2026-09-06. A consulta devolveu:
 //
-// Então esta função só CONSULTA, e devolve a resposta crua. Se o endpoint
-// existir, ela prova; se não existir, o 404 prova o contrário. Emitir é o
-// próximo passo, e só depois da prova.
+//   404  {"error":"not_found","message":"{\"coverages\":[]}"}
+//
+// Rota inexistente na API do Mercado Livre responde com erro genérico de
+// roteamento. Esta trouxe um campo de domínio — `coverages` — vazio, que é a
+// forma de dizer "existe, e este pedido ainda não tem DC-e".
+//
+// EMITIR É ATO FISCAL, E POR ISSO NÃO ACONTECE SOZINHO
+//
+// A DC-e declara o que vai dentro da caixa e acompanha a carga. Emitir por
+// engano é emitir documento fiscal errado em nome de outra pessoa. Então a
+// emissão exige `acao: "emitir"` explícito — nunca é o comportamento padrão
+// desta função.
 //
 // Restrita a admin: é diagnóstico, e devolve resposta bruta do Mercado Livre.
 // ============================================================================
@@ -92,7 +98,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Apenas administradores podem consultar a DC-e.' }, 403);
   }
 
-  let payload: { pedido_id?: string };
+  let payload: { pedido_id?: string; acao?: 'info' | 'emitir' };
 
   try {
     payload = await req.json();
@@ -132,10 +138,18 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'A conexão do vendedor expirou. Ele precisa reconectar.' }, 409);
   }
 
-  const endereco = `https://api.mercadolibre.com/mlb/order/${pedido.ml_order_id}/dce/info`;
+  const emitir = payload.acao === 'emitir';
+
+  const endereco = emitir
+    ? `https://api.mercadolibre.com/mlb/order/${pedido.ml_order_id}/dce/emission`
+    : `https://api.mercadolibre.com/mlb/order/${pedido.ml_order_id}/dce/info`;
 
   const resposta = await fetch(endereco, {
-    headers: { Authorization: `Bearer ${token.accessToken}` },
+    method: emitir ? 'POST' : 'GET',
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+      ...(emitir ? { 'Content-Type': 'application/json' } : {}),
+    },
   });
 
   const corpo = await resposta.text();
@@ -149,18 +163,27 @@ Deno.serve(async (req: Request) => {
     // o caminho não existe e o Mercado Livre devolveu uma página de erro.
   }
 
+  // Emissão fica registrada com quem mandou: é documento fiscal, e depois
+  // alguém vai perguntar quem emitiu e quando.
   await admin.from('log_integracao_ml').insert({
     contexto: 'ml-dce',
-    mensagem: `Consulta de DC-e respondeu ${resposta.status}`,
-    detalhes: { endereco, status: resposta.status, resposta: corpo.slice(0, 2000) },
+    mensagem: `${emitir ? 'Emissão' : 'Consulta'} de DC-e respondeu ${resposta.status}`,
+    detalhes: {
+      endereco,
+      acao: emitir ? 'emitir' : 'info',
+      pedido_id: pedido.id,
+      ml_order_id: pedido.ml_order_id,
+      pedido_por: caller.id,
+      status: resposta.status,
+      resposta: corpo.slice(0, 2000),
+    },
   });
 
   return json({
     endereco,
+    acao: emitir ? 'emitir' : 'info',
     status: resposta.status,
-    // O status é o que prova. 200 ou 404 com corpo do próprio Mercado Livre
-    // dizem que o caminho existe; 404 de rota inexistente diz o contrário.
-    existe_o_endpoint: resposta.status !== 404 || corpo.includes('dce'),
+    ok: resposta.ok,
     resposta: interpretado,
   });
 });
