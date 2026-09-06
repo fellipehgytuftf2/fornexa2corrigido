@@ -23,9 +23,19 @@
 // de venda de outra conta.
 //
 // Por isso a tela entrega o endereço pronto para copiar, e esta função só
-// confere se o vendedor já colou. Conferir é o que salva: sem isso o erro só
-// apareceria na primeira etiqueta impressa, quando o Mercado Livre já não
-// deixa mudar aquele envio.
+// confere se o vendedor já colou.
+//
+// E CONFERIR TAMBÉM NÃO É PELA LISTA DE ENDEREÇOS
+//
+// `GET /users/{id}/addresses` responde 403 para esta aplicação — permissão que
+// não temos e não depende de nós.
+//
+// O caminho que funciona é o envio: cada pedido carrega o endereço de origem
+// que o Mercado Livre usou, e a leitura de envios já é permitida. Então a
+// conferência olha o último pedido do vendedor e compara o CEP de origem.
+//
+// A limitação disso é honesta e está na tela: antes da primeira venda não há
+// envio para consultar, e aí resta a instrução.
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -102,23 +112,36 @@ Deno.serve(async (req: Request) => {
     return json({ conectado: false, precisa_reconectar: true });
   }
 
-  const enderecoDaApi = `https://api.mercadolibre.com/users/${conexao.external_account_id}/addresses`;
+  // O envio mais recente do vendedor. É dele que sai o endereço de origem
+  // realmente usado — o que interessa, e não o que está cadastrado em tese.
+  const { data: pedido } = await admin
+    .from('orders')
+    .select('ml_shipment_id')
+    .eq('user_id', user.id)
+    .not('ml_shipment_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  const resposta = await fetch(enderecoDaApi, {
-    headers: { Authorization: `Bearer ${token.accessToken}` },
-  });
+  if (!pedido?.ml_shipment_id) {
+    // Antes da primeira venda não há envio para consultar. Não é erro: é cedo.
+    return json({ conectado: true, sem_envio_ainda: true });
+  }
+
+  const resposta = await fetch(
+    `https://api.mercadolibre.com/shipments/${pedido.ml_shipment_id}`,
+    { headers: { Authorization: `Bearer ${token.accessToken}` } }
+  );
 
   if (!resposta.ok) {
     const corpo = await resposta.text();
 
-    // Sem o motivo, a tela só sabe dizer "não conseguimos conferir" — que é
-    // verdade e não dá o que fazer a ninguém.
     await admin.from('log_integracao_ml').insert({
       contexto: 'ml-endereco-de-envio',
-      mensagem: `Mercado Livre recusou a leitura de endereços (${resposta.status})`,
+      mensagem: `Mercado Livre recusou a leitura do envio (${resposta.status})`,
       detalhes: {
         user_id: user.id,
-        ml_user_id: conexao.external_account_id,
+        shipment_id: pedido.ml_shipment_id,
         status: resposta.status,
         resposta: corpo.slice(0, 1000),
       },
@@ -127,20 +150,16 @@ Deno.serve(async (req: Request) => {
     return json({ conectado: true, erro_de_leitura: true, status: resposta.status });
   }
 
-  const enderecos = (await resposta.json()) as Record<string, unknown>[];
-
-  // `default_selling_address` é o que vira remetente da etiqueta. Um vendedor
-  // pode ter vários endereços cadastrados; só este importa aqui.
-  const deVenda =
-    enderecos.find((endereco) =>
-      ((endereco.types ?? []) as string[]).includes('default_selling_address')
-    ) ?? enderecos[0];
+  const envio = (await resposta.json()) as Record<string, unknown>;
+  const origem = (envio?.origin ?? {}) as Record<string, unknown>;
+  const enderecoDeOrigem = (origem?.shipping_address ??
+    envio?.sender_address ??
+    {}) as Record<string, unknown>;
 
   return json({
     conectado: true,
-    cep: soDigitos(deVenda?.zip_code),
-    cidade: deVenda?.city ?? null,
-    estado: deVenda?.state ?? null,
-    logradouro: deVenda?.address_line ?? null,
+    cep: soDigitos(enderecoDeOrigem?.zip_code),
+    cidade: (enderecoDeOrigem?.city as Record<string, unknown>)?.name ?? null,
+    estado: (enderecoDeOrigem?.state as Record<string, unknown>)?.name ?? null,
   });
 });

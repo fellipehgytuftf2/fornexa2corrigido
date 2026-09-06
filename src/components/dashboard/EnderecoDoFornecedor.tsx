@@ -40,6 +40,9 @@ export default function EnderecoDoFornecedor() {
    */
   const [cepNoMercadoLivre, setCepNoMercadoLivre] = useState<string | null>(null);
 
+  /** Antes da primeira venda não há envio para consultar. Não é erro: é cedo. */
+  const [semEnvioAinda, setSemEnvioAinda] = useState(false);
+
   useEffect(() => {
     const carregar = async () => {
       const { data, error } = await supabase.rpc('enderecos_dos_meus_fornecedores');
@@ -58,7 +61,13 @@ export default function EnderecoDoFornecedor() {
       const { data } = await supabase.functions.invoke<{
         conectado?: boolean;
         cep?: string;
+        sem_envio_ainda?: boolean;
       }>('ml-endereco-de-envio');
+
+      if (data?.sem_envio_ainda) {
+        setSemEnvioAinda(true);
+        return;
+      }
 
       if (data?.conectado && data.cep) {
         setCepNoMercadoLivre(data.cep);
@@ -139,7 +148,9 @@ export default function EnderecoDoFornecedor() {
             <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
               {cepNoMercadoLivre
                 ? 'Suas etiquetas ainda saem do seu endereço, não do fornecedor.'
-                : 'Ainda não conseguimos conferir seu endereço no Mercado Livre.'}
+                : semEnvioAinda
+                  ? 'Configure agora: a conferência só é possível depois da primeira venda, e aí já é tarde para aquele envio.'
+                  : 'Ainda não conseguimos conferir seu endereço no Mercado Livre.'}
             </p>
 
             <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mt-1">
