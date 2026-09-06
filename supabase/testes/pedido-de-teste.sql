@@ -125,3 +125,75 @@ where alvo.vendedor is not null
 --   from public.orders o
 --   left join public.repasses r on r.id = o.repasse_id
 --   where o.product_name like 'PEDIDO DE TESTE%';
+
+
+-- ============================================================================
+-- ENSAIO ATÉ A ETIQUETA
+--
+-- Percorre tudo o que existe entre a venda e o PDF, para descobrir se alguma
+-- trava do FORNEXA está errada — antes de descobrir isso com um pedido pago
+-- de um cliente de verdade.
+--
+-- ONDE FICA A LINHA
+--
+-- A etiqueta vem do Mercado Livre, e ele só a entrega para venda que existe na
+-- conta conectada. Pedido inventado não existe lá, então o PDF nunca sai.
+--
+-- E é isso que torna o ensaio útil: se o ÚNICO erro que aparecer for o Mercado
+-- Livre dizendo que não encontrou o envio, todas as travas nossas passaram —
+-- pagamento, remetente, dono do pedido, papel de quem clicou. O 404 dele é a
+-- linha de chegada, não uma falha.
+--
+-- Qualquer erro ANTES disso é bug nosso, e é o que se quer achar aqui.
+-- ============================================================================
+
+-- 1. Dar um envio ao pedido de teste.
+--
+--    Sem `ml_shipment_id` o Portal nem mostra o botão de etiqueta, e o ensaio
+--    para antes de começar. O número é falso de propósito: é o Mercado Livre
+--    que precisa recusá-lo, no fim.
+--
+--   update public.orders
+--   set ml_shipment_id = '99999999999',
+--       ml_order_id = '2000000000000000'
+--   where product_name like 'PEDIDO DE TESTE%';
+
+-- 2. Ligar a trava de remetente para o fornecedor de teste.
+--
+--    Precisa de CEP *e* cidade: com um só dos dois a trava fica desligada de
+--    propósito, porque endereço pela metade é falta do fornecedor.
+--
+--   update public.suppliers
+--   set cep = '01310100', logradouro = 'Avenida Paulista', numero = '1000',
+--       bairro = 'Bela Vista', city = 'São Paulo', state = 'SP'
+--   where company_name ilike '%TESTE%';
+
+-- 3. Roteiro, na ordem, e o que tem que acontecer em cada passo:
+--
+--    a) Catálogo → publicar produto do fornecedor de teste
+--       ESPERADO: a tela "Antes de publicar, configure o remetente".
+--       Digite um CEP errado primeiro — tem que recusar. Depois o 01310-100.
+--
+--    b) Pedidos → o pedido de teste → Emitir DC-e
+--       ESPERADO: erro do Mercado Livre, porque a venda não existe lá.
+--       Passou pela autorização se o erro NÃO for 403 "este pedido não é seu".
+--
+--    c) Pedidos → Repasse ao fornecedor → Copiar PIX → Enviar comprovante →
+--       Marcar como pago
+--       ESPERADO: os botões liberam em sequência, um de cada vez.
+--
+--    d) Portal do fornecedor de teste → Pedidos → Baixar etiqueta
+--       ESPERADO, e só isto: "O Mercado Livre não encontrou este envio."
+--
+--       Se aparecer qualquer outra mensagem, é trava nossa recusando — e é bug:
+--         "confirmar o recebimento do pagamento"  -> o passo (c) não pegou
+--         "sairia declarando ... como remetente"  -> a comparação de cidade
+--         "ainda não tem envio gerado"            -> o passo (1) não rodou
+--
+-- 4. Limpar o endereço do fornecedor de teste ao terminar, para o próximo
+--    ensaio começar do mesmo lugar.
+--
+--   update public.suppliers
+--   set cep = null, logradouro = null, numero = null, bairro = null,
+--       city = null, state = null
+--   where company_name ilike '%TESTE%';
