@@ -15,12 +15,20 @@
 // errado — e nesse ponto o Mercado Livre não deixa mais mudar aquele envio, e a
 // devolução já tem para onde ir errado.
 //
-// GRAVAR NÃO DÁ, E POR ISSO ISTO SÓ LÊ
+// E GRAVAR, DÁ?
 //
-// A API de endereços do Mercado Livre é de leitura. Não há caminho documentado
-// para criar ou trocar o endereço de venda de fora, o que faz sentido: é
-// configuração da loja de outra pessoa. O FORNEXA confere e avisa; quem muda é
-// o dono da conta.
+// A documentação só mostra leitura, mas documentação não é prova — com a DC-e
+// a busca dizia uma coisa e a API dizia outra. Por isso existe aqui a ação
+// `sondar_escrita`: um POST DE PROPÓSITO INVÁLIDO, com corpo vazio.
+//
+// Corpo vazio nunca cria endereço. O que interessa é a forma da recusa:
+//
+//   400  o caminho existe e validou o corpo → dá para gravar
+//   405  o caminho existe e não aceita POST → só leitura
+//   404  não existe
+//
+// É a pergunta feita sem efeito colateral. Só admin chama, e sempre contra a
+// própria conexão de quem chamou.
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -97,10 +105,57 @@ Deno.serve(async (req: Request) => {
     return json({ conectado: false, precisa_reconectar: true });
   }
 
-  const resposta = await fetch(
-    `https://api.mercadolibre.com/users/${conexao.external_account_id}/addresses`,
-    { headers: { Authorization: `Bearer ${token.accessToken}` } }
-  );
+  const enderecoDaApi = `https://api.mercadolibre.com/users/${conexao.external_account_id}/addresses`;
+
+  let acao: 'ler' | 'sondar_escrita' = 'ler';
+
+  try {
+    const corpo = await req.json();
+    acao = corpo?.acao === 'sondar_escrita' ? 'sondar_escrita' : 'ler';
+  } catch {
+    // Sem corpo é leitura, que é o uso normal desta função.
+  }
+
+  if (acao === 'sondar_escrita') {
+    const { data: perfil } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (perfil?.role !== 'admin') {
+      return json({ error: 'Apenas administradores podem sondar.' }, 403);
+    }
+
+    const sonda = await fetch(enderecoDaApi, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      // Vazio de propósito: recusa por validação prova que o caminho aceita
+      // gravação, sem criar nada.
+      body: '{}',
+    });
+
+    const corpoDaSonda = await sonda.text();
+
+    return json({
+      sonda: true,
+      status: sonda.status,
+      conclusao:
+        sonda.status === 404
+          ? 'O caminho não existe. Gravar endereço por API não é possível.'
+          : sonda.status === 405
+            ? 'O caminho existe, mas não aceita gravação. Só leitura.'
+            : 'O caminho aceitou a chamada e recusou pelo conteúdo — dá para gravar.',
+      resposta: corpoDaSonda.slice(0, 1500),
+    });
+  }
+
+  const resposta = await fetch(enderecoDaApi, {
+    headers: { Authorization: `Bearer ${token.accessToken}` },
+  });
 
   if (!resposta.ok) {
     return json({ conectado: true, erro_de_leitura: true });

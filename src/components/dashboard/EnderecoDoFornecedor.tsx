@@ -40,6 +40,9 @@ export default function EnderecoDoFornecedor() {
    */
   const [cepNoMercadoLivre, setCepNoMercadoLivre] = useState<string | null>(null);
 
+  /** Resultado da sonda de escrita. Provisório, e só admin enxerga. */
+  const [sonda, setSonda] = useState<string | null>(null);
+
   useEffect(() => {
     const carregar = async () => {
       const { data, error } = await supabase.rpc('enderecos_dos_meus_fornecedores');
@@ -79,6 +82,36 @@ export default function EnderecoDoFornecedor() {
     ]
       .filter(Boolean)
       .join(' — ');
+
+  /**
+   * Pergunta à API se dá para gravar o endereço, sem gravar nada.
+   *
+   * Manda um corpo vazio de propósito: corpo vazio nunca cria endereço, e a
+   * forma da recusa responde a pergunta. Documentação não é prova — com a DC-e
+   * a busca dizia uma coisa e a API dizia outra.
+   */
+  const sondarEscrita = async () => {
+    setSonda('consultando...');
+
+    const { data, error } = await supabase.functions.invoke<{
+      status?: number;
+      conclusao?: string;
+      resposta?: string;
+      error?: string;
+    }>('ml-endereco-de-envio', { body: { acao: 'sondar_escrita' } });
+
+    if (error || !data) {
+      setSonda('Não foi possível sondar.');
+      return;
+    }
+
+    setSonda(
+      [`status ${data.status}`, data.conclusao, '', data.resposta]
+        .filter(Boolean)
+        .join('
+')
+    );
+  };
 
   const copiar = async (endereco: EnderecoDeFornecedor) => {
     await navigator.clipboard.writeText(montarTexto(endereco));
@@ -195,6 +228,25 @@ export default function EnderecoDoFornecedor() {
           );
         })}
       </ul>
+
+      {/* Provisório: existe para responder se dá para o FORNEXA gravar o
+          endereço direto, em vez de o vendedor colar na mão. Some assim que a
+          pergunta for respondida. */}
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-navy-700">
+        <button
+          type="button"
+          onClick={sondarEscrita}
+          className="text-xs font-semibold text-gray-500 dark:text-slate-400 underline underline-offset-2"
+        >
+          Testar se dá para configurar automaticamente
+        </button>
+
+        {sonda && (
+          <pre className="mt-3 text-xs text-navy-900 dark:text-slate-200 bg-gray-50 dark:bg-navy-700 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words">
+            {sonda}
+          </pre>
+        )}
+      </div>
     </div>
   );
 }
