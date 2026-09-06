@@ -54,6 +54,19 @@ function json(body: unknown, status = 200) {
  * Estava errada: apareceu um pedido esperando NOTA FISCAL, e o fornecedor leu
  * "não é preciso fazer nada" enquanto o vendedor precisava agir.
  */
+/**
+ * A partir de quando a trava de remetente vale.
+ *
+ * Pedido feito antes disto passa mesmo com a origem errada. Não é indulgência:
+ * o vendedor não tinha como saber da regra quando vendeu, e o Mercado Livre já
+ * congelou o endereço daquele envio — travar agora não corrige endereço
+ * nenhum, só cancela uma venda que já estava paga.
+ *
+ * A regra existe para o que vem depois. Para trás, o estrago já está feito, e
+ * a devolução torta é menos ruim que o pedido cancelado.
+ */
+const REGRA_DO_REMETENTE_VALE_A_PARTIR_DE = new Date('2026-09-06T05:16:00Z');
+
 /** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
 const nomeDe = (valor: unknown): string | null => {
   if (typeof valor === 'string') return valor || null;
@@ -204,7 +217,7 @@ Deno.serve(async (req: Request) => {
   //    etiqueta do pedido de outro.
   const { data: pedido, error: pedidoError } = await admin
     .from('orders')
-    .select('id, user_id, ml_shipment_id, status')
+    .select('id, user_id, ml_shipment_id, status, created_at')
     .eq('id', pedidoId)
     .eq('supplier_id', supplier.id)
     .maybeSingle();
@@ -307,6 +320,11 @@ Deno.serve(async (req: Request) => {
   //
   //     A comparação é por cidade porque o Mercado Livre mascara o CEP do
   //     remetente para aplicações de terceiros. Ver `ml-endereco-de-envio`.
+  //     Vale só para pedido feito depois que a regra entrou. Ver
+  //     `REGRA_DO_REMETENTE_VALE_A_PARTIR_DE`, lá em cima.
+  const pedidoAlcancadoPelaRegra =
+    new Date(pedido.created_at) >= REGRA_DO_REMETENTE_VALE_A_PARTIR_DE;
+
   const envioResposta = await fetch(
     `https://api.mercadolibre.com/shipments/${encodeURIComponent(pedido.ml_shipment_id)}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -323,19 +341,29 @@ Deno.serve(async (req: Request) => {
   // Só bloqueia o que dá para provar errado. Sem cidade legível não há prova —
   // e travar por falha de leitura pararia o despacho por um soluço da API,
   // não por endereço errado. Fica registrado para não passar despercebido.
-  if (cidadeDeOrigem && supplier.city && !mesmaCidade(cidadeDeOrigem, supplier.city)) {
+  const origemErrada = Boolean(
+    cidadeDeOrigem && supplier.city && !mesmaCidade(cidadeDeOrigem, supplier.city)
+  );
+
+  if (origemErrada) {
     await admin.from('log_integracao_ml').insert({
       contexto: 'supplier-order-label',
-      mensagem: 'Etiqueta bloqueada: origem não é a cidade do fornecedor',
+      mensagem: pedidoAlcancadoPelaRegra
+        ? 'Etiqueta bloqueada: origem não é a cidade do fornecedor'
+        : 'Origem errada, liberada por ser pedido anterior à regra',
       detalhes: {
         pedido_id: pedido.id,
         shipment_id: pedido.ml_shipment_id,
         vendedor_id: pedido.user_id,
         origem_no_ml: [cidadeDeOrigem, estadoDeOrigem].filter(Boolean).join('/'),
         cidade_do_fornecedor: [supplier.city, supplier.state].filter(Boolean).join('/'),
+        pedido_criado_em: pedido.created_at,
+        bloqueado: pedidoAlcancadoPelaRegra,
       },
     });
+  }
 
+  if (origemErrada && pedidoAlcancadoPelaRegra) {
     return json(
       {
         error:
