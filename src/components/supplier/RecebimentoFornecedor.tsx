@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Clock, Loader2, Wallet } from 'lucide-react';
+import { AlertCircle, Check, Clock, Loader2, MapPin, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type TipoDeChave = 'celular' | 'cpf' | 'cnpj' | 'email' | 'aleatoria';
@@ -79,6 +79,17 @@ export default function RecebimentoFornecedor() {
   const [corteFlex, setCorteFlex] = useState('');
   const [avisos, setAvisos] = useState('');
 
+  /** De onde as encomendas saem. Vira o remetente da etiqueta do vendedor. */
+  const [endereco, setEndereco] = useState({
+    cep: '',
+    logradouro: '',
+    numero: '',
+    bairro: '',
+    complemento: '',
+    cidade: '',
+    estado: '',
+  });
+
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
@@ -94,13 +105,22 @@ export default function RecebimentoFornecedor() {
 
       const { data, error } = await supabase
         .from('suppliers')
-        .select('chave_pix, horario_corte, horario_corte_flex, avisos')
+        .select(
+          'chave_pix, horario_corte, horario_corte_flex, avisos, cep, logradouro, numero, bairro, complemento, city, state'
+        )
         .eq('auth_user_id', user?.id ?? '')
         .maybeSingle<{
           chave_pix: string | null;
           horario_corte: string | null;
           horario_corte_flex: string | null;
           avisos: string | null;
+          cep: string | null;
+          logradouro: string | null;
+          numero: string | null;
+          bairro: string | null;
+          complemento: string | null;
+          city: string | null;
+          state: string | null;
         }>();
 
       setCarregando(false);
@@ -119,6 +139,16 @@ export default function RecebimentoFornecedor() {
       setCorte((data?.horario_corte ?? '').slice(0, 5));
       setCorteFlex((data?.horario_corte_flex ?? '').slice(0, 5));
       setAvisos(data?.avisos ?? '');
+
+      setEndereco({
+        cep: data?.cep ?? '',
+        logradouro: data?.logradouro ?? '',
+        numero: data?.numero ?? '',
+        bairro: data?.bairro ?? '',
+        complemento: data?.complemento ?? '',
+        cidade: data?.city ?? '',
+        estado: data?.state ?? '',
+      });
     };
 
     carregar();
@@ -131,7 +161,7 @@ export default function RecebimentoFornecedor() {
     setErro('');
     setSalvo(false);
 
-    const [recebimento, operacao] = await Promise.all([
+    const [recebimento, operacao, enderecoSalvo] = await Promise.all([
       supabase.rpc('fornecedor_define_recebimento', {
         p_chave_pix: chaveFinal || null,
       }),
@@ -140,9 +170,18 @@ export default function RecebimentoFornecedor() {
         p_corte_flex: corteFlex || null,
         p_avisos: avisos || null,
       }),
+      supabase.rpc('fornecedor_define_endereco', {
+        p_cep: endereco.cep || null,
+        p_logradouro: endereco.logradouro || null,
+        p_numero: endereco.numero || null,
+        p_bairro: endereco.bairro || null,
+        p_complemento: endereco.complemento || null,
+        p_cidade: endereco.cidade || null,
+        p_estado: endereco.estado || null,
+      }),
     ]);
 
-    const error = recebimento.error ?? operacao.error;
+    const error = recebimento.error ?? operacao.error ?? enderecoSalvo.error;
 
     setSalvando(false);
 
@@ -313,6 +352,138 @@ export default function RecebimentoFornecedor() {
           placeholder="Ex: envio Flex é feito pela transportadora J3 — o vendedor precisa ter cadastro com eles antes de despachar."
           className="w-full mt-4 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 resize-y"
         />
+      </div>
+
+      {/* O endereço vira o remetente da etiqueta do vendedor — e é para cá que
+          a devolução volta. Errado, o pacote parte daqui declarando origem em
+          outro estado, e o que voltar cai na casa de quem não tem o que fazer
+          com ele. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <p className="font-semibold text-white flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-gold" aria-hidden="true" />
+          Endereço de onde saem as encomendas
+        </p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          Os vendedores cadastram este endereço como remetente na loja deles.
+          É o que aparece na etiqueta e é para cá que as devoluções voltam.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
+          <div className="sm:col-span-1">
+            <label htmlFor="cep" className="block text-sm text-slate-300 mb-2">
+              CEP
+            </label>
+
+            <input
+              id="cep"
+              value={endereco.cep}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, cep: evento.target.value }))
+              }
+              placeholder="00000-000"
+              inputMode="numeric"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="logradouro" className="block text-sm text-slate-300 mb-2">
+              Rua
+            </label>
+
+            <input
+              id="logradouro"
+              value={endereco.logradouro}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, logradouro: evento.target.value }))
+              }
+              placeholder="Av. Paulista"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="numero" className="block text-sm text-slate-300 mb-2">
+              Número
+            </label>
+
+            <input
+              id="numero"
+              value={endereco.numero}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, numero: evento.target.value }))
+              }
+              placeholder="1000"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="complemento" className="block text-sm text-slate-300 mb-2">
+              Complemento
+            </label>
+
+            <input
+              id="complemento"
+              value={endereco.complemento}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, complemento: evento.target.value }))
+              }
+              placeholder="Sala 1304"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="bairro" className="block text-sm text-slate-300 mb-2">
+              Bairro
+            </label>
+
+            <input
+              id="bairro"
+              value={endereco.bairro}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, bairro: evento.target.value }))
+              }
+              placeholder="Centro"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="cidade" className="block text-sm text-slate-300 mb-2">
+              Cidade
+            </label>
+
+            <input
+              id="cidade"
+              value={endereco.cidade}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, cidade: evento.target.value }))
+              }
+              placeholder="São Paulo"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="estado" className="block text-sm text-slate-300 mb-2">
+              Estado
+            </label>
+
+            <input
+              id="estado"
+              value={endereco.estado}
+              onChange={(evento) =>
+                setEndereco((atual) => ({ ...atual, estado: evento.target.value }))
+              }
+              placeholder="SP"
+              maxLength={2}
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white uppercase placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+        </div>
       </div>
 
       <button

@@ -8,6 +8,7 @@ import {
   Unplug,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import EnderecoDoFornecedor from '../../components/dashboard/EnderecoDoFornecedor';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 interface MlConnection {
@@ -258,6 +259,11 @@ export default function Integrations() {
           Conecte marketplaces, fornecedores e ferramentas externas.
         </p>
       </div>
+
+      {/* Vem antes do status da conexão: configurar o remetente errado só é
+          descoberto quando a primeira etiqueta sai — e aí não dá mais para
+          mudar aquele envio. */}
+      <EnderecoDoFornecedor />
 
       {successMessage && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start gap-3">
