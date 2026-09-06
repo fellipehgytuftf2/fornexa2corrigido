@@ -113,7 +113,10 @@ grant execute on function public.fornecedor_define_taxa_embalagem(numeric) to au
 -- menos sem ninguém perceber.
 
 create or replace function public.abrir_repasse_do_pedido(p_order_id uuid)
-returns table (repasse_id uuid, txid text, valor numeric)
+-- A coluna se chama `id`, e não `repasse_id`: é a assinatura que já está em
+-- produção. Trocar o nome faria o Postgres recusar o `create or replace` — não
+-- dá para mudar o tipo de retorno de uma função existente.
+returns table (id uuid, txid text, valor numeric)
 language plpgsql
 security definer
 set search_path = public
