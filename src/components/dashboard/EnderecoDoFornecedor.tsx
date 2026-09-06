@@ -108,8 +108,7 @@ export default function EnderecoDoFornecedor() {
     setSonda(
       [`status ${data.status}`, data.conclusao, '', data.resposta]
         .filter(Boolean)
-        .join('
-')
+        .join('\n')
     );
   };
 
