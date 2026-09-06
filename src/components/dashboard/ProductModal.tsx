@@ -172,6 +172,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     fornecedor: string;
     endereco: string;
     cepDoFornecedor: string | null;
+    origemNoEnvio: string | null;
   } | null>(null);
   const [publishedPermalink, setPublishedPermalink] = useState('');
 
@@ -402,6 +403,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           fornecedor: String(corpoDoErro.fornecedor ?? 'seu fornecedor'),
           endereco: String(corpoDoErro.endereco_do_fornecedor ?? ''),
           cepDoFornecedor: (corpoDoErro.cep_do_fornecedor as string) ?? null,
+          origemNoEnvio: (corpoDoErro.origem_no_envio as string) ?? null,
         });
         return;
       }
@@ -938,6 +940,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           fornecedor={precisaDeclararOrigem.fornecedor}
           endereco={precisaDeclararOrigem.endereco}
           cepDoFornecedor={precisaDeclararOrigem.cepDoFornecedor}
+          origemNoEnvio={precisaDeclararOrigem.origemNoEnvio}
           onCancelar={() => setPrecisaDeclararOrigem(null)}
           onDeclarado={() => {
             setPrecisaDeclararOrigem(null);

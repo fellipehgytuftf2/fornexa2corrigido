@@ -8,6 +8,8 @@ interface Props {
   fornecedor: string;
   endereco: string;
   cepDoFornecedor: string | null;
+  /** De onde os envios dele saíram, quando já houve venda provando o erro. */
+  origemNoEnvio?: string | null;
   onCancelar: () => void;
   /** Chamado depois que a declaração foi aceita — a publicação segue daqui. */
   onDeclarado: () => void;
@@ -42,6 +44,7 @@ export default function DeclararOrigem({
   fornecedor,
   endereco,
   cepDoFornecedor,
+  origemNoEnvio,
   onCancelar,
   onDeclarado,
 }: Props) {
@@ -91,11 +94,23 @@ export default function DeclararOrigem({
             Antes de publicar, configure o remetente
           </p>
 
-          <p className="text-sm text-gray-600 dark:text-slate-300 mt-2 leading-relaxed">
-            Suas encomendas saem do galpão do fornecedor, não da sua casa. Se o
-            Mercado Livre não souber disso, a etiqueta sai com o seu endereço —
-            e as devoluções voltam para você.
-          </p>
+          {origemNoEnvio ? (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 mt-3">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+
+              <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
+                Seu último envio saiu de <strong>{origemNoEnvio}</strong>. Enquanto
+                for assim, o fornecedor não consegue baixar a etiqueta dos seus
+                pedidos.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 dark:text-slate-300 mt-2 leading-relaxed">
+              Suas encomendas saem do galpão do fornecedor, não da sua casa. Se o
+              Mercado Livre não souber disso, a etiqueta sai com o seu endereço —
+              e as devoluções voltam para você.
+            </p>
+          )}
 
           <div className="rounded-xl border border-gray-200 dark:border-navy-600 p-4 mt-4">
             <p className="font-semibold text-navy-900 dark:text-white">{fornecedor}</p>

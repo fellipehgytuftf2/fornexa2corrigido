@@ -146,7 +146,7 @@ async function conferirRemetente(
   // 1. O envio já disse?
   const { data: pedido } = await supabase
     .from("orders")
-    .select("ml_shipment_id")
+    .select("ml_shipment_id, created_at")
     .eq("user_id", vendedorId)
     .not("ml_shipment_id", "is", null)
     .order("created_at", { ascending: false })
@@ -155,6 +155,12 @@ async function conferirRemetente(
 
   let cidadeDeOrigem: string | null = null;
   let estadoDeOrigem: string | null = null;
+
+  // A data do envio importa tanto quanto a origem dele. Ver mais abaixo, onde
+  // a declaração posterior destrava o vendedor.
+  let quandoOEnvioSaiu: Date | null = pedido?.created_at
+    ? new Date(pedido.created_at as string)
+    : null;
 
   if (pedido?.ml_shipment_id) {
     try {
@@ -168,6 +174,10 @@ async function conferirRemetente(
         const remetente = (envio?.sender_address ?? {}) as Record<string, unknown>;
         cidadeDeOrigem = nomeDe(remetente?.city);
         estadoDeOrigem = nomeDe(remetente?.state);
+
+        if (envio?.date_created) {
+          quandoOEnvioSaiu = new Date(envio.date_created as string);
+        }
       }
     } catch (erro) {
       // Sem prova, cai na declaração. Falha de leitura não pode travar
@@ -186,6 +196,18 @@ async function conferirRemetente(
   ]
     .filter(Boolean)
     .join(" — ");
+
+  const { data: declaracao } = await supabase
+    .from("origem_declarada")
+    .select("user_id, declarada_em")
+    .eq("user_id", vendedorId)
+    .maybeSingle();
+
+  const declarouDepoisDoEnvio = Boolean(
+    declaracao?.declarada_em &&
+      quandoOEnvioSaiu &&
+      new Date(declaracao.declarada_em as string) > quandoOEnvioSaiu
+  );
 
   if (cidadeDeOrigem) {
     if (mesmaCidade(cidadeDeOrigem, fornecedor.city)) {
@@ -207,7 +229,19 @@ async function conferirRemetente(
       return null;
     }
 
-    // Prova contra. Não há o que declarar: o pacote saiu de outro lugar.
+    // Prova contra — mas só do passado, e é aí que mora a armadilha.
+    //
+    // O envio é um retrato congelado: o Mercado Livre grava a origem no
+    // momento da venda e ela nunca muda. Se o bloqueio olhasse só isso, o
+    // vendedor que arrumasse o endereço continuaria barrado para sempre — o
+    // envio velho diria "saiu do lugar errado" eternamente, e só uma venda
+    // nova o inocentaria. Venda que ele não consegue fazer sem publicar.
+    //
+    // Então declarar DEPOIS daquele envio destrava. Não é confiar na palavra
+    // dele: é dar a chance de a próxima venda dizer se é verdade. Se não for,
+    // o envio novo desmente e ele volta para cá.
+    if (declarouDepoisDoEnvio) return null;
+
     await supabase
       .from("origem_declarada")
       .upsert(
@@ -222,28 +256,24 @@ async function conferirRemetente(
         { onConflict: "user_id" }
       );
 
+    // Recusa, mas com saída: a mesma tela de sempre, agora dizendo de onde os
+    // envios dele estão saindo. Beco sem saída não corrige endereço nenhum.
     return {
-      status: 409,
+      status: 428,
       corpo: {
         error:
           `Seus envios estão saindo de ${origemEmTexto}, e não do galpão do ` +
-          `fornecedor (${fornecedor.city}/${fornecedor.state}). Corrija o endereço ` +
-          "de origem no Mercado Livre, em Configurações → Preferências de venda → " +
-          "Endereço do Mercado Envios, e publique de novo.",
+          `fornecedor (${fornecedor.city}/${fornecedor.state}).`,
+        precisa_declarar_origem: true,
         origem_errada: true,
         origem_no_envio: origemEmTexto,
-        endereco_do_fornecedor: enderecoDoFornecedor,
+        supplier_id: fornecedor.id,
         fornecedor: fornecedor.company_name || fornecedor.name,
+        endereco_do_fornecedor: enderecoDoFornecedor,
+        cep_do_fornecedor: fornecedor.cep,
       },
     };
   }
-
-  // 2. O vendedor declarou?
-  const { data: declaracao } = await supabase
-    .from("origem_declarada")
-    .select("user_id")
-    .eq("user_id", vendedorId)
-    .maybeSingle();
 
   if (declaracao) return null;
 
