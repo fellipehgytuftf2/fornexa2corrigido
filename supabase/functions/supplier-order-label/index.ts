@@ -57,7 +57,7 @@ function json(body: unknown, status = 200) {
 function motivoPeloSubstatus(substatus: string): string | null {
   const motivos: Record<string, string> = {
     invoice_pending:
-      'O Mercado Livre está esperando a nota fiscal deste pedido. Avise o vendedor: enquanto ela não for enviada no painel do Mercado Livre, a etiqueta não é gerada.',
+      'Falta a Declaração de Conteúdo (DC-e) deste pedido. Avise o vendedor: no FORNEXA, em Pedidos, ele emite pelo botão Emitir DC-e — e a etiqueta libera na sequência.',
 
     buffered:
       'O Mercado Livre está segurando este envio para liberar junto com outros. Não é preciso fazer nada — tente de novo mais tarde.',
