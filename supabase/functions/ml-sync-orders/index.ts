@@ -340,6 +340,10 @@ Deno.serve(async (req: Request) => {
               taxa_marketplace: taxaMarketplace,
               custo_frete: custoFrete,
               custos_apurados_em: custosApurados,
+            // A embalagem, congelada no dia da venda. Ver a migração
+            // 20260906180000: mudança de preço do fornecedor não pode
+            // reescrever dívida de pedido antigo.
+            taxa_embalagem: Number(supplier.taxa_embalagem ?? 0),
               updated_at: new Date().toISOString(),
             })
             .eq("id", existingOrder.id);

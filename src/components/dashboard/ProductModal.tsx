@@ -222,6 +222,16 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
 
   const supplierPrice = Number(product.supplierPrice || 0);
 
+  /**
+   * A embalagem do fornecedor, por pedido.
+   *
+   * Entra no custo porque é dinheiro que o vendedor deve de verdade: sai no
+   * PIX do repasse. Deixá-la de fora fazia a tela prometer uma margem que o
+   * extrato não confirmava.
+   */
+  const taxaEmbalagem = Number(product.supplierPackagingFee || 0);
+  const custoDoFornecedor = supplierPrice + taxaEmbalagem;
+
   const margem = Math.max(0, Number(margemEscolhida) || 0);
 
   // Preço pela margem sobre o custo, como a tela sempre fez.
@@ -230,10 +240,10 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   // justamente por isso que a decomposição abaixo dela existe. Com 40% num
   // custo de R$ 97 o preço sai R$ 135,80 e o lucro real é negativo; antes o
   // vendedor só descobria no extrato, agora vê em vermelho antes de publicar.
-  const precoDeVenda = supplierPrice * (1 + margem / 100);
+  const precoDeVenda = custoDoFornecedor * (1 + margem / 100);
 
-  const contaDaVenda = calcularVenda(precoDeVenda, supplierPrice);
-  const margemMinima = margemMinimaSemPrejuizo(supplierPrice);
+  const contaDaVenda = calcularVenda(precoDeVenda, custoDoFornecedor);
+  const margemMinima = margemMinimaSemPrejuizo(custoDoFornecedor);
 
 
 
@@ -792,6 +802,20 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                             {formatCurrency(supplierPrice)}
                           </dd>
                         </div>
+
+                        {/* Linha própria, e não somada ao custo do produto: o
+                            vendedor precisa reconhecer o número quando ele
+                            aparecer no PIX do repasse. */}
+                        {taxaEmbalagem > 0 && (
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-gray-600 dark:text-slate-400">
+                              Embalagem do fornecedor
+                            </dt>
+                            <dd className="text-navy-900 dark:text-white tabular-nums">
+                              {formatCurrency(taxaEmbalagem)}
+                            </dd>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between gap-3">
                           <dt className="text-gray-600 dark:text-slate-400">

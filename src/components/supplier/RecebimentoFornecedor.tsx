@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Clock, Loader2, MapPin, Wallet } from 'lucide-react';
+import { AlertCircle, Check, Clock, Loader2, MapPin, Package, Wallet } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type TipoDeChave = 'celular' | 'cpf' | 'cnpj' | 'email' | 'aleatoria';
@@ -79,6 +79,15 @@ export default function RecebimentoFornecedor() {
   const [corteFlex, setCorteFlex] = useState('');
   const [avisos, setAvisos] = useState('');
 
+  /**
+   * Quanto este fornecedor cobra por pedido pela embalagem.
+   *
+   * Guardado como texto porque é o que o campo devolve, e porque vírgula é
+   * como se escreve dinheiro em português. A conversão acontece na hora de
+   * salvar, num lugar só.
+   */
+  const [taxaEmbalagem, setTaxaEmbalagem] = useState('');
+
   /** De onde as encomendas saem. Vira o remetente da etiqueta do vendedor. */
   const [endereco, setEndereco] = useState({
     cep: '',
@@ -106,7 +115,7 @@ export default function RecebimentoFornecedor() {
       const { data, error } = await supabase
         .from('suppliers')
         .select(
-          'chave_pix, horario_corte, horario_corte_flex, avisos, cep, logradouro, numero, bairro, complemento, city, state'
+          'chave_pix, horario_corte, horario_corte_flex, avisos, cep, logradouro, numero, bairro, complemento, city, state, taxa_embalagem'
         )
         .eq('auth_user_id', user?.id ?? '')
         .maybeSingle<{
@@ -121,6 +130,7 @@ export default function RecebimentoFornecedor() {
           complemento: string | null;
           city: string | null;
           state: string | null;
+          taxa_embalagem: number | null;
         }>();
 
       setCarregando(false);
@@ -139,6 +149,12 @@ export default function RecebimentoFornecedor() {
       setCorte((data?.horario_corte ?? '').slice(0, 5));
       setCorteFlex((data?.horario_corte_flex ?? '').slice(0, 5));
       setAvisos(data?.avisos ?? '');
+
+      // Zero vira campo vazio: "0,00" escrito ali parece cobrança de zero
+      // real, quando na verdade é fornecedor que não cobra embalagem.
+      setTaxaEmbalagem(
+        data?.taxa_embalagem ? String(data.taxa_embalagem).replace('.', ',') : ''
+      );
 
       setEndereco({
         cep: data?.cep ?? '',
@@ -161,7 +177,7 @@ export default function RecebimentoFornecedor() {
     setErro('');
     setSalvo(false);
 
-    const [recebimento, operacao, enderecoSalvo] = await Promise.all([
+    const [recebimento, operacao, taxaSalva, enderecoSalvo] = await Promise.all([
       supabase.rpc('fornecedor_define_recebimento', {
         p_chave_pix: chaveFinal || null,
       }),
@@ -169,6 +185,9 @@ export default function RecebimentoFornecedor() {
         p_corte: corte || null,
         p_corte_flex: corteFlex || null,
         p_avisos: avisos || null,
+      }),
+      supabase.rpc('fornecedor_define_taxa_embalagem', {
+        p_valor: Number((taxaEmbalagem || '0').replace(',', '.')) || 0,
       }),
       supabase.rpc('fornecedor_define_endereco', {
         p_cep: endereco.cep || null,
@@ -181,7 +200,18 @@ export default function RecebimentoFornecedor() {
       }),
     ]);
 
-    const error = recebimento.error ?? operacao.error ?? enderecoSalvo.error;
+    const error =
+      recebimento.error ?? operacao.error ?? taxaSalva.error ?? enderecoSalvo.error;
+
+    // As RPCs de valor recusam sem erro de banco: devolvem { ok: false }. Sem
+    // ler isso, taxa recusada some sem ninguém saber.
+    const recusa = (taxaSalva.data as { ok?: boolean; erro?: string } | null);
+
+    if (!error && recusa && recusa.ok === false) {
+      setSalvando(false);
+      setErro(recusa.erro ?? 'Não foi possível salvar a taxa de embalagem.');
+      return;
+    }
 
     setSalvando(false);
 
@@ -352,6 +382,37 @@ export default function RecebimentoFornecedor() {
           placeholder="Ex: envio Flex é feito pela transportadora J3 — o vendedor precisa ter cadastro com eles antes de despachar."
           className="w-full mt-4 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 resize-y"
         />
+      </div>
+
+      {/* Entra no PIX que o vendedor gera. Enquanto isto não existia, ele
+          pagava a menos em toda venda e o Financeiro dele mostrava lucro
+          maior do que o real — dois erros que só apareceriam quando o
+          fornecedor fosse conferir a conta. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <p className="font-semibold text-white flex items-center gap-2">
+          <Package className="w-4 h-4 text-gold" aria-hidden="true" />
+          Taxa de embalagem
+        </p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          Quanto você cobra por pedido pela embalagem. Entra automaticamente no
+          PIX que o vendedor gera — é uma por pacote, não uma por peça. Deixe
+          vazio se não cobra.
+        </p>
+
+        <div className="mt-3 max-w-[200px]">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400 text-sm">R$</span>
+
+            <input
+              value={taxaEmbalagem}
+              onChange={(evento) => setTaxaEmbalagem(evento.target.value)}
+              placeholder="0,00"
+              inputMode="decimal"
+              className="w-full px-3 py-2 rounded-lg border border-navy-600 bg-navy-900 text-white"
+            />
+          </div>
+        </div>
       </div>
 
       {/* O endereço vira o remetente da etiqueta do vendedor — e é para cá que

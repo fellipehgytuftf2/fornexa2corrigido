@@ -407,6 +407,10 @@ Deno.serve(async (req: Request) => {
         ml_order_status: mlOrderStatus,
         ml_order_status_detail: mlOrderStatusDetail,
         quantidade,
+        // A embalagem, congelada no dia da venda. Ver a migração
+        // 20260906180000: mudança de preço do fornecedor não pode
+        // reescrever dívida de pedido antigo.
+        taxa_embalagem: Number(supplier.taxa_embalagem ?? 0),
       })
         .select("id, user_id, ml_order_id")
         .single();

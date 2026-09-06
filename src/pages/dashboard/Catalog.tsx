@@ -28,6 +28,10 @@ interface SupplierFromSupabase {
   // ferem a regra acima.
   status: 'active' | 'inactive';
   controla_estoque: boolean;
+
+  // Entra na conta da margem do vendedor. É dinheiro que ele deve, não dado
+  // que identifique o fornecedor.
+  taxa_embalagem: number | null;
 }
 
 interface CatalogProductFromSupabase {
@@ -83,7 +87,8 @@ export default function Catalog() {
           id,
           average_shipping_time,
           status,
-          controla_estoque
+          controla_estoque,
+          taxa_embalagem
         )
       `)
       .eq('status', 'active')
@@ -163,6 +168,10 @@ export default function Catalog() {
           supplierCity: null,
           supplierState: null,
           supplierShippingTime: supplier?.average_shipping_time || null,
+
+          // Entra na conta da margem. Sem isto o vendedor calculava lucro
+          // sobre um custo menor que o real, e descobria no repasse.
+          supplierPackagingFee: Number(supplier?.taxa_embalagem || 0),
         };
       }
     );

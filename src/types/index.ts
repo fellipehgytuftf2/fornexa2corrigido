@@ -15,6 +15,8 @@ export interface Product {
   supplierCity?: string | null;
   supplierState?: string | null;
   supplierShippingTime?: string | null;
+  /** Quanto o fornecedor cobra por pedido pela embalagem. Zero quando não cobra. */
+  supplierPackagingFee?: number;
 
   /** Fotos adicionais do catálogo. A principal continua em `image`. */
   images?: string[];
