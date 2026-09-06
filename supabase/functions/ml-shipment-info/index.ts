@@ -18,8 +18,11 @@
 // A função traduz isso para uma frase em português com o que fazer. Só lê —
 // nunca altera nada no Mercado Livre.
 //
-// Restrita a admin porque devolve também a resposta bruta do ML, útil para
-// diagnóstico e ruído para quem só quer despachar.
+// Quem lê é o dono do pedido, ou o admin. Esta é a resposta para "por que a
+// minha etiqueta não sai", e quem faz essa pergunta é o vendedor.
+//
+// A resposta bruta do Mercado Livre, essa sim vai só para o admin: é
+// diagnóstico, e ruído para quem só quer despachar.
 // ============================================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -189,9 +192,7 @@ Deno.serve(async (req: Request) => {
     .eq('id', caller.id)
     .maybeSingle();
 
-  if (perfil?.role !== 'admin') {
-    return json({ error: 'Apenas administradores podem ver o diagnóstico de envio.' }, 403);
-  }
+  const ehAdmin = perfil?.role === 'admin';
 
   let payload: { pedido_id?: string };
 
@@ -219,6 +220,15 @@ Deno.serve(async (req: Request) => {
 
   if (!pedido) {
     return json({ error: 'Pedido não encontrado.' }, 404);
+  }
+
+  // Quem vê é o dono do pedido — ou o admin, dando suporte.
+  //
+  // Isto já foi só de admin, e não fazia sentido: é a resposta para "por que a
+  // minha etiqueta não sai", e quem faz essa pergunta é o vendedor. Ele via o
+  // botão e levava 403, porque no modo suporte a sessão é a dele.
+  if (!ehAdmin && pedido.user_id !== caller.id) {
+    return json({ error: 'Este pedido não é seu.' }, 403);
   }
 
   if (!pedido.ml_shipment_id) {
@@ -294,8 +304,9 @@ Deno.serve(async (req: Request) => {
 
     conclusao: interpretaModo(envio),
 
-    // A resposta completa fica disponível para inspeção manual, já que o
-    // objetivo aqui é justamente descobrir o que não sabemos.
-    resposta_bruta: envio,
+    // Só para o admin. O vendedor recebe a frase em português, que é o que
+    // responde a pergunta dele; JSON do Mercado Livre não ajuda ninguém a
+    // despachar, e ainda por cima não é texto para se levar como instrução.
+    resposta_bruta: ehAdmin ? envio : undefined,
   });
 });
