@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Check, Copy, MapPin } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle, Copy, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface EnderecoDeFornecedor {
@@ -31,6 +31,15 @@ export default function EnderecoDoFornecedor() {
   const [enderecos, setEnderecos] = useState<EnderecoDeFornecedor[]>([]);
   const [copiado, setCopiado] = useState<string | null>(null);
 
+  /**
+   * O CEP que o Mercado Livre tem hoje como origem dos envios deste vendedor.
+   *
+   * É o que transforma esta tela de instrução em conferência: sem ele, o erro
+   * só apareceria na primeira etiqueta impressa — quando o Mercado Livre já não
+   * deixa mais mudar aquele envio.
+   */
+  const [cepNoMercadoLivre, setCepNoMercadoLivre] = useState<string | null>(null);
+
   useEffect(() => {
     const carregar = async () => {
       const { data, error } = await supabase.rpc('enderecos_dos_meus_fornecedores');
@@ -45,7 +54,19 @@ export default function EnderecoDoFornecedor() {
       setEnderecos((data as EnderecoDeFornecedor[]) || []);
     };
 
+    const conferirNoMercadoLivre = async () => {
+      const { data } = await supabase.functions.invoke<{
+        conectado?: boolean;
+        cep?: string;
+      }>('ml-endereco-de-envio');
+
+      if (data?.conectado && data.cep) {
+        setCepNoMercadoLivre(data.cep);
+      }
+    };
+
     carregar();
+    conferirNoMercadoLivre();
   }, []);
 
   const montarTexto = (endereco: EnderecoDeFornecedor) =>
@@ -73,6 +94,15 @@ export default function EnderecoDoFornecedor() {
     return null;
   }
 
+  // Compara só o CEP: é o campo que o Mercado Livre usa para roteirizar, e o
+  // único que a resposta dele traz de forma confiável para comparar.
+  const jaConfigurado =
+    Boolean(cepNoMercadoLivre) &&
+    enderecos.some(
+      (endereco) =>
+        endereco.cep && endereco.cep.replace(/\D/g, '') === cepNoMercadoLivre
+    );
+
   return (
     <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
       <p className="font-semibold text-navy-900 dark:text-white flex items-center gap-2">
@@ -88,16 +118,38 @@ export default function EnderecoDoFornecedor() {
         . Suas encomendas saem do galpão do fornecedor, não da sua casa.
       </p>
 
-      {/* O prazo é a parte que dói: depois de impressa, o Mercado Livre não
-          deixa mais mudar o endereço daquele envio. */}
-      <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 mt-4">
-        <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+      {/* A conferência, e não o aviso, é o que salva: o FORNEXA lê o CEP que o
+          Mercado Livre tem hoje como origem e compara. Sem isso o erro só
+          apareceria na primeira etiqueta impressa — quando já não dá para
+          mudar aquele envio. */}
+      {jaConfigurado ? (
+        <div className="flex items-start gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 mt-4">
+          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
 
-        <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
-          Faça isso <strong>antes</strong> de gerar etiquetas. Depois de impressa,
-          o Mercado Livre não deixa mais mudar o endereço daquele envio.
-        </p>
-      </div>
+          <p className="text-sm text-green-800 dark:text-green-300 leading-relaxed">
+            Já está configurado. Suas etiquetas saem com o endereço do
+            fornecedor, e as devoluções voltam para ele.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 mt-4">
+          <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+
+          <div>
+            <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
+              {cepNoMercadoLivre
+                ? 'Suas etiquetas ainda saem do seu endereço, não do fornecedor.'
+                : 'Ainda não conseguimos conferir seu endereço no Mercado Livre.'}
+            </p>
+
+            <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mt-1">
+              Faça isso <strong>antes</strong> de gerar etiquetas. Depois de
+              impressa, o Mercado Livre não deixa mais mudar o endereço daquele
+              envio.
+            </p>
+          </div>
+        </div>
+      )}
 
       <ul className="mt-4 space-y-3">
         {enderecos.map((endereco) => {
