@@ -33,6 +33,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
 import { obterAccessToken } from "../_shared/tokenMercadoLivre.ts";
+import { emitirDceSePreciso } from "../_shared/emitirDce.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -379,7 +380,7 @@ Deno.serve(async (req: Request) => {
         })
         .eq("id", existingOrder.id);
     } else {
-      await supabase.from("orders").insert({
+      const { data: pedidoCriado } = await supabase.from("orders").insert({
         user_id: vendedorId,
         user_product_id: userProduct.id,
         product_id: userProduct.id,
@@ -406,7 +407,18 @@ Deno.serve(async (req: Request) => {
         ml_order_status: mlOrderStatus,
         ml_order_status_detail: mlOrderStatusDetail,
         quantidade,
-      });
+      })
+        .select("id, user_id, ml_order_id")
+        .single();
+
+      // A DC-e, na chegada da venda. Este e o caminho normal: o webhook chega
+      // sozinho, e e nele que o relogio de 3 dias comeca a correr.
+      //
+      // Nao trava o webhook: falhar aqui deixaria o Mercado Livre reenviando o
+      // evento e duplicando trabalho, quando o pedido ja entrou.
+      if (pedidoCriado) {
+        await emitirDceSePreciso(supabase, pedidoCriado, accessToken);
+      }
     }
 
     if (webhookEventId) {

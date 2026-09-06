@@ -51,6 +51,16 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
   const [nomeOriginal, setNomeOriginal] = useState('');
   const [empresa, setEmpresa] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  /**
+   * Se o FORNEXA emite a Declaração de Conteúdo sozinho, quando a venda chega.
+   *
+   * Ligado por padrão, e é decisão, não descuido: sem a DC-e o envio fica
+   * parado e o Mercado Livre cancela o pedido em 3 dias. Quem não sabe o que é
+   * DC-e — a maioria — não ligaria a chave, e perderia venda por prazo.
+   */
+  const [dceAutomatica, setDceAutomatica] = useState(true);
+  const [salvandoDce, setSalvandoDce] = useState(false);
+
   const [salvandoContato, setSalvandoContato] = useState(false);
   const [contatoSalvo, setContatoSalvo] = useState(false);
   const [email, setEmail] = useState('');
@@ -87,7 +97,9 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
       const { data: perfil } = await supabase
         .from('profiles')
-        .select('name, empresa, whatsapp, plan, plan_status, plan_expira_em, plan_origem')
+        .select(
+          'name, empresa, whatsapp, plan, plan_status, plan_expira_em, plan_origem, dce_automatica'
+        )
         .eq('id', user.id)
         .maybeSingle<{
           name: string | null;
@@ -97,6 +109,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           plan_status: string | null;
           plan_expira_em: string | null;
           plan_origem: string | null;
+          dce_automatica: boolean | null;
         }>();
 
       const nomeAtual = perfil?.name || user.user_metadata?.name || '';
@@ -109,6 +122,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       setStatusPlano(perfil?.plan_status || 'inativo');
       setExpiraEm(perfil?.plan_expira_em || null);
       setOrigemPlano(perfil?.plan_origem || 'nenhum');
+      setDceAutomatica(perfil?.dce_automatica !== false);
       setCarregando(false);
     };
 
@@ -121,6 +135,35 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
    * Separado do nome de propósito: o nome é identidade da conta, isto é dado
    * comercial que aparece do outro lado, no pedido que chega ao fornecedor.
    */
+  const trocarDceAutomatica = async (ligada: boolean) => {
+    setSalvandoDce(true);
+    setErro('');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSalvandoDce(false);
+      setErro('Faça login novamente.');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ dce_automatica: ligada })
+      .eq('id', user.id);
+
+    setSalvandoDce(false);
+
+    if (error) {
+      setErro(`Não foi possível salvar: ${error.message}`);
+      return;
+    }
+
+    setDceAutomatica(ligada);
+  };
+
   const salvarContato = async () => {
     setSalvandoContato(true);
     setErro('');
@@ -454,6 +497,41 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
               </span>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-1">
+          Declaração de Conteúdo (DC-e)
+        </h2>
+
+        <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
+          Toda venda precisa de uma, por lei, desde abril de 2026. Sem ela a
+          etiqueta não é liberada e o Mercado Livre cancela o pedido em 3 dias.
+          O documento sai no seu nome, com os seus dados — o FORNEXA só aperta o
+          botão por você.
+        </p>
+
+        <div className="flex items-start gap-3 mt-4 p-4 bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 rounded-lg">
+          <input
+            id="dce-automatica"
+            type="checkbox"
+            checked={dceAutomatica}
+            disabled={salvandoDce || carregando}
+            onChange={(evento) => trocarDceAutomatica(evento.target.checked)}
+            className="mt-1 w-4 h-4 accent-navy-900 dark:accent-gold"
+          />
+
+          <label htmlFor="dce-automatica" className="cursor-pointer">
+            <span className="block text-navy-900 dark:text-white font-medium">
+              Emitir automaticamente quando a venda chegar
+            </span>
+
+            <span className="block text-sm text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
+              Desligando, você emite na mão pelo botão em Pedidos — e o prazo de
+              3 dias passa a ser sua responsabilidade.
+            </span>
+          </label>
         </div>
       </div>
 

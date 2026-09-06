@@ -31,6 +31,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { chaveSecreta, urlDoProjeto } from "../_shared/chaves.ts";
 import { obterAccessToken } from "../_shared/tokenMercadoLivre.ts";
+import { emitirDceSePreciso } from "../_shared/emitirDce.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -352,7 +353,9 @@ Deno.serve(async (req: Request) => {
         } else {
           // Pedido novo: insere com status inicial 'pending', igual ao
           // fluxo manual de "Registrar venda".
-          const { error: insertError } = await supabase.from("orders").insert({
+          const { data: pedidoCriado, error: insertError } = await supabase
+            .from("orders")
+            .insert({
             user_id: vendedorId,
             user_product_id: userProduct.id,
             product_id: userProduct.id,
@@ -382,7 +385,9 @@ Deno.serve(async (req: Request) => {
             taxa_marketplace: taxaMarketplace,
             custo_frete: custoFrete,
             custos_apurados_em: custosApurados,
-          });
+            })
+            .select("id, user_id, ml_order_id")
+            .single();
 
           if (insertError) {
             errors.push({ ml_order_id: mlOrderId, motivo: insertError.message });
@@ -390,6 +395,19 @@ Deno.serve(async (req: Request) => {
           }
 
           created += 1;
+
+          // A DC-e, na chegada da venda.
+          //
+          // Sem ela o envio fica em invoice_pending e a etiqueta nao existe —
+          // e o Mercado Livre cancela o pedido em 3 dias. Depender de o
+          // vendedor lembrar disso custava a venda inteira, com a mercadoria
+          // ja separada no galpao do fornecedor.
+          //
+          // Nao trava a importacao: se falhar, o pedido entrou do mesmo jeito
+          // e o botao manual continua em Pedidos.
+          if (pedidoCriado) {
+            await emitirDceSePreciso(supabase, pedidoCriado, accessToken);
+          }
         }
       } catch (loopErr) {
         console.error(`Erro ao processar pedido ${mlOrderId}:`, loopErr);

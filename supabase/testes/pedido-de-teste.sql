@@ -54,7 +54,7 @@ where product_name like 'PEDIDO DE TESTE%';
 with alvo as (
   select
     (select id from public.profiles
-      where email = 'akira.vha@gmail.com') as vendedor,
+      where email = 'itshaxking456@gmail.com') as vendedor,
 
     -- O fornecedor de teste, e só ele. `ilike '%TESTE%'` é a trava que impede
     -- este arquivo de criar pedido falso para fornecedor real por descuido.

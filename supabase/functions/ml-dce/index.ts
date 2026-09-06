@@ -177,6 +177,19 @@ Deno.serve(async (req: Request) => {
     // o caminho não existe e o Mercado Livre devolveu uma página de erro.
   }
 
+  // Emitida na mão, fica marcada como tal. Sem isto a emissão automática
+  // tentaria de novo no mesmo pedido, e o vendedor não veria no cartão que a
+  // DC-e daquela venda já existe.
+  if (emitir && resposta.ok) {
+    await admin
+      .from('orders')
+      .update({
+        dce_emitida_em: new Date().toISOString(),
+        dce_emitida_pelo_sistema: false,
+      })
+      .eq('id', pedido.id);
+  }
+
   // Emissão fica registrada com quem mandou: é documento fiscal, e depois
   // alguém vai perguntar quem emitiu e quando.
   await admin.from('log_integracao_ml').insert({

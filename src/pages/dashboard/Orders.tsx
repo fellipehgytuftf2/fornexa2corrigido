@@ -65,6 +65,8 @@ interface Order {
   status: OrderStatus;
   tracking_code: string | null;
   ml_shipment_id: string | null;
+  dce_emitida_em: string | null;
+  dce_emitida_pelo_sistema: boolean | null;
   marketplace: string;
   created_at: string;
   suppliers?: Supplier | Supplier[] | null;
@@ -360,6 +362,8 @@ export default function Orders() {
         status,
         tracking_code,
         ml_shipment_id,
+        dce_emitida_em,
+        dce_emitida_pelo_sistema,
         marketplace,
         created_at,
         suppliers (
@@ -933,7 +937,7 @@ export default function Orders() {
                     {/* A sonda "Testar DC-e" saiu daqui. Existia para descobrir
                         se a API de emissão existia — descobriu, e virou a
                         emissão de verdade logo abaixo. */}
-                    {order.ml_shipment_id && (
+                    {order.ml_shipment_id && !order.dce_emitida_em && (
                       <button
                         onClick={() => consultarDce(order, 'emitir')}
                         disabled={dcePedidoId === order.id}
@@ -952,6 +956,25 @@ export default function Orders() {
                       Excluir
                     </button>
                   </div>
+
+                  {/* A DC-e é documento fiscal em nome do vendedor. Quando quem
+                      emitiu foi o sistema, ele tem o direito de saber — dizer
+                      isso baixinho aqui é o mínimo que justifica emitir sem
+                      ele clicar. */}
+                  {order.dce_emitida_em && (
+                    <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
+                      Declaração de Conteúdo (DC-e){' '}
+                      {order.dce_emitida_pelo_sistema
+                        ? 'emitida automaticamente pelo FORNEXA'
+                        : 'emitida'}{' '}
+                      em{' '}
+                      {new Date(order.dce_emitida_em).toLocaleString('pt-BR', {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                      .
+                    </p>
+                  )}
 
                   {/* Devolução já registrada: onde está e quanto falta do
                       prazo do CD. Fica fora da fileira de botões porque é
