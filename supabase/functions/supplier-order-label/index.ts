@@ -54,6 +54,33 @@ function json(body: unknown, status = 200) {
  * Estava errada: apareceu um pedido esperando NOTA FISCAL, e o fornecedor leu
  * "não é preciso fazer nada" enquanto o vendedor precisava agir.
  */
+/** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
+const nomeDe = (valor: unknown): string | null => {
+  if (typeof valor === 'string') return valor || null;
+  if (valor && typeof valor === 'object') {
+    const nome = (valor as Record<string, unknown>).name;
+    return typeof nome === 'string' ? nome : null;
+  }
+  return null;
+};
+
+/**
+ * "São José dos Pinhais" e "sao jose dos pinhais" são a mesma cidade.
+ *
+ * O fornecedor digita a cidade dele à mão no Portal; o Mercado Livre devolve a
+ * dele com acento e maiúscula própria. Comparar cru acusaria erro onde não há.
+ */
+const mesmaCidade = (uma: string, outra: string) => {
+  const simplificar = (texto: string) =>
+    texto
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toLowerCase();
+
+  return simplificar(uma) === simplificar(outra);
+};
+
 function motivoPeloSubstatus(substatus: string): string | null {
   const motivos: Record<string, string> = {
     invoice_pending:
@@ -146,7 +173,7 @@ Deno.serve(async (req: Request) => {
   // 1. Quem chamou é fornecedor?
   const { data: supplier, error: supplierError } = await admin
     .from('suppliers')
-    .select('id, name, company_name')
+    .select('id, name, company_name, city, state')
     .eq('auth_user_id', caller.id)
     .maybeSingle();
 
@@ -268,6 +295,64 @@ Deno.serve(async (req: Request) => {
 
   const accessToken = token.accessToken;
 
+  // 4b. O envio sai mesmo do galpão do fornecedor?
+  //
+  //     A etiqueta leva o remetente, e o remetente é para onde a devolução
+  //     volta. Se o vendedor não trocou o endereço de origem na conta dele, o
+  //     pacote sai do galpão do fornecedor declarando a casa do vendedor — e a
+  //     devolução vai bater na porta de quem não tem o que fazer com ela.
+  //
+  //     Depois de impressa, o Mercado Livre não deixa mais mudar o endereço
+  //     daquele envio. Então ou se segura aqui, ou não se segura mais.
+  //
+  //     A comparação é por cidade porque o Mercado Livre mascara o CEP do
+  //     remetente para aplicações de terceiros. Ver `ml-endereco-de-envio`.
+  const envioResposta = await fetch(
+    `https://api.mercadolibre.com/shipments/${encodeURIComponent(pedido.ml_shipment_id)}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  const envio = envioResposta.ok
+    ? ((await envioResposta.json()) as Record<string, unknown>)
+    : null;
+
+  const remetente = (envio?.sender_address ?? {}) as Record<string, unknown>;
+  const cidadeDeOrigem = nomeDe(remetente?.city);
+  const estadoDeOrigem = nomeDe(remetente?.state);
+
+  // Só bloqueia o que dá para provar errado. Sem cidade legível não há prova —
+  // e travar por falha de leitura pararia o despacho por um soluço da API,
+  // não por endereço errado. Fica registrado para não passar despercebido.
+  if (cidadeDeOrigem && supplier.city && !mesmaCidade(cidadeDeOrigem, supplier.city)) {
+    await admin.from('log_integracao_ml').insert({
+      contexto: 'supplier-order-label',
+      mensagem: 'Etiqueta bloqueada: origem não é a cidade do fornecedor',
+      detalhes: {
+        pedido_id: pedido.id,
+        shipment_id: pedido.ml_shipment_id,
+        vendedor_id: pedido.user_id,
+        origem_no_ml: [cidadeDeOrigem, estadoDeOrigem].filter(Boolean).join('/'),
+        cidade_do_fornecedor: [supplier.city, supplier.state].filter(Boolean).join('/'),
+      },
+    });
+
+    return json(
+      {
+        error:
+          `Este envio sairia declarando ${[cidadeDeOrigem, estadoDeOrigem]
+            .filter(Boolean)
+            .join('/')} como remetente, e não ${[supplier.city, supplier.state]
+            .filter(Boolean)
+            .join('/')}. A etiqueta fica bloqueada até o vendedor corrigir o ` +
+          'endereço de origem na conta dele do Mercado Livre. Avise-o: é em ' +
+          'Configurações → Preferências de venda → Endereço do Mercado Envios, ' +
+          'e no FORNEXA o endereço certo está pronto para copiar, em Integrações.',
+        origem_errada: true,
+      },
+      409
+    );
+  }
+
   // 5. Busca a etiqueta.
   //    A etiqueta só existe quando o envio está em ready_to_ship no Mercado
   //    Livre; antes disso o próprio ML recusa.
@@ -286,23 +371,8 @@ Deno.serve(async (req: Request) => {
     // está no envio, e uma consulta a mais separa "espere" de "o vendedor
     // precisa enviar a nota fiscal". Sem ela, o fornecedor ficava esperando um
     // pedido que nunca ia liberar sozinho.
-    let motivoDoEnvio: string | null = null;
-
-    try {
-      const envioResposta = await fetch(
-        `https://api.mercadolibre.com/shipments/${pedido.ml_shipment_id}`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-
-      if (envioResposta.ok) {
-        const envio = await envioResposta.json();
-        motivoDoEnvio = motivoPeloSubstatus(String(envio?.substatus ?? ''));
-      }
-    } catch (erro) {
-      // Diagnóstico é bônus: falhar aqui não pode trocar a mensagem do erro
-      // original por uma sobre a consulta que tentamos fazer.
-      console.error('Falha ao consultar o envio para diagnosticar:', erro);
-    }
+    // O envio já foi lido acima, para conferir o remetente. Aproveita.
+    const motivoDoEnvio = envio ? motivoPeloSubstatus(String(envio?.substatus ?? '')) : null;
 
     // O JSON cru sai da tela do fornecedor e passa a viver aqui. Quem separa
     // pedido não tem o que fazer com ele; quem dá suporte, tem.

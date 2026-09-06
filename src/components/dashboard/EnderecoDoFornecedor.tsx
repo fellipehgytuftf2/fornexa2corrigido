@@ -209,9 +209,19 @@ export default function EnderecoDoFornecedor() {
             </p>
 
             <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mt-1">
-              Faça isso <strong>antes</strong> de gerar etiquetas. Depois de
-              impressa, o Mercado Livre não deixa mais mudar o endereço daquele
-              envio.
+              {conferiu ? (
+                <>
+                  Enquanto não corrigir, <strong>o fornecedor não consegue
+                  baixar a etiqueta</strong> dos seus pedidos — e o Mercado
+                  Livre cancela pedido parado em 3 dias.
+                </>
+              ) : (
+                <>
+                  Faça isso <strong>antes</strong> de gerar etiquetas. Depois de
+                  impressa, o Mercado Livre não deixa mais mudar o endereço
+                  daquele envio.
+                </>
+              )}
             </p>
           </div>
         </div>
