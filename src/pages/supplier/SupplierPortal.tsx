@@ -458,11 +458,22 @@ export default function SupplierPortal() {
    * vendedor fica no servidor e nunca chega aqui. O arquivo não é gravado em
    * lugar nenhum — abre numa aba e é descartado.
    */
-  const baixarEtiqueta = async (order: SupplierOrder) => {
+  /**
+   * Traz da API um PDF para o navegador abrir.
+   *
+   * Serve a etiqueta e o DACE, que são dois papéis diferentes com o mesmo
+   * caminho: pedir, tratar a recusa, abrir numa aba. Escrever duas vezes faria
+   * a mensagem de erro de um divergir da do outro com o tempo.
+   */
+  const abrirPdfDoPedido = async (
+    order: SupplierOrder,
+    funcao: string,
+    oQueE: string
+  ) => {
     setLabelId(order.id);
     setErrorMessage('');
 
-    const { data, error } = await supabase.functions.invoke<Blob>('supplier-order-label', {
+    const { data, error } = await supabase.functions.invoke<Blob>(funcao, {
       body: { pedido_id: order.id },
     });
 
@@ -484,7 +495,7 @@ export default function SupplierPortal() {
         }
       }
 
-      setErrorMessage(specificMessage ?? 'Não foi possível buscar a etiqueta.');
+      setErrorMessage(specificMessage ?? `Não foi possível buscar ${oQueE}.`);
       return;
     }
 
@@ -493,13 +504,26 @@ export default function SupplierPortal() {
 
     if (!aberta) {
       setErrorMessage(
-        'O navegador bloqueou a janela da etiqueta. Libere pop-ups para este site e tente de novo.'
+        `O navegador bloqueou a janela ${oQueE === 'a etiqueta' ? 'da etiqueta' : 'do DACE'}. Libere pop-ups para este site e tente de novo.`
       );
     }
 
     // Libera a memória depois que o navegador teve tempo de carregar o PDF.
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
+
+  const baixarEtiqueta = (order: SupplierOrder) =>
+    abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta');
+
+  /**
+   * O DACE é a versão impressa da Declaração de Conteúdo.
+   *
+   * Vai dobrado num saquinho plástico do lado de fora da caixa, junto da
+   * etiqueta — que fica colada e visível. São dois papéis, e sem os dois a
+   * encomenda não pode ser postada.
+   */
+  const baixarDace = (order: SupplierOrder) =>
+    abrirPdfDoPedido(order, 'supplier-order-dace', 'o DACE');
 
   /**
    * Abre chamado sobre o pedido. Vai por função, e não por insert: o
@@ -1145,6 +1169,20 @@ export default function SupplierPortal() {
                             <FileText className="w-4 h-4" aria-hidden="true" />
                             Etiqueta ainda não disponível
                           </span>
+                        )}
+
+                        {/* Dois papéis, não um: a etiqueta vai colada e
+                            visível, e o DACE dobrado num saquinho plástico do
+                            lado de fora. Sem os dois a encomenda não é postada. */}
+                        {order.etiqueta_disponivel && (
+                          <button
+                            onClick={() => baixarDace(order)}
+                            disabled={labelId === order.id}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50"
+                          >
+                            <FileText className="w-4 h-4" aria-hidden="true" />
+                            Baixar DACE
+                          </button>
                         )}
 
                         {(order.status === 'pending' ||
