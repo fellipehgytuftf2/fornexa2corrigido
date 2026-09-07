@@ -171,6 +171,15 @@ Deno.serve(async (req: Request) => {
 
         if (!userProduct) {
           skippedNoProduct += 1;
+
+          // O mesmo texto que o webhook registra, para os dois caminhos
+          // explicarem a mesma coisa do mesmo jeito — e com o código do
+          // anúncio junto, que é o que permite conferir de quem ele é.
+          errors.push({
+            ml_order_id: mlOrderId,
+            motivo: `Nenhum produto encontrado para ml_item_id ${mlItemId}`,
+          });
+
           continue;
         }
 
