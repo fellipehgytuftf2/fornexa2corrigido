@@ -64,8 +64,19 @@ function json(body: unknown, status = 200) {
  *
  * A regra existe para o que vem depois. Para trás, o estrago já está feito, e
  * a devolução torta é menos ruim que o pedido cancelado.
+ *
+ * A DATA JÁ FOI ADIADA UMA VEZ, EM 07/09
+ *
+ * Entre 06 e 07/09 a trava pegou vendas de gente que ainda não tinha sido
+ * avisada de nada: o aviso no painel e a tela antes de publicar nasceram
+ * depois delas. Travar ali não corrigia endereço nenhum — só segurava pedido
+ * pago de quem não tinha como saber.
+ *
+ * Adiar de novo esvazia a regra, e não é para virar hábito. O que justificou
+ * esta vez foi o aviso: a partir daqui o vendedor sabe, vê a cidade de onde
+ * seus envios saem e tem um botão para dizer que corrigiu.
  */
-const REGRA_DO_REMETENTE_VALE_A_PARTIR_DE = new Date('2026-09-06T05:16:00Z');
+const REGRA_DO_REMETENTE_VALE_A_PARTIR_DE = new Date('2026-09-07T05:30:00Z');
 
 /** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
 const nomeDe = (valor: unknown): string | null => {
