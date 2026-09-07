@@ -20,7 +20,9 @@ export interface PartesDoEndereco {
  * meio, campo por campo, e errar aí é errar o remetente da etiqueta.
  *
  * A ordem é a do formulário deles, de propósito: quem está preenchendo desce a
- * lista de cima para baixo sem procurar nada.
+ * lista de cima para baixo sem procurar nada. Uma linha por campo, com o botão
+ * só de ícone: são cinco campos, e cinco caixas com borda e a palavra "Copiar"
+ * ocupavam meia tela para dizer pouco.
  *
  * Cidade e estado ficam por último e sem botão: o Mercado Livre os preenche
  * sozinho a partir do CEP. Aparecem só para o vendedor conferir que o CEP que
@@ -46,43 +48,35 @@ export default function EnderecoParaCopiar({ partes }: { partes: PartesDoEnderec
   const cidadeEstado = [partes.cidade, partes.estado].filter(Boolean).join('/');
 
   return (
-    <div className="mt-3 space-y-2">
+    <div className="divide-y divide-gray-100 dark:divide-navy-700">
       {campos.map((campo) => (
-        <div
-          key={campo.chave}
-          className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-navy-600 px-3 py-2"
-        >
-          <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-400">
-              {campo.rotulo}
-            </p>
+        <div key={campo.chave} className="flex items-center gap-3 py-1.5">
+          <span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-gray-500 dark:text-slate-400">
+            {campo.rotulo}
+          </span>
 
-            <p className="text-sm text-navy-900 dark:text-white truncate">{campo.valor}</p>
-          </div>
+          <span className="flex-1 min-w-0 truncate text-sm text-navy-900 dark:text-white">
+            {campo.valor}
+          </span>
 
           <button
             type="button"
             onClick={() => copiar(campo.chave, String(campo.valor))}
             aria-label={`Copiar ${campo.rotulo}`}
-            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
+            title={`Copiar ${campo.rotulo}`}
+            className="shrink-0 p-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-700 hover:text-navy-900 dark:hover:text-white transition-colors"
           >
             {copiado === campo.chave ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                Copiado
-              </>
+              <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
             ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                Copiar
-              </>
+              <Copy className="w-4 h-4" />
             )}
           </button>
         </div>
       ))}
 
       {cidadeEstado && (
-        <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
+        <p className="pt-2 text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
           O Mercado Livre preenche cidade e estado sozinho pelo CEP. Tem que
           aparecer <strong className="text-navy-900 dark:text-white">{cidadeEstado}</strong> —
           se aparecer outra coisa, o CEP está errado.

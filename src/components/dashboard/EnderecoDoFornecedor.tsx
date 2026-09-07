@@ -207,18 +207,24 @@ export default function EnderecoDoFornecedor() {
         </div>
       )}
 
-      <ul className="mt-4 space-y-3">
+      <ul className="mt-3 space-y-2">
         {enderecos.map((endereco) => {
           const completo = Boolean(endereco.cep && endereco.logradouro);
 
           return (
             <li
               key={endereco.supplier_id}
-              className="rounded-xl border border-gray-200 dark:border-navy-600 p-4"
+              className="rounded-xl border border-gray-200 dark:border-navy-600 px-4 py-3"
             >
-              <p className="font-semibold text-navy-900 dark:text-white">
-                {endereco.fornecedor}
-              </p>
+              {/* O nome só aparece quando há mais de um fornecedor. Com um só,
+                  ele não distingue nada — e ocupa uma linha inteira dizendo o
+                  que o vendedor já sabe. Com dois, sem ele não dá para saber
+                  qual endereço é de quem. */}
+              {enderecos.length > 1 && (
+                <p className="font-semibold text-navy-900 dark:text-white mb-1">
+                  {endereco.fornecedor}
+                </p>
+              )}
 
               {completo ? (
                 <EnderecoParaCopiar
