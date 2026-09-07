@@ -213,12 +213,20 @@ export default function EnderecoDoFornecedor() {
 
   const conferiu = Boolean(cepNoMercadoLivre || origemNoMercadoLivre?.cidade);
 
-  // Declarou depois daquele envio: o retrato é anterior à correção, e acusar
-  // erro agora seria acusar um erro já consertado.
+  // Declarou depois daquele envio — ou antes de existir envio nenhum.
+  //
+  // Nos dois casos não há o que a conferência possa provar agora, e insistir no
+  // alerta seria cobrar de quem já fez a parte dele. Quem nunca vendeu cai
+  // aqui pelo caminho de baixo: não há retrato para comparar, e esperar a
+  // primeira venda para reconhecer o trabalho dele seria absurdo.
+  const declarouDepoisDoEnvio = Boolean(
+    declaradaEm && envioEm && new Date(declaradaEm) > new Date(envioEm)
+  );
+
   const esperandoProximaVenda =
-    conferiu &&
     !jaConfigurado &&
-    Boolean(declaradaEm && envioEm && new Date(declaradaEm) > new Date(envioEm));
+    Boolean(declaradaEm) &&
+    (declarouDepoisDoEnvio || motivo === 'sem_envio');
 
   const origemEmTexto = [origemNoMercadoLivre?.cidade, origemNoMercadoLivre?.estado]
     .filter(Boolean)
@@ -251,8 +259,8 @@ export default function EnderecoDoFornecedor() {
           <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
 
           <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-            Você marcou como configurado. A próxima venda confirma — o envio
-            anterior guarda o endereço antigo e não muda mais.
+            Você marcou como configurado. A primeira venda confirma — só o
+            envio revela de onde a encomenda saiu de verdade.
           </p>
         </div>
       ) : jaConfigurado ? (
@@ -294,14 +302,18 @@ export default function EnderecoDoFornecedor() {
 
             {/* Sai do alerta sem esperar a próxima venda. Ver
                 `marcarComoCorrigido`. */}
-            {conferiu && enderecos[0]?.cep && (
+            {(conferiu || motivo === 'sem_envio') && enderecos[0]?.cep && (
               <button
                 type="button"
                 onClick={() => marcarComoCorrigido(enderecos[0])}
                 disabled={marcando}
                 className="mt-2 mb-1 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-xs font-semibold transition-colors disabled:opacity-50"
               >
-                {marcando ? 'Marcando...' : 'Já corrigi no Mercado Livre'}
+                {marcando
+                  ? 'Marcando...'
+                  : conferiu
+                    ? 'Já corrigi no Mercado Livre'
+                    : 'Já cadastrei no Mercado Livre'}
               </button>
             )}
 
