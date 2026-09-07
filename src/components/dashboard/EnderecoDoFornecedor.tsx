@@ -242,7 +242,7 @@ export default function EnderecoDoFornecedor() {
       <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
         Cadastre este endereço como origem no Mercado Livre, em{' '}
         <strong className="text-navy-900 dark:text-white">
-          Configurações → Preferências de venda → Endereço do Mercado Envios
+          Configurações → Meu perfil → Endereços
         </strong>
         . Suas encomendas saem do galpão do fornecedor, não da sua casa.
       </p>

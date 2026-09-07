@@ -115,7 +115,7 @@ export default function DeclararOrigem({
             <li>
               No Mercado Livre, abra{' '}
               <strong className="text-navy-900 dark:text-white">
-                Configurações → Preferências de venda → Endereço do Mercado Envios
+                Configurações → Meu perfil → Endereços
               </strong>
             </li>
             <li>Cadastre o endereço acima como origem dos seus envios</li>

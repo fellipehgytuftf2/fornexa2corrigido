@@ -9,8 +9,8 @@
 -- devolução vai parar na casa do vendedor, que não tem o que fazer com ela — e
 -- o "parados no CD" que o FORNEXA controla deixa de bater com a realidade.
 --
--- O conserto é no Mercado Livre, em Preferências de venda → Endereço do
--- Mercado Envios, e quem faz é o vendedor. O que faltava era ele TER o
+-- O conserto é no Mercado Livre, em Configurações → Meu perfil → Endereços,
+-- e quem faz é o vendedor. O que faltava era ele TER o
 -- endereço: o FORNEXA mostrava só a cidade do fornecedor, de propósito.
 --
 -- Então o fornecedor passa a cadastrar o endereço completo, e o vendedor

@@ -390,8 +390,8 @@ Deno.serve(async (req: Request) => {
             .filter(Boolean)
             .join('/')}. A etiqueta fica bloqueada até o vendedor corrigir o ` +
           'endereço de origem na conta dele do Mercado Livre. Avise-o: é em ' +
-          'Configurações → Preferências de venda → Endereço do Mercado Envios, ' +
-          'e no FORNEXA o endereço certo está pronto para copiar, em Integrações.',
+          'Configurações → Meu perfil → Endereços, e no FORNEXA o endereço ' +
+          'certo está pronto para copiar, em Integrações.',
         origem_errada: true,
       },
       409
