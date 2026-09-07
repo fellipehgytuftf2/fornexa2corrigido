@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Check, CheckCircle, Copy, MapPin } from 'lucide-react';
+import { AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import EnderecoParaCopiar from './EnderecoParaCopiar';
 
 interface EnderecoDeFornecedor {
   supplier_id: string;
@@ -29,7 +30,6 @@ interface EnderecoDeFornecedor {
  */
 export default function EnderecoDoFornecedor() {
   const [enderecos, setEnderecos] = useState<EnderecoDeFornecedor[]>([]);
-  const [copiado, setCopiado] = useState<string | null>(null);
 
   /**
    * O CEP que o Mercado Livre tem hoje como origem dos envios deste vendedor.
@@ -101,26 +101,6 @@ export default function EnderecoDoFornecedor() {
     carregar();
     conferirNoMercadoLivre();
   }, []);
-
-  const montarTexto = (endereco: EnderecoDeFornecedor) =>
-    [
-      [endereco.logradouro, endereco.numero].filter(Boolean).join(', '),
-      endereco.complemento,
-      endereco.bairro,
-      [endereco.cidade, endereco.estado].filter(Boolean).join('/'),
-      endereco.cep,
-    ]
-      .filter(Boolean)
-      .join(' — ');
-
-  const copiar = async (endereco: EnderecoDeFornecedor) => {
-    await navigator.clipboard.writeText(montarTexto(endereco));
-    setCopiado(endereco.supplier_id);
-    window.setTimeout(
-      () => setCopiado((atual) => (atual === endereco.supplier_id ? null : atual)),
-      2000
-    );
-  };
 
   // Sem produto publicado, não há endereço a configurar ainda.
   if (enderecos.length === 0) {
@@ -241,24 +221,17 @@ export default function EnderecoDoFornecedor() {
               </p>
 
               {completo ? (
-                <>
-                  <p className="text-sm text-gray-600 dark:text-slate-300 mt-1 leading-relaxed">
-                    {montarTexto(endereco)}
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => copiar(endereco)}
-                    className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
-                  >
-                    {copiado === endereco.supplier_id ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                    {copiado === endereco.supplier_id ? 'Copiado' : 'Copiar endereço'}
-                  </button>
-                </>
+                <EnderecoParaCopiar
+                  partes={{
+                    cep: endereco.cep,
+                    logradouro: endereco.logradouro,
+                    numero: endereco.numero,
+                    complemento: endereco.complemento,
+                    bairro: endereco.bairro,
+                    cidade: endereco.cidade,
+                    estado: endereco.estado,
+                  }}
+                />
               ) : (
                 // Diz de quem é o passo que falta, em vez de deixar o vendedor
                 // achando que o sistema está incompleto.

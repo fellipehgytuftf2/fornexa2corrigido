@@ -17,6 +17,7 @@ import { Product } from '../../types';
 import { supabase } from '../../lib/supabase';
 import PublishFlowOverlay from './PublishFlowOverlay';
 import DeclararOrigem from './DeclararOrigem';
+import { type PartesDoEndereco } from './EnderecoParaCopiar';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
   COMISSAO_CLASSICO,
@@ -170,7 +171,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [precisaDeclararOrigem, setPrecisaDeclararOrigem] = useState<{
     supplierId: string;
     fornecedor: string;
-    endereco: string;
+    endereco: PartesDoEndereco;
     cepDoFornecedor: string | null;
     origemNoEnvio: string | null;
   } | null>(null);
@@ -411,7 +412,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         setPrecisaDeclararOrigem({
           supplierId: String(corpoDoErro.supplier_id ?? product.supplierId),
           fornecedor: String(corpoDoErro.fornecedor ?? 'seu fornecedor'),
-          endereco: String(corpoDoErro.endereco_do_fornecedor ?? ''),
+          endereco: (corpoDoErro.endereco_em_partes ?? {}) as PartesDoEndereco,
           cepDoFornecedor: (corpoDoErro.cep_do_fornecedor as string) ?? null,
           origemNoEnvio: (corpoDoErro.origem_no_envio as string) ?? null,
         });

@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Check, Copy, Loader2, MapPin } from 'lucide-react';
+import { AlertTriangle, Loader2, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import EnderecoParaCopiar, { type PartesDoEndereco } from './EnderecoParaCopiar';
 
 interface Props {
   supplierId: string;
   fornecedor: string;
-  endereco: string;
+  endereco: PartesDoEndereco;
   cepDoFornecedor: string | null;
   /** De onde os envios dele saíram, quando já houve venda provando o erro. */
   origemNoEnvio?: string | null;
@@ -51,14 +52,6 @@ export default function DeclararOrigem({
   const [cep, setCep] = useState('');
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-
-  const copiar = async () => {
-    await navigator.clipboard.writeText(endereco);
-    setCopiado(true);
-    window.setTimeout(() => setCopiado(false), 2000);
-  };
-
   const confirmar = async () => {
     setSalvando(true);
     setErro('');
@@ -115,18 +108,7 @@ export default function DeclararOrigem({
           <div className="rounded-xl border border-gray-200 dark:border-navy-600 p-4 mt-4">
             <p className="font-semibold text-navy-900 dark:text-white">{fornecedor}</p>
 
-            <p className="text-sm text-gray-600 dark:text-slate-300 mt-1 leading-relaxed">
-              {endereco}
-            </p>
-
-            <button
-              type="button"
-              onClick={copiar}
-              className="inline-flex items-center gap-2 mt-3 px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
-            >
-              {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiado ? 'Copiado' : 'Copiar endereço'}
-            </button>
+            <EnderecoParaCopiar partes={endereco} />
           </div>
 
           <ol className="mt-4 space-y-2 text-sm text-gray-600 dark:text-slate-300 leading-relaxed list-decimal list-inside">

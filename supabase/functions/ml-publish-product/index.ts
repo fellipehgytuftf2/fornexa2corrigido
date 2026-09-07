@@ -191,6 +191,19 @@ async function conferirRemetente(
   }
 
   const origemEmTexto = [cidadeDeOrigem, estadoDeOrigem].filter(Boolean).join("/");
+
+  // Em partes, e não só na linha montada: o formulário do Mercado Livre pede
+  // CEP, rua, número e bairro em caixas separadas, e recortar texto no meio é
+  // onde o vendedor erra o remetente.
+  const partesDoEndereco = {
+    cep: fornecedor.cep ?? null,
+    logradouro: fornecedor.logradouro ?? null,
+    numero: fornecedor.numero ?? null,
+    complemento: fornecedor.complemento ?? null,
+    bairro: fornecedor.bairro ?? null,
+    cidade: fornecedor.city ?? null,
+    estado: fornecedor.state ?? null,
+  };
   const enderecoDoFornecedor = [
     [fornecedor.logradouro, fornecedor.numero].filter(Boolean).join(", "),
     fornecedor.complemento,
@@ -271,6 +284,7 @@ async function conferirRemetente(
         precisa_declarar_origem: true,
         origem_errada: true,
         origem_no_envio: origemEmTexto,
+        endereco_em_partes: partesDoEndereco,
         supplier_id: fornecedor.id,
         fornecedor: fornecedor.company_name || fornecedor.name,
         endereco_do_fornecedor: enderecoDoFornecedor,
@@ -292,6 +306,7 @@ async function conferirRemetente(
       supplier_id: fornecedor.id,
       fornecedor: fornecedor.company_name || fornecedor.name,
       endereco_do_fornecedor: enderecoDoFornecedor,
+      endereco_em_partes: partesDoEndereco,
       cep_do_fornecedor: fornecedor.cep,
     },
   };
