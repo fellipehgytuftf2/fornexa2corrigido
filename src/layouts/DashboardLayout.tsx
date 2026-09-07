@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import AvisoDoSistema from '../components/dashboard/AvisoDoSistema';
 import {
   AlertCircle,
   DollarSign,
@@ -501,6 +502,12 @@ export default function DashboardLayout() {
               : <Outlet />}
         </main>
       </div>
+
+      {/* Fora do <main> e por portal: é um recado do FORNEXA sobre a conta,
+          não conteúdo da tela em que a pessoa está. Aparece uma vez, em
+          qualquer página do painel — quem precisa ser avisado do endereço de
+          remetente raramente abre Integrações por conta própria. */}
+      <AvisoDoSistema />
     </div>
   );
 }
