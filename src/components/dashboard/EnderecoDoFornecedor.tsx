@@ -61,6 +61,20 @@ export default function EnderecoDoFornecedor() {
    * só: "ainda não conseguimos conferir". Quem lia não descobria o que fazer,
    * e a função já sabia a resposta desde sempre.
    */
+  /**
+   * Quando o vendedor declarou que arrumou, e quando saiu o envio conferido.
+   *
+   * A origem do envio é um retrato congelado: o Mercado Livre a grava na hora
+   * da venda e ela nunca muda. Sem estas duas datas, quem corrigisse o
+   * endereço continuaria vendo "suas etiquetas ainda saem do seu endereço"
+   * para sempre — e concluiria, com razão, que corrigir não adiantou.
+   */
+  const [declaradaEm, setDeclaradaEm] = useState<string | null>(null);
+  const [envioEm, setEnvioEm] = useState<string | null>(null);
+
+  const [marcando, setMarcando] = useState(false);
+  const [erroAoMarcar, setErroAoMarcar] = useState('');
+
   const [motivo, setMotivo] = useState<
     'sem_conexao' | 'precisa_reconectar' | 'sem_envio' | 'ml_nao_respondeu' | null
   >(null);
@@ -89,7 +103,12 @@ export default function EnderecoDoFornecedor() {
         precisa_reconectar?: boolean;
         erro_de_leitura?: boolean;
         sem_endereco_na_resposta?: boolean;
+        envio_em?: string | null;
       }>('ml-endereco-de-envio');
+
+      if (data?.envio_em) {
+        setEnvioEm(data.envio_em);
+      }
 
       if (!data?.conectado) {
         setMotivo(data?.precisa_reconectar ? 'precisa_reconectar' : 'sem_conexao');
@@ -118,9 +137,51 @@ export default function EnderecoDoFornecedor() {
       }
     };
 
+    const lerDeclaracao = async () => {
+      const { data } = await supabase
+        .from('origem_declarada')
+        .select('declarada_em')
+        .maybeSingle();
+
+      setDeclaradaEm((data?.declarada_em as string) ?? null);
+    };
+
     carregar();
     conferirNoMercadoLivre();
+    lerDeclaracao();
   }, []);
+
+  /**
+   * "Já corrigi no Mercado Livre".
+   *
+   * Precisa existir porque a conferência não consegue ver a correção: ela lê o
+   * último envio, que é anterior a ela. Sem este botão o vendedor arrumaria
+   * tudo e continuaria vendo o alerta até a próxima venda, sem nada a fazer
+   * além de esperar sem saber por quê.
+   *
+   * Não é ele quem decide se está certo — a próxima venda decide. Isto só
+   * troca o alarme por "aguardando confirmação", e fica registrado.
+   */
+  const marcarComoCorrigido = async (endereco: EnderecoDeFornecedor) => {
+    setMarcando(true);
+    setErroAoMarcar('');
+
+    const { data, error } = await supabase.rpc('declarar_origem', {
+      p_supplier_id: endereco.supplier_id,
+      p_cep: endereco.cep,
+    });
+
+    setMarcando(false);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      setErroAoMarcar(error?.message ?? resposta?.erro ?? 'Não foi possível marcar.');
+      return;
+    }
+
+    setDeclaradaEm(new Date().toISOString());
+  };
 
   // Sem produto publicado, não há endereço a configurar ainda.
   if (enderecos.length === 0) {
@@ -152,6 +213,13 @@ export default function EnderecoDoFornecedor() {
 
   const conferiu = Boolean(cepNoMercadoLivre || origemNoMercadoLivre?.cidade);
 
+  // Declarou depois daquele envio: o retrato é anterior à correção, e acusar
+  // erro agora seria acusar um erro já consertado.
+  const esperandoProximaVenda =
+    conferiu &&
+    !jaConfigurado &&
+    Boolean(declaradaEm && envioEm && new Date(declaradaEm) > new Date(envioEm));
+
   const origemEmTexto = [origemNoMercadoLivre?.cidade, origemNoMercadoLivre?.estado]
     .filter(Boolean)
     .join('/');
@@ -175,7 +243,19 @@ export default function EnderecoDoFornecedor() {
           Mercado Livre tem hoje como origem e compara. Sem isso o erro só
           apareceria na primeira etiqueta impressa — quando já não dá para
           mudar aquele envio. */}
-      {jaConfigurado ? (
+      {esperandoProximaVenda ? (
+        /* Nem verde nem alarme: o vendedor diz que arrumou e o único juiz é a
+           próxima venda. Dizer "está certo" seria acreditar sem prova; repetir
+           o alerta seria acusar um erro que ele já pode ter consertado. */
+        <div className="flex items-start gap-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-4 py-3 mt-4">
+          <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+
+          <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
+            Você marcou como configurado. A próxima venda confirma — o envio
+            anterior guarda o endereço antigo e não muda mais.
+          </p>
+        </div>
+      ) : jaConfigurado ? (
         <div className="flex items-start gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 mt-4">
           <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
 
@@ -211,6 +291,25 @@ export default function EnderecoDoFornecedor() {
                 'O Mercado Livre não informou de onde seu último envio saiu, então não deu para conferir. Configure mesmo assim.'
               )}
             </p>
+
+            {/* Sai do alerta sem esperar a próxima venda. Ver
+                `marcarComoCorrigido`. */}
+            {conferiu && enderecos[0]?.cep && (
+              <button
+                type="button"
+                onClick={() => marcarComoCorrigido(enderecos[0])}
+                disabled={marcando}
+                className="mt-2 mb-1 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                {marcando ? 'Marcando...' : 'Já corrigi no Mercado Livre'}
+              </button>
+            )}
+
+            {erroAoMarcar && (
+              <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                {erroAoMarcar}
+              </p>
+            )}
 
             <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed mt-1">
               {conferiu ? (

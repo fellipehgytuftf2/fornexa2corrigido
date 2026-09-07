@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
   // realmente usado — o que interessa, e não o que está cadastrado em tese.
   const { data: pedido } = await admin
     .from('orders')
-    .select('ml_shipment_id')
+    .select('ml_shipment_id, created_at')
     .eq('user_id', user.id)
     .not('ml_shipment_id', 'is', null)
     .order('created_at', { ascending: false })
@@ -239,6 +239,13 @@ Deno.serve(async (req: Request) => {
 
   return json({
     conectado: true,
+
+    // Quando aquele envio saiu. A tela precisa disto para saber se o vendedor
+    // já corrigiu o endereço DEPOIS dele: a origem do envio é um retrato
+    // congelado no momento da venda e nunca muda, então sem a data a tela
+    // acusaria para sempre um erro já consertado.
+    envio_em: (antigo.envio?.date_created as string) ?? pedido.created_at ?? null,
+
     cep: achado.cep,
     cidade: nomeDe(achado.endereco?.city),
     estado: nomeDe(achado.endereco?.state),
