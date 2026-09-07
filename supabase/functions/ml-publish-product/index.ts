@@ -87,6 +87,43 @@ function montarFotos(body: PublishBody): { source: string }[] {
   return semRepetir.map((source) => ({ source }));
 }
 
+/**
+ * Procura no nome do produto uma medida na unidade que a categoria aceita.
+ *
+ * Atributo de medida — "Capacidade em volume", "Peso", "Comprimento" — é o que
+ * mais barra publicação, e chutar valor ali seria enganar o comprador. Mas na
+ * maioria dos casos a medida está escrita no próprio nome: "Copo Térmico 473ml
+ * Com Tampa". Ler dali não é chute; é o que o fornecedor informou.
+ *
+ * Exige que o número esteja COLADO na unidade ("473ml", "473 ml") e que só
+ * exista um valor possível. Duas medidas diferentes no mesmo nome — "Kit 2
+ * copos 300ml e 500ml" — devolvem nada, e o vendedor decide.
+ */
+function medidaNoTexto(
+  texto: string,
+  unidadesPermitidas: { id?: string; name?: string }[]
+): string | null {
+  const unidades = unidadesPermitidas
+    .map((unidade) => String(unidade?.name ?? unidade?.id ?? "").trim())
+    .filter((unidade) => unidade.length > 0);
+
+  if (unidades.length === 0) return null;
+
+  const achados = new Set<string>();
+
+  for (const unidade of unidades) {
+    // Unidade como palavra inteira: "ml" não pode casar dentro de "mlb".
+    const escapada = unidade.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const padrao = new RegExp("(\\d+(?:[.,]\\d+)?)\\s*" + escapada + "\\b", "gi");
+
+    for (const casado of texto.matchAll(padrao)) {
+      achados.add(`${casado[1].replace(",", ".")} ${unidade}`);
+    }
+  }
+
+  return achados.size === 1 ? [...achados][0] : null;
+}
+
 /** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
 function nomeDe(valor: unknown): string | null {
   if (typeof valor === "string") return valor || null;
@@ -840,8 +877,26 @@ Deno.serve(async (req: Request) => {
           continue;
         }
 
-        // Caso 4: número, medida ou sim/não. Aqui chutar é pior do que parar:
-        // um peso ou uma voltagem errada no anúncio engana o comprador.
+        // Caso 4: medida cujo valor está escrito no nome do produto.
+        //
+        // "Copo Térmico 473ml Com Tampa" responde "Capacidade em volume"
+        // sozinho. Isto não é chutar: é ler o que o fornecedor informou, na
+        // unidade que a própria categoria declara aceitar.
+        if (Array.isArray(attr?.allowed_units) && attr.allowed_units.length > 0) {
+          const medida = medidaNoTexto(
+            `${body.name ?? ""} ${body.announcement_title ?? ""}`,
+            attr.allowed_units
+          );
+
+          if (medida) {
+            itemAttributes.push({ id: attr.id, value_name: medida });
+            continue;
+          }
+        }
+
+        // Caso 5: número, medida ou sim/não que não deu para descobrir. Aqui
+        // chutar é pior do que parar: um peso ou uma voltagem errada no
+        // anúncio engana o comprador.
         unresolvedRequiredAttributes.push(attr.name ?? attr.id);
       }
     }
