@@ -593,46 +593,27 @@ export default function Integrations() {
                   oficial.
                 </p>
 
+                {/* O Mercado Livre não pergunta em qual conta conectar: aprova
+                    sozinho a que já estiver logada no navegador. Quem tem duas
+                    contas conecta a errada, e ao tentar de novo conecta a
+                    errada outra vez — parece defeito do FORNEXA e é sessão do
+                    navegador. Não existe parâmetro na API deles para forçar a
+                    escolha.
+
+                    Já teve aviso aqui, primeiro em amarelo, depois em cinza.
+                    Os dois ficaram feios num cartão que é só um botão, para
+                    tratar de um caso que atinge a minoria. Enquanto não houver
+                    lugar melhor, isto vive no suporte: janela anônima resolve,
+                    e é o que se responde a quem perguntar. */}
                 {!mercadoLivreConnected && (
-                  <>
-                    {/* O Mercado Livre não pergunta em qual conta conectar: ele
-                        aprova sozinho a que já estiver logada neste navegador.
-                        Quem tem duas contas conecta a errada, e ao tentar de
-                        novo conecta a errada outra vez — parece defeito do
-                        FORNEXA e é sessão do navegador.
-
-                        Não existe parâmetro na API deles para forçar a
-                        escolha. O que resta é avisar no único momento em que o
-                        aviso serve: antes do clique.
-
-                        Uma linha de rodapé, e não um alerta amarelo: isto vale
-                        para quem tem duas contas, que é a minoria. Gritar com
-                        todo mundo por causa dela deixa a tela feia e ensina a
-                        ignorar aviso amarelo — que é o mesmo usado quando o
-                        remetente está errado, e ali gritar é preciso. */}
-                    <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-                      Conecta a conta que estiver aberta neste navegador. Se
-                      você tem mais de uma,{' '}
-                      <a
-                        href="https://www.mercadolivre.com.br/jms/mlb/lgz/logout"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="underline underline-offset-2 hover:text-navy-900 dark:hover:text-white"
-                      >
-                        saia do Mercado Livre
-                      </a>{' '}
-                      antes.
-                    </p>
-
-                    <button
-                      onClick={handleConnectMercadoLivre}
-                      disabled={saving}
-                      className="inline-flex items-center justify-center gap-2 mt-3 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-medium transition-colors disabled:opacity-60"
-                    >
-                      <Link2 className="w-4 h-4" />
-                      {saving ? 'Redirecionando...' : 'Conectar'}
-                    </button>
-                  </>
+                  <button
+                    onClick={handleConnectMercadoLivre}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center gap-2 mt-4 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-medium transition-colors disabled:opacity-60"
+                  >
+                    <Link2 className="w-4 h-4" />
+                    {saving ? 'Redirecionando...' : 'Conectar'}
+                  </button>
                 )}
               </div>
 
