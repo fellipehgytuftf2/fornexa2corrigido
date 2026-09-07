@@ -291,6 +291,24 @@ export default function SupplierPortal() {
    */
   const idsConhecidos = useRef<Set<string> | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  /**
+   * O erro de uma ação de pedido, no pedido que a causou.
+   *
+   * A faixa de erro fica no topo da página. Quem separa pedido trabalha no
+   * fim de uma lista longa: clicava em "Baixar etiqueta", nada acontecia, e a
+   * explicação estava a três rolagens de distância — invisível.
+   *
+   * Erro de ação pertence ao lugar onde a ação foi pedida. O topo continua
+   * servindo ao que é da página inteira, como falha ao carregar os pedidos.
+   */
+  const [erroNoPedido, setErroNoPedido] = useState<{
+    id: string;
+    mensagem: string;
+  } | null>(null);
+
+  const avisarNoPedido = (id: string, mensagem: string) =>
+    setErroNoPedido({ id, mensagem });
   const [successMessage, setSuccessMessage] = useState('');
 
   /**
@@ -471,7 +489,7 @@ export default function SupplierPortal() {
     oQueE: string
   ) => {
     setLabelId(order.id);
-    setErrorMessage('');
+    setErroNoPedido(null);
 
     const { data, error } = await supabase.functions.invoke<Blob>(funcao, {
       body: { pedido_id: order.id },
@@ -495,7 +513,7 @@ export default function SupplierPortal() {
         }
       }
 
-      setErrorMessage(specificMessage ?? `Não foi possível buscar ${oQueE}.`);
+      avisarNoPedido(order.id, specificMessage ?? `Não foi possível buscar ${oQueE}.`);
       return;
     }
 
@@ -503,7 +521,8 @@ export default function SupplierPortal() {
     const aberta = window.open(url, '_blank', 'noopener,noreferrer');
 
     if (!aberta) {
-      setErrorMessage(
+      avisarNoPedido(
+        order.id,
         `O navegador bloqueou a janela ${oQueE === 'a etiqueta' ? 'da etiqueta' : 'do DACE'}. Libere pop-ups para este site e tente de novo.`
       );
     }
@@ -532,7 +551,7 @@ export default function SupplierPortal() {
    */
   const enviarProblema = async (order: SupplierOrder) => {
     setEnviandoProblema(true);
-    setErrorMessage('');
+    setErroNoPedido(null);
 
     const { error } = await supabase.rpc('fornecedor_relata_problema', {
       p_pedido_id: order.id,
@@ -543,7 +562,7 @@ export default function SupplierPortal() {
 
     if (error) {
       console.error('Erro ao relatar problema:', error);
-      setErrorMessage(error.message);
+      avisarNoPedido(order.id, error.message);
       return;
     }
 
@@ -555,7 +574,7 @@ export default function SupplierPortal() {
 
   const updateStatus = async (order: SupplierOrder, nextStatus: OrderStatus) => {
     setActionId(order.id);
-    setErrorMessage('');
+    setErroNoPedido(null);
 
     // A função valida dono e transição no banco. O fornecedor não consegue
     // dar UPDATE em `orders` de forma alguma.
@@ -568,7 +587,7 @@ export default function SupplierPortal() {
 
     if (error) {
       console.error('Erro ao atualizar pedido:', error);
-      setErrorMessage(`Não foi possível atualizar o pedido: ${error.message}`);
+      avisarNoPedido(order.id, `Não foi possível atualizar o pedido: ${error.message}`);
       return;
     }
 
@@ -596,7 +615,7 @@ export default function SupplierPortal() {
    * na hora, para quem tem direito, e vale poucos minutos.
    */
   const abrirComprovante = async (order: SupplierOrder) => {
-    setErrorMessage('');
+    setErroNoPedido(null);
 
     const { data, error } = await supabase.functions.invoke<{ url?: string }>(
       'comprovante-link',
@@ -604,7 +623,7 @@ export default function SupplierPortal() {
     );
 
     if (error || !data?.url) {
-      setErrorMessage('Não foi possível abrir o comprovante.');
+      avisarNoPedido(order.id, 'Não foi possível abrir o comprovante.');
       return;
     }
 
@@ -1245,6 +1264,20 @@ export default function SupplierPortal() {
                           </button>
                         )}
                       </div>
+                      )}
+
+                      {/* O erro fica onde o botão está. Ver `erroNoPedido`. */}
+                      {erroNoPedido?.id === order.id && (
+                        <div className="mt-3 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+                          <AlertCircle
+                            className="w-4 h-4 text-red-400 shrink-0 mt-0.5"
+                            aria-hidden="true"
+                          />
+
+                          <p className="text-sm text-red-200 leading-relaxed">
+                            {erroNoPedido.mensagem}
+                          </p>
+                        </div>
                       )}
 
                       {problemaPedidoId === order.id && (
