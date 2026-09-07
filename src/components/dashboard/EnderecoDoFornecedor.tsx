@@ -53,8 +53,17 @@ export default function EnderecoDoFornecedor() {
     estado: string | null;
   } | null>(null);
 
-  /** Antes da primeira venda não há envio para consultar. Não é erro: é cedo. */
-  const [semEnvioAinda, setSemEnvioAinda] = useState(false);
+  /**
+   * Por que a conferência não aconteceu, quando não aconteceu.
+   *
+   * São situações diferentes com providências diferentes — conectar a conta,
+   * reconectar, esperar a primeira venda —, e a tela juntava todas numa frase
+   * só: "ainda não conseguimos conferir". Quem lia não descobria o que fazer,
+   * e a função já sabia a resposta desde sempre.
+   */
+  const [motivo, setMotivo] = useState<
+    'sem_conexao' | 'precisa_reconectar' | 'sem_envio' | 'ml_nao_respondeu' | null
+  >(null);
 
   useEffect(() => {
     const carregar = async () => {
@@ -77,14 +86,25 @@ export default function EnderecoDoFornecedor() {
         cidade?: string | null;
         estado?: string | null;
         sem_envio_ainda?: boolean;
+        precisa_reconectar?: boolean;
+        erro_de_leitura?: boolean;
+        sem_endereco_na_resposta?: boolean;
       }>('ml-endereco-de-envio');
 
-      if (data?.sem_envio_ainda) {
-        setSemEnvioAinda(true);
+      if (!data?.conectado) {
+        setMotivo(data?.precisa_reconectar ? 'precisa_reconectar' : 'sem_conexao');
         return;
       }
 
-      if (!data?.conectado) return;
+      if (data.sem_envio_ainda) {
+        setMotivo('sem_envio');
+        return;
+      }
+
+      if (data.erro_de_leitura || data.sem_endereco_na_resposta) {
+        setMotivo('ml_nao_respondeu');
+        return;
+      }
 
       if (data.cep) {
         setCepNoMercadoLivre(data.cep);
@@ -181,10 +201,14 @@ export default function EnderecoDoFornecedor() {
                     </>
                   )}
                 </>
-              ) : semEnvioAinda ? (
+              ) : motivo === 'sem_envio' ? (
                 'Configure agora: a conferência só é possível depois da primeira venda, e aí já é tarde para aquele envio.'
+              ) : motivo === 'sem_conexao' ? (
+                'Conecte sua conta do Mercado Livre aqui em Integrações — sem ela não dá para conferir de onde seus envios saem.'
+              ) : motivo === 'precisa_reconectar' ? (
+                'Sua conexão com o Mercado Livre expirou. Reconecte aqui em Integrações para podermos conferir.'
               ) : (
-                'Ainda não conseguimos conferir seu endereço no Mercado Livre.'
+                'O Mercado Livre não informou de onde seu último envio saiu, então não deu para conferir. Configure mesmo assim.'
               )}
             </p>
 
