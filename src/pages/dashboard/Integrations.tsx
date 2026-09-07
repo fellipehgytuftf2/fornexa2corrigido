@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle,
-  ExternalLink,
   Link2,
   RefreshCw,
   Unplug,
@@ -603,26 +602,27 @@ export default function Integrations() {
                         FORNEXA e é sessão do navegador.
 
                         Não existe parâmetro na API deles para forçar a
-                        escolha; procurei. O que resta é avisar no único
-                        momento em que o aviso serve: antes do clique. */}
-                    <div className="mt-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
-                      <p className="text-sm text-amber-800 dark:text-amber-300 leading-relaxed">
-                        <strong>Tem mais de uma conta no Mercado Livre?</strong>{' '}
-                        Ele conecta sozinho a conta que estiver aberta neste
-                        navegador, sem perguntar. Saia dela primeiro, ou use uma
-                        janela anônima.
-                      </p>
+                        escolha. O que resta é avisar no único momento em que o
+                        aviso serve: antes do clique.
 
+                        Uma linha de rodapé, e não um alerta amarelo: isto vale
+                        para quem tem duas contas, que é a minoria. Gritar com
+                        todo mundo por causa dela deixa a tela feia e ensina a
+                        ignorar aviso amarelo — que é o mesmo usado quando o
+                        remetente está errado, e ali gritar é preciso. */}
+                    <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
+                      Conecta a conta que estiver aberta neste navegador. Se
+                      você tem mais de uma,{' '}
                       <a
                         href="https://www.mercadolivre.com.br/jms/mlb/lgz/logout"
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 mt-2 text-sm font-semibold text-amber-900 dark:text-amber-200 underline underline-offset-2"
+                        className="underline underline-offset-2 hover:text-navy-900 dark:hover:text-white"
                       >
-                        Sair do Mercado Livre
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
+                        saia do Mercado Livre
+                      </a>{' '}
+                      antes.
+                    </p>
 
                     <button
                       onClick={handleConnectMercadoLivre}
