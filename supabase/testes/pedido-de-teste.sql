@@ -68,6 +68,7 @@ insert into public.orders (
   product_name, product_image_url,
   customer_name, customer_email, customer_phone, customer_address,
   supplier_price, sale_price, profit, quantidade,
+  taxa_embalagem,
   status, marketplace
 )
 select
@@ -76,6 +77,13 @@ select
   'Comprador de Teste', 'teste@exemplo.com', '00000000000',
   'Rua de Teste, 1, Cidade de Teste, SP',
   10.00, 25.00, 15.00, 1,
+
+  -- A embalagem que o fornecedor cobra hoje, congelada no pedido — é o que a
+  -- venda real faz. Sem esta linha o pedido de teste nascia com zero e o
+  -- repasse aparecia menor do que apareceria de verdade, o que faz o teste
+  -- do pagamento aprovar um valor errado.
+  (select coalesce(taxa_embalagem, 0) from public.suppliers s where s.id = alvo.fornecedor),
+
   'pending', 'Mercado Livre'
 from alvo
 -- Sem os dois, não insere nada em vez de inserir um pedido órfão. `0 rows`
