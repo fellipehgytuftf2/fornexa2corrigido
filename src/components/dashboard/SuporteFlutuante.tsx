@@ -28,12 +28,30 @@ export default function SuporteFlutuante() {
   const [naoLidas, setNaoLidas] = useState(0);
 
   useEffect(() => {
+    let vivo = true;
+    let papelAdmin = false;
+
+    /**
+     * Quantas mensagens esperam por quem está olhando.
+     *
+     * Para o admin, conversas sem resposta. Para o resto, respostas que ele
+     * ainda não leu. São perguntas diferentes com o mesmo destino: o número
+     * vermelho no balão.
+     */
+    const contar = async () => {
+      const { data } = await supabase.rpc(
+        papelAdmin ? 'suporte_esperando' : 'suporte_nao_lidas'
+      );
+
+      if (vivo) setNaoLidas(Number(data ?? 0));
+    };
+
     const conferir = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user || !vivo) return;
 
       const { data: perfil } = await supabase
         .from('profiles')
@@ -41,16 +59,35 @@ export default function SuporteFlutuante() {
         .eq('id', user.id)
         .maybeSingle<{ role: string | null }>();
 
-      const admin = perfil?.role === 'admin';
-      setEhAdmin(admin);
+      if (!vivo) return;
 
-      if (!admin) {
-        const { data } = await supabase.rpc('suporte_nao_lidas');
-        setNaoLidas(Number(data ?? 0));
-      }
+      papelAdmin = perfil?.role === 'admin';
+      setEhAdmin(papelAdmin);
+
+      await contar();
     };
 
     conferir();
+
+    // De minuto em minuto. Não é conversa em tempo real — é aviso de que
+    // alguém está esperando, e um minuto de atraso nisso não muda nada. Com
+    // tempo real seria uma conexão aberta por aba, o dia todo, para mostrar um
+    // algarismo que quase sempre é zero.
+    const relogio = window.setInterval(contar, 60000);
+
+    // Voltar para a aba confere na hora: quem passou meia hora no Mercado
+    // Livre volta querendo saber o que chegou, não esperar o próximo minuto.
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') contar();
+    };
+
+    document.addEventListener('visibilitychange', aoVoltar);
+
+    return () => {
+      vivo = false;
+      window.clearInterval(relogio);
+      document.removeEventListener('visibilitychange', aoVoltar);
+    };
   }, []);
 
   // Enquanto não se sabe o papel, não aparece: um balão que troca de conteúdo
@@ -114,7 +151,7 @@ export default function SuporteFlutuante() {
       >
         {aberto ? <X className="w-6 h-6" /> : <Headset className="w-6 h-6" />}
 
-        {!aberto && naoLidas > 0 && (
+        {(!aberto || ehAdmin) && naoLidas > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center tabular-nums">
             {naoLidas}
           </span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle, Plus, Ticket, Truck } from 'lucide-react';
+import { AlertCircle, CheckCircle, Info, Plus, Ticket, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 
@@ -310,6 +310,33 @@ export default function Tickets() {
 
   return (
     <div className="space-y-6">
+      {/* Para que serve isto aqui.
+          
+          As pessoas estavam abrindo chamado para falar com o suporte, e o
+          chamado vai para o Portal do FORNECEDOR — que passava a ler pergunta
+          sobre cobrança e senha, coisas que não são dele e que ele não pode
+          resolver. Dizer a diferença no lugar onde a confusão acontece custa
+          duas frases. */}
+      <div className="rounded-xl border border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-800/60 px-5 py-4">
+        <p className="text-sm text-navy-900 dark:text-white font-semibold flex items-center gap-2">
+          <Info className="w-4 h-4 text-gold" aria-hidden="true" />
+          Chamado é sobre um pedido — e quem lê é o fornecedor
+        </p>
+
+        <p className="text-sm text-gray-600 dark:text-slate-300 mt-1.5 leading-relaxed">
+          Produto errado, atraso na separação, avaria, dúvida sobre um envio:
+          abra o chamado no pedido e o fornecedor é avisado.
+        </p>
+
+        <p className="text-sm text-gray-600 dark:text-slate-300 mt-1.5 leading-relaxed">
+          Dúvida sobre o sistema, sua conta, plano ou cobrança{' '}
+          <strong className="text-navy-900 dark:text-white">não</strong> é
+          chamado: fale com a gente pelo botão de suporte, no canto inferior
+          direito da tela. Aqui o fornecedor leria uma pergunta que não é dele e
+          que ele não pode resolver.
+        </p>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
