@@ -10,6 +10,7 @@ interface Props {
     quantidade: number | null;
     taxa_embalagem: number | null;
     pago_ao_fornecedor_em: string | null;
+    recebimento_confirmado_em: string | null;
     comprovante_path: string | null;
     repasse_id: string | null;
   };
@@ -68,6 +69,15 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
   const cobrancaAberta = Boolean(order.repasse_id) || copiado;
   const temComprovante = Boolean(order.comprovante_path);
   const pago = Boolean(order.pago_ao_fornecedor_em);
+
+  /**
+   * O fornecedor conferiu e confirmou. Daqui não se mexe mais.
+   *
+   * Enquanto dava para trocar o comprovante depois disso, o vendedor podia
+   * conferir um arquivo e guardar outro — e a tela seguiria dizendo
+   * "confirmado" sobre um comprovante que ninguém viu.
+   */
+  const fechado = Boolean(order.recebimento_confirmado_em);
 
   /**
    * Qual dos três é o passo de agora.
@@ -278,7 +288,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
           <button
             type="button"
             onClick={copiarPix}
-            disabled={ocupado || pago}
+            disabled={ocupado || pago || fechado}
             className={
               copiado
                 ? 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-50'
@@ -292,6 +302,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
           </button>
         )}
 
+        {!fechado && (
         <button
           type="button"
           onClick={() => seletorDeArquivo.current?.click()}
@@ -310,7 +321,9 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
           )}
           {temComprovante ? 'Trocar comprovante' : 'Enviar comprovante'}
         </button>
+        )}
 
+        {!fechado && (
         <button
           type="button"
           onClick={alternarPago}
@@ -324,6 +337,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
         >
           {pago ? 'Desmarcar pagamento' : 'Marcar como pago'}
         </button>
+        )}
 
         {temComprovante && (
           <button
@@ -338,6 +352,18 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
 
       {/* Diz onde termina a preparação e começa o compromisso. Sem isto, o
           vendedor não tem como saber que copiar e anexar são passos privados. */}
+      {/* Botão que some sem explicação parece defeito. Aqui sumiram três, e o
+          motivo é o oposto de defeito: o acerto fechou. */}
+      {fechado && (
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+          O fornecedor confirmou que recebeu em{' '}
+          {new Date(order.recebimento_confirmado_em as string).toLocaleDateString('pt-BR')}
+          . O pagamento está fechado — o comprovante continua aqui, mas não dá
+          mais para trocá-lo nem desmarcar. Se houve engano, fale com o
+          fornecedor.
+        </p>
+      )}
+
       {!pago && (
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
           {temComprovante

@@ -631,6 +631,13 @@ export default function SupplierPortal() {
     window.open(data.url, '_blank', 'noopener,noreferrer');
   };
 
+  /**
+   * O fornecedor confirma que recebeu. Não há caminho de volta.
+   *
+   * O nome ficou de quando havia: hoje só confirma. Ver a migração
+   * 20260908180000 — o banco também recusa desfazer, porque a tela não é a
+   * única porta.
+   */
   const alternarRecebimento = async (order: SupplierOrder) => {
     setConfirmandoId(order.id);
     setErroNoPedido(null);
@@ -1037,20 +1044,25 @@ export default function SupplierPortal() {
                               o recebimento de um pagamento que ninguém disse ter
                               feito é a única forma de o carimbo do fornecedor
                               perder o valor que ele tem. */}
-                          <button
-                            onClick={() => alternarRecebimento(order)}
-                            disabled={confirmandoId === order.id}
-                            hidden={!order.pago_em && !order.recebimento_confirmado_em}
-                            className={
-                              order.recebimento_confirmado_em
-                                ? 'rounded-lg border border-white/15 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 disabled:opacity-50'
-                                : 'rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover disabled:opacity-50'
-                            }
-                          >
-                            {order.recebimento_confirmado_em
-                              ? 'Desfazer'
-                              : 'Confirmar recebimento'}
-                          </button>
+                          {/* Confirmado, não há mais botão.
+                              
+                              Confirmar libera mercadoria do outro lado e fecha
+                              a conversa sobre aquele dinheiro. Um "Desfazer"
+                              ali convidava a reabrir o que a outra parte já
+                              deu por encerrado — e era a mesma porta que
+                              deixava o comprovante ser trocado depois de
+                              conferido. Engano raro vira conversa; isso é o
+                              custo certo. */}
+                          {!order.recebimento_confirmado_em && (
+                            <button
+                              onClick={() => alternarRecebimento(order)}
+                              disabled={confirmandoId === order.id}
+                              hidden={!order.pago_em}
+                              className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover disabled:opacity-50"
+                            >
+                              Confirmar recebimento
+                            </button>
+                          )}
                         </div>
                       </div>
 

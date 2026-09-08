@@ -61,6 +61,7 @@ interface Order {
   custos_apurados_em: string | null;
   pago_ao_fornecedor_em: string | null;
   comprovante_path: string | null;
+  recebimento_confirmado_em: string | null;
   repasse_id: string | null;
   status: OrderStatus;
   tracking_code: string | null;
@@ -359,6 +360,7 @@ export default function Orders() {
         custos_apurados_em,
         pago_ao_fornecedor_em,
         comprovante_path,
+        recebimento_confirmado_em,
         repasse_id,
         status,
         tracking_code,
