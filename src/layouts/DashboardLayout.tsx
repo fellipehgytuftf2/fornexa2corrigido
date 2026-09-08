@@ -5,6 +5,7 @@ import {
   AlertCircle,
   DollarSign,
   LayoutDashboard,
+  Headset,
   LifeBuoy,
   Link2,
   LogOut,
@@ -64,6 +65,11 @@ const navigationItems: NavigationItem[] = [
     path: '/dashboard/tickets',
     label: 'Chamados',
     icon: LifeBuoy,
+  },
+  {
+    path: '/dashboard/suporte',
+    label: 'Suporte',
+    icon: Headset,
   },
   // Tutoriais (/dashboard/tutorials) e Ferramentas (/dashboard/tools) estão
   // fora do menu por decisão do produto. As rotas continuam de pé e as telas

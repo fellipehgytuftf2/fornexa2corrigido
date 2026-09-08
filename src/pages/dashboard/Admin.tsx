@@ -27,6 +27,7 @@ import RepassesAdmin from '../../components/dashboard/RepassesAdmin';
 import ModalPortal from '../../components/ui/modal-portal';
 import AcessosAdmin from '../../components/dashboard/AcessosAdmin';
 import AvisosAdmin from '../../components/dashboard/AvisosAdmin';
+import SuporteAdmin from '../../components/dashboard/SuporteAdmin';
 import AfiliadosAdmin from '../../components/dashboard/AfiliadosAdmin';
 import {
   CSV_MODELO,
@@ -2062,6 +2063,8 @@ export default function Admin() {
           </div>
         </ModalPortal>
       )}
+
+      <SuporteAdmin />
 
       <AvisosAdmin />
 

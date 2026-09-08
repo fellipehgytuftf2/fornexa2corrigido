@@ -20,6 +20,7 @@ import Financial from './pages/dashboard/Financial';
 import Integrations from './pages/dashboard/Integrations';
 import Admin from './pages/dashboard/Admin';
 import Tickets from './pages/dashboard/Tickets';
+import Suporte from './pages/dashboard/Suporte';
 import Tools from './pages/dashboard/Tools';
 import Tutorials from './pages/dashboard/Tutorials';
 import Settings from './pages/dashboard/Settings';
@@ -265,6 +266,7 @@ function App() {
           <Route path="integrations" element={<Integrations />} />
           <Route path="admin" element={<Admin />} />
           <Route path="tickets" element={<Tickets />} />
+          <Route path="suporte" element={<Suporte />} />
           <Route path="tools" element={<Tools />} />
           <Route path="tutorials" element={<Tutorials />} />
           <Route
