@@ -213,6 +213,7 @@ Deno.serve(async (req: Request) => {
         // criado no ML já tem isso disponível — tratamos como opcional.
         let trackingCode = "";
         let mlShipmentId: string | null = null;
+        let mlShipmentSubstatus: string | null = null;
         let customerAddress = "Endereço não disponível via sincronização automática";
         let customerPhone = "Não informado";
 
@@ -229,6 +230,11 @@ Deno.serve(async (req: Request) => {
           if (shipmentResponse.ok) {
             const shipmentData = await shipmentResponse.json();
             trackingCode = shipmentData?.tracking_number ?? "";
+
+            // O que falta do lado do Mercado Livre. Sem guardar, o cartao do
+            // fornecedor so sabia dizer se o FORNEXA liberou — e mostrava
+            // "pronto" em pedido que o ML estava segurando.
+            mlShipmentSubstatus = shipmentData?.substatus ?? null;
 
             const receiverAddress = shipmentData?.receiver_address;
             if (receiverAddress) {
@@ -338,6 +344,8 @@ Deno.serve(async (req: Request) => {
             .from("orders")
             .update({
               ml_shipment_id: mlShipmentId,
+              ml_shipment_substatus: mlShipmentSubstatus,
+              ml_shipment_visto_em: mlShipmentSubstatus ? new Date().toISOString() : null,
               ml_order_status: mlOrderStatus,
               ml_order_status_detail: mlOrderStatusDetail,
               tracking_code: trackingCode,

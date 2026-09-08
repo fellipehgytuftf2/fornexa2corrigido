@@ -71,6 +71,9 @@ interface SupplierOrder {
   comprovante_path: string | null;
   /** Endereço e etiqueta estão trancados esperando o pagamento. */
   aguardando_pagamento: boolean;
+
+  /** O que o Mercado Livre respondeu sobre o envio na última consulta. */
+  ml_shipment_substatus: string | null;
   /** Este fornecedor exige pagamento antes do despacho. */
   exige_pagamento_antecipado: boolean;
   /** Quem vendeu: empresa, ou o nome pessoal quando não houver empresa. */
@@ -1001,7 +1004,32 @@ export default function SupplierPortal() {
                  * dele — DC-e faltando, envio segurado. Isso só se descobre
                  * pedindo, e a mensagem no cartão explica quando acontece.
                  */
-                const pronto = order.etiqueta_disponivel && !order.cancelado_no_marketplace;
+                /**
+                 * O que o Mercado Livre ainda não liberou.
+                 *
+                 * A liberação tem dois donos. O FORNEXA responde pelo
+                 * pagamento; o Mercado Livre, por documento fiscal e janela de
+                 * coleta. Enquanto o cartão olhava só o primeiro, dizia
+                 * "pronto" em pedido que o ML estava segurando — e um selo que
+                 * às vezes mente faz o fornecedor voltar a clicar em todos.
+                 */
+                const travadoNoMl: Record<string, string> = {
+                  invoice_pending: 'Falta a DC-e',
+                  waiting_for_carrier_authorization: 'Aguardando a transportadora',
+                  buffered: 'Mercado Livre segurando',
+                  stale: 'Envio parado no Mercado Livre',
+                  delivery_failed: 'Entrega falhou',
+                  fraudulent: 'Bloqueado por suspeita de fraude',
+                };
+
+                const pendenciaNoMl = order.ml_shipment_substatus
+                  ? travadoNoMl[order.ml_shipment_substatus] ?? null
+                  : null;
+
+                const pronto =
+                  order.etiqueta_disponivel &&
+                  !order.cancelado_no_marketplace &&
+                  !pendenciaNoMl;
 
                 const pendencia = order.cancelado_no_marketplace
                   ? null
@@ -1009,7 +1037,7 @@ export default function SupplierPortal() {
                     ? 'Aguardando pagamento'
                     : !order.etiqueta_disponivel
                       ? 'Sem etiqueta ainda'
-                      : null;
+                      : pendenciaNoMl;
 
                 return (
                   <li

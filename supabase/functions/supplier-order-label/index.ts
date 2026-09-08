@@ -377,6 +377,19 @@ Deno.serve(async (req: Request) => {
     ? ((await envioResposta.json()) as Record<string, unknown>)
     : null;
 
+  // Esta é a leitura mais recente que existe do envio — mais nova que a da
+  // sincronização, porque acabou de acontecer. Guardar aqui é o que faz o
+  // cartão parar de dizer "pronto" logo depois de o Mercado Livre recusar.
+  if (envio?.substatus) {
+    await admin
+      .from('orders')
+      .update({
+        ml_shipment_substatus: String(envio.substatus),
+        ml_shipment_visto_em: new Date().toISOString(),
+      })
+      .eq('id', pedido.id);
+  }
+
   const remetente = (envio?.sender_address ?? {}) as Record<string, unknown>;
   const cidadeDeOrigem = nomeDe(remetente?.city);
   const estadoDeOrigem = nomeDe(remetente?.state);
