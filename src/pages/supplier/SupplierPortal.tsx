@@ -61,6 +61,7 @@ interface SupplierOrder {
   pago_em: string | null;
   /** Quando o próprio fornecedor confirmou que o dinheiro chegou. */
   recebimento_confirmado_em: string | null;
+  taxa_embalagem: number | null;
   /** O lote de repasse a que este pedido pertence. Nulo em pedido antigo. */
   repasse_id: string | null;
   repasse_txid: string | null;
@@ -921,13 +922,28 @@ export default function SupplierPortal() {
                               </span>
                             </p>
 
+                            {/* A mesma conta do lado do vendedor: produto vezes
+                                quantidade, mais UMA embalagem. Enquanto esta
+                                tela somava só o produto, o fornecedor conferia
+                                R$ 10,00 contra um PIX de R$ 12,00. */}
                             <p className="font-mono text-sm text-slate-400 tabular-nums">
                               Seu valor{' '}
                               <span className="text-gold text-base">
                                 {formatCurrency(
-                                  order.supplier_price * (order.quantidade ?? 1)
+                                  order.supplier_price * (order.quantidade ?? 1) +
+                                    Number(order.taxa_embalagem ?? 0)
                                 )}
                               </span>
+                              {Number(order.taxa_embalagem ?? 0) > 0 && (
+                                <span className="text-slate-500 text-xs ml-2">
+                                  (
+                                  {formatCurrency(
+                                    order.supplier_price * (order.quantidade ?? 1)
+                                  )}{' '}
+                                  + {formatCurrency(Number(order.taxa_embalagem))} de
+                                  embalagem)
+                                </span>
+                              )}
                             </p>
 
                             {/* Dois carimbos, não um. O de cima é declaração do
