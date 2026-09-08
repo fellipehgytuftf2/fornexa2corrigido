@@ -503,7 +503,7 @@ Deno.serve(async (req: Request) => {
     // nunca são afetados por isso.
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, name, empresa, whatsapp")
       .eq("id", vendedorId)
       .maybeSingle();
 
@@ -520,6 +520,38 @@ Deno.serve(async (req: Request) => {
     }
 
     const isTestAdmin = profileData?.role === "admin";
+
+    // 1.6 O perfil está completo?
+    //
+    // Nome, loja e WhatsApp vão em todo pedido que chega ao fornecedor. Sem
+    // eles ele vê uma venda e não sabe de quem é — e com vários vendedores no
+    // mesmo fornecedor, os pedidos viram um monte sem dono.
+    //
+    // A tela já cobra isso ao abrir o painel, mas tela não é a única porta:
+    // quem chamar esta função direto passaria por cima. Publicar é onde a
+    // cobrança tem dente, porque é o passo antes de existir venda.
+    const faltando = isTestAdmin
+      ? []
+      : [
+          ["seu nome", profileData?.name],
+          ["o nome da sua loja", profileData?.empresa],
+          ["seu WhatsApp", profileData?.whatsapp],
+        ]
+          .filter(([, valor]) => !String(valor ?? "").trim())
+          .map(([rotulo]) => rotulo);
+
+    if (faltando.length > 0) {
+      return new Response(
+        JSON.stringify({
+          error:
+            `Complete seu perfil antes de publicar: falta ${faltando.join(", ")}. ` +
+            "Esses dados vão em todo pedido que chega ao seu fornecedor — sem " +
+            "eles ele não sabe de quem é a venda. É em Configurações.",
+          perfil_incompleto: true,
+        }),
+        { status: 428, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const TEST_TITLE_PREFIX = "[TESTE - NÃO COMPRAR] ";
 
     // 2. Buscar a conexão ML do vendedor
