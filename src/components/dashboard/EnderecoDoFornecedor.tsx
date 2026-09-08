@@ -138,12 +138,20 @@ export default function EnderecoDoFornecedor() {
     };
 
     const lerDeclaracao = async () => {
-      const { data } = await supabase
-        .from('origem_declarada')
-        .select('declarada_em')
-        .maybeSingle();
+      // Por função, e não direto na tabela: a leitura direta dependia da
+      // política de RLS e voltava vazia, então o vendedor marcava como
+      // configurado, saía da tela e encontrava o alerta de novo — como se o
+      // clique não tivesse valido. Ver a migração 20260908120000.
+      const { data, error } = await supabase.rpc('minha_origem_declarada');
 
-      setDeclaradaEm((data?.declarada_em as string) ?? null);
+      if (error) {
+        console.error('Erro ao ler a declaração de origem:', error);
+        return;
+      }
+
+      const linha = (data as { declarada_em: string }[] | null)?.[0];
+
+      setDeclaradaEm(linha?.declarada_em ?? null);
     };
 
     carregar();
@@ -259,8 +267,11 @@ export default function EnderecoDoFornecedor() {
           <CheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
 
           <p className="text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-            Você marcou como configurado. A primeira venda confirma — só o
-            envio revela de onde a encomenda saiu de verdade.
+            Você marcou como configurado
+            {declaradaEm &&
+              ` em ${new Date(declaradaEm).toLocaleDateString('pt-BR')}`}
+            . A primeira venda confirma — só o envio revela de onde a encomenda
+            saiu de verdade.
           </p>
         </div>
       ) : jaConfigurado ? (
