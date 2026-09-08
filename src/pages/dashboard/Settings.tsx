@@ -185,6 +185,19 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
     await salvarContato();
   };
 
+  /**
+   * Os três que o fornecedor precisa, e por isso não podem ficar em branco.
+   *
+   * Nome, loja e WhatsApp aparecem em todo pedido que chega até ele. Sem eles
+   * ele vê a venda e não sabe de quem é — e com vários vendedores no mesmo
+   * fornecedor, os pedidos viram um monte sem dono.
+   *
+   * A exigência é só aqui, na hora de salvar. Travar publicação ou pedido por
+   * causa disto atrapalharia quem está tentando trabalhar, e o problema é de
+   * cadastro, não de venda.
+   */
+  const perfilCompleto = Boolean(nome.trim() && empresa.trim() && whatsapp.trim());
+
   const salvarContato = async () => {
     setSalvandoContato(true);
     setErro('');
@@ -366,6 +379,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
             <label htmlFor="config-nome" className={rotulo}>
               <User className="w-4 h-4" />
               Nome
+              <span className="text-amber-500" aria-hidden="true">*</span>
             </label>
 
             <input
@@ -382,6 +396,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
             <label htmlFor="empresa" className={rotulo}>
               <Store className="w-4 h-4" />
               Nome da sua loja ou empresa
+              <span className="text-amber-500" aria-hidden="true">*</span>
             </label>
 
             <input
@@ -394,7 +409,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
             />
 
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-              É como o fornecedor vai te chamar. Vazio, ele vê seu nome pessoal.
+              É como o fornecedor vai te chamar, em todo pedido que chega até ele.
             </p>
           </div>
 
@@ -402,6 +417,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
             <label htmlFor="whatsapp" className={rotulo}>
               <Phone className="w-4 h-4" />
               WhatsApp
+              <span className="text-amber-500" aria-hidden="true">*</span>
             </label>
 
             <input
@@ -437,7 +453,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={salvarPerfil}
-              disabled={salvandoNome || salvandoContato || carregando || !nome.trim()}
+              disabled={salvandoNome || salvandoContato || carregando || !perfilCompleto}
               className="px-5 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {salvandoNome || salvandoContato ? 'Salvando...' : 'Salvar perfil'}
@@ -447,6 +463,12 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
               <span className="inline-flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
                 <CheckCircle className="w-4 h-4" />
                 Salvo
+              </span>
+            )}
+
+            {!perfilCompleto && !carregando && (
+              <span className="text-sm text-amber-600 dark:text-amber-400">
+                Preencha os três campos para salvar.
               </span>
             )}
           </div>
