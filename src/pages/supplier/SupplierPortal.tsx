@@ -924,8 +924,10 @@ export default function SupplierPortal() {
               {/* Três esperas diferentes, e só a do meio é trabalho dele.
                   Numa lista só, ela se perde entre pedidos que não dependem
                   dele — e é a única que deixa mercadoria parada. */}
-              {daAba.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-4">
+              {/* Ficam mesmo com a aba vazia. Sumindo, a lista sobe quando o
+                  último pedido sai e a tela parece ter quebrado — e três zeros
+                  dizem algo útil: não há nada aqui, nem escondido em filtro. */}
+              <div className="flex flex-wrap gap-2 mb-4">
                   {(
                     [
                       // Na ordem em que o pedido anda: o vendedor paga, o
@@ -964,8 +966,7 @@ export default function SupplierPortal() {
                       </span>
                     </button>
                   ))}
-                </div>
-              )}
+              </div>
 
               {visibleOrders.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center">
