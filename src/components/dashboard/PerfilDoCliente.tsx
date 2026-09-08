@@ -25,9 +25,10 @@ interface Perfil {
  * na lista de contas. Uma conversa serve para descobrir o problema; corrigir
  * ali mesmo é o que a encerra.
  *
- * E-mail e senha ficam de fora, e é decisão: e-mail é chave de entrada e exige
- * confirmação nos dois endereços; senha ninguém deve poder trocar pelo outro.
- * Para entrar na conta existe o modo suporte, que é explícito e registrado.
+ * O e-mail tem botão próprio: é a chave da conta, não um dado de contato, e
+ * trocar errado tranca a pessoa do lado de fora. A senha fica de fora, e é
+ * decisão — ninguém deve poder trocar a senha do outro. Para entrar na conta
+ * existe o modo suporte, que é explícito e registrado.
  */
 export default function PerfilDoCliente({
   userId,
@@ -43,6 +44,16 @@ export default function PerfilDoCliente({
   const [erro, setErro] = useState('');
 
   const [nome, setNome] = useState('');
+
+  /**
+   * O e-mail de entrada.
+   *
+   * Separado dos outros três porque é outra natureza: nome e loja são como o
+   * fornecedor te chama; o e-mail é a chave da conta. Trocar errado tranca a
+   * pessoa do lado de fora, então tem botão próprio e confirmação.
+   */
+  const [email, setEmail] = useState('');
+  const [trocandoEmail, setTrocandoEmail] = useState(false);
   const [empresa, setEmpresa] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
 
@@ -68,6 +79,7 @@ export default function PerfilDoCliente({
 
       setPerfil(linha);
       setNome(linha.nome ?? '');
+      setEmail(linha.email ?? '');
       setEmpresa(linha.empresa ?? '');
       setWhatsapp(linha.whatsapp ?? '');
     };
@@ -96,6 +108,60 @@ export default function PerfilDoCliente({
       return;
     }
 
+    setSalvo(true);
+    window.setTimeout(() => setSalvo(false), 3000);
+  };
+
+  const trocarEmail = async () => {
+    if (!perfil) return;
+
+    const novo = email.trim().toLowerCase();
+
+    if (novo === (perfil.email ?? '').toLowerCase()) return;
+
+    const certeza = window.confirm(
+      `Trocar o e-mail de entrada de ${perfil.email} para ${novo}?
+
+` +
+        'A pessoa passa a entrar com o endereço novo, e o antigo deixa de ' +
+        'funcionar na hora. A senha continua a mesma.'
+    );
+
+    if (!certeza) return;
+
+    setTrocandoEmail(true);
+    setErro('');
+    setSalvo(false);
+
+    const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+      'admin-trocar-email',
+      { body: { user_id: userId, email: novo } }
+    );
+
+    setTrocandoEmail(false);
+
+    if (error || !data?.ok) {
+      // Em resposta não-2xx o supabase-js não popula "data": o corpo real vem
+      // em error.context. Mesmo cuidado das outras telas.
+      let mensagem = data?.error;
+
+      const contexto = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (!mensagem && contexto?.json) {
+        try {
+          mensagem = (await contexto.json())?.error;
+        } catch {
+          // segue com a genérica
+        }
+      }
+
+      setErro(mensagem ?? 'Não foi possível trocar o e-mail.');
+      return;
+    }
+
+    setPerfil({ ...perfil, email: novo });
     setSalvo(true);
     window.setTimeout(() => setSalvo(false), 3000);
   };
@@ -134,11 +200,40 @@ export default function PerfilDoCliente({
             <>
               {perfil && (
                 <div className="mt-4 rounded-xl bg-gray-50 dark:bg-navy-700 px-4 py-3">
-                  <p className="text-sm text-navy-900 dark:text-white break-all">
-                    {perfil.email}
+                  <label htmlFor="cliente-email" className={rotulo}>
+                    E-mail de entrada
+                  </label>
+
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      id="cliente-email"
+                      value={email}
+                      onChange={(evento) => setEmail(evento.target.value)}
+                      inputMode="email"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-900 text-navy-900 dark:text-white text-sm"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={trocarEmail}
+                      disabled={
+                        trocandoEmail ||
+                        !email.trim() ||
+                        email.trim().toLowerCase() === (perfil.email ?? '').toLowerCase()
+                      }
+                      className="shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-xs font-semibold transition-colors disabled:opacity-40"
+                    >
+                      {trocandoEmail && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Trocar
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-2 leading-relaxed">
+                    É com ele que a pessoa entra. Trocando, o antigo para de
+                    funcionar na hora e a senha continua a mesma.
                   </p>
 
-                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-2 pt-2 border-t border-gray-200 dark:border-navy-600">
                     {perfil.papel === 'admin' ? 'Administrador' : 'Vendedor'}
                     {perfil.plano ? ` · ${perfil.plano} (${perfil.plano_status || '—'})` : ''}
                     {' · desde '}
@@ -223,10 +318,9 @@ export default function PerfilDoCliente({
               </div>
 
               <p className="text-xs text-gray-500 dark:text-slate-400 mt-4 leading-relaxed">
-                E-mail e senha não são alterados por aqui: e-mail exige
-                confirmação nos dois endereços, e senha ninguém deve poder
-                trocar pelo outro. Para ver a conta por dentro, use o modo
-                suporte em Contas e acessos.
+                A senha não é alterada por aqui, e nem deveria: ninguém deve
+                poder trocar a senha do outro. Se a pessoa não lembra, ela usa
+                "esqueci minha senha" — que agora vai para o endereço certo.
               </p>
             </>
           )}
