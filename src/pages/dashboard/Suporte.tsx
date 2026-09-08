@@ -1,59 +1,27 @@
 import { useEffect, useState } from 'react';
 import { Headset, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import ConversaDeSuporte, {
-  type MensagemDeSuporte,
-} from '../../components/dashboard/ConversaDeSuporte';
+import MinhaConversaDeSuporte from '../../components/dashboard/MinhaConversaDeSuporte';
 import SuporteAdmin from '../../components/dashboard/SuporteAdmin';
 
 /**
- * A conversa da pessoa com o suporte do FORNEXA.
+ * A página de suporte.
  *
- * Existe porque a alternativa era o WhatsApp, onde nada fica registrado e a
- * resposta se perde entre conversas pessoais — ou os Chamados, que são
- * vendedor↔fornecedor sobre um pedido e levavam a pergunta para o Portal de
- * quem não tinha nada com ela.
+ * Quase ninguém chega aqui: o caminho normal é o balão no canto da tela, que
+ * fica onde a pessoa já está quando a dúvida aparece. Esta página existe para
+ * quem abriu pela URL, e para quando o balão for pequeno demais — conversa
+ * longa, print grande.
  *
- * Uma conversa só, contínua. Não é lista de chamados para abrir e fechar: é o
- * fio com o suporte, e quem volta encontra o histórico de onde parou.
+ * Admin vê a lista de conversas; o resto vê a própria.
  */
 export default function Suporte() {
-  const [mensagens, setMensagens] = useState<MensagemDeSuporte[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [enviando, setEnviando] = useState(false);
-  const [erro, setErro] = useState('');
-  const [meuId, setMeuId] = useState('');
-
-  /**
-   * Quem é admin vê a lista de conversas; o resto vê a própria.
-   *
-   * É o mesmo item de menu para os dois, e não uma seção escondida dentro do
-   * painel de Admin: quem responde suporte procura "Suporte", não "Admin". E
-   * quem só quer perguntar não deveria descobrir que existe um lugar onde as
-   * conversas de todo mundo aparecem.
-   */
-  const [ehAdmin, setEhAdmin] = useState(false);
-
-  const carregar = async () => {
-    const { data, error } = await supabase.rpc('minhas_mensagens_de_suporte');
-
-    if (error) {
-      setErro(`Não foi possível carregar a conversa: ${error.message}`);
-      setCarregando(false);
-      return;
-    }
-
-    setMensagens((data as MensagemDeSuporte[]) || []);
-    setCarregando(false);
-  };
+  const [ehAdmin, setEhAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const abrir = async () => {
+    const conferir = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      setMeuId(user?.id ?? '');
 
       const { data: perfil } = await supabase
         .from('profiles')
@@ -61,43 +29,19 @@ export default function Suporte() {
         .eq('id', user?.id ?? '')
         .maybeSingle<{ role: string | null }>();
 
-      if (perfil?.role === 'admin') {
-        setEhAdmin(true);
-        setCarregando(false);
-        return;
-      }
-
-      // Cria a conversa se ainda não existir, e marca como lida. Chamar isto
-      // ao abrir, e não ao enviar, é o que faz o contador do menu zerar quando
-      // a pessoa leu de fato.
-      await supabase.rpc('minha_conversa_de_suporte');
-
-      await carregar();
+      setEhAdmin(perfil?.role === 'admin');
     };
 
-    abrir();
+    conferir();
   }, []);
 
-  const enviar = async (corpo: string, imagemPath: string | null) => {
-    setEnviando(true);
-    setErro('');
-
-    const { data, error } = await supabase.rpc('enviar_mensagem_de_suporte', {
-      p_corpo: corpo,
-      p_imagem_path: imagemPath,
-    });
-
-    setEnviando(false);
-
-    const resposta = data as { ok?: boolean; erro?: string } | null;
-
-    if (error || !resposta?.ok) {
-      setErro(error?.message ?? resposta?.erro ?? 'Não foi possível enviar.');
-      return;
-    }
-
-    await carregar();
-  };
+  if (ehAdmin === null) {
+    return (
+      <div className="py-20 text-center">
+        <Loader2 className="w-6 h-6 text-gray-400 animate-spin mx-auto" />
+      </div>
+    );
+  }
 
   if (ehAdmin) {
     return <SuporteAdmin />;
@@ -117,20 +61,7 @@ export default function Suporte() {
       </p>
 
       <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm mt-5 h-[60vh] min-h-[420px] flex flex-col">
-        {carregando ? (
-          <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-          </div>
-        ) : (
-          <ConversaDeSuporte
-            mensagens={mensagens}
-            euSou="usuario"
-            enviando={enviando}
-            erro={erro}
-            pastaDeUpload={meuId}
-            onEnviar={enviar}
-          />
-        )}
+        <MinhaConversaDeSuporte />
       </div>
     </div>
   );

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AvisoDoSistema from '../components/dashboard/AvisoDoSistema';
+import SuporteFlutuante from '../components/dashboard/SuporteFlutuante';
 import {
   AlertCircle,
   DollarSign,
   LayoutDashboard,
-  Headset,
   LifeBuoy,
   Link2,
   LogOut,
@@ -65,11 +65,6 @@ const navigationItems: NavigationItem[] = [
     path: '/dashboard/tickets',
     label: 'Chamados',
     icon: LifeBuoy,
-  },
-  {
-    path: '/dashboard/suporte',
-    label: 'Suporte',
-    icon: Headset,
   },
   // Tutoriais (/dashboard/tutorials) e Ferramentas (/dashboard/tools) estão
   // fora do menu por decisão do produto. As rotas continuam de pé e as telas
@@ -514,6 +509,11 @@ export default function DashboardLayout() {
           qualquer página do painel — quem precisa ser avisado do endereço de
           remetente raramente abre Integrações por conta própria. */}
       <AvisoDoSistema />
+
+      {/* O suporte fica onde a dúvida nasce — no meio de um anúncio, num
+          pedido travado. Item de menu obrigava a sair de onde o problema
+          estava, e quem sai perde o print que ia mandar. */}
+      <SuporteFlutuante />
     </div>
   );
 }

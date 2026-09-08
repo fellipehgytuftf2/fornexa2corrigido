@@ -1,0 +1,125 @@
+import { useEffect, useState } from 'react';
+import { Headset, X } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import MinhaConversaDeSuporte from './MinhaConversaDeSuporte';
+import SuporteAdmin from './SuporteAdmin';
+
+/**
+ * O suporte, num balão no canto inferior direito.
+ *
+ * POR QUE FLUTUANTE, E NÃO UMA PÁGINA
+ *
+ * A dúvida nasce no meio de outra coisa — publicando um anúncio, olhando um
+ * pedido travado. Item de menu obriga a sair de onde o problema está, e quem
+ * sai perde o print que ia mandar. O balão fica onde a pessoa já está.
+ *
+ * É também o formato que todo mundo já conhece de outros sites, então ninguém
+ * precisa aprender que ali se fala com gente.
+ *
+ * DOS DOIS LADOS
+ *
+ * Para quem pergunta, abre a própria conversa. Para o admin, abre a lista de
+ * quem escreveu — ele responde de onde estiver, sem largar a tela em que
+ * estava. O painel dele é mais largo porque tem lista e conversa lado a lado.
+ */
+export default function SuporteFlutuante() {
+  const [aberto, setAberto] = useState(false);
+  const [ehAdmin, setEhAdmin] = useState<boolean | null>(null);
+  const [naoLidas, setNaoLidas] = useState(0);
+
+  useEffect(() => {
+    const conferir = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle<{ role: string | null }>();
+
+      const admin = perfil?.role === 'admin';
+      setEhAdmin(admin);
+
+      if (!admin) {
+        const { data } = await supabase.rpc('suporte_nao_lidas');
+        setNaoLidas(Number(data ?? 0));
+      }
+    };
+
+    conferir();
+  }, []);
+
+  // Enquanto não se sabe o papel, não aparece: um balão que troca de conteúdo
+  // depois de aberto pisca na cara de quem clicou.
+  if (ehAdmin === null) return null;
+
+  // Abrir zera o aviso: a conversa marca como lida ao carregar.
+  const alternar = () => {
+    setAberto((estava) => !estava);
+    setNaoLidas(0);
+  };
+
+  return (
+    <>
+      {aberto && (
+        <div
+          className={`fixed bottom-24 right-4 sm:right-6 z-[120] flex flex-col rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-2xl overflow-hidden ${
+            ehAdmin
+              ? 'w-[min(940px,calc(100vw-2rem))] h-[min(640px,calc(100vh-10rem))]'
+              : 'w-[min(400px,calc(100vw-2rem))] h-[min(560px,calc(100vh-10rem))]'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-navy-700 shrink-0">
+            <p className="font-semibold text-navy-900 dark:text-white flex items-center gap-2">
+              <Headset className="w-4 h-4 text-gold" aria-hidden="true" />
+              {ehAdmin ? 'Conversas de suporte' : 'Suporte'}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setAberto(false)}
+              aria-label="Fechar"
+              className="p-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-700 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto p-4">
+            {ehAdmin ? (
+              <SuporteAdmin semMoldura />
+            ) : (
+              <div className="h-full flex flex-col">
+                <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed mb-3">
+                  Dúvida sobre o sistema, conta ou cobrança. Para problema num
+                  pedido, use Chamados — ele avisa o fornecedor junto.
+                </p>
+
+                <MinhaConversaDeSuporte />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={alternar}
+        aria-label={aberto ? 'Fechar suporte' : 'Abrir suporte'}
+        className="fixed bottom-6 right-4 sm:right-6 z-[120] w-14 h-14 rounded-full bg-navy-900 dark:bg-gold text-white dark:text-navy-900 shadow-xl flex items-center justify-center hover:opacity-90 transition-opacity"
+      >
+        {aberto ? <X className="w-6 h-6" /> : <Headset className="w-6 h-6" />}
+
+        {!aberto && naoLidas > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center tabular-nums">
+            {naoLidas}
+          </span>
+        )}
+      </button>
+    </>
+  );
+}
