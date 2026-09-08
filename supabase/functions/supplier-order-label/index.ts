@@ -105,13 +105,45 @@ const mesmaCidade = (uma: string, outra: string) => {
   return simplificar(uma) === simplificar(outra);
 };
 
-function motivoPeloSubstatus(substatus: string): string | null {
+/**
+ * Quando o Mercado Livre vai soltar um envio que ele está segurando.
+ *
+ * Vem em `buffering.date`. Sem ela a mensagem só sabia dizer "tente de novo
+ * mais tarde" — e mais tarde quando? Quem separa pedido volta de hora em hora
+ * clicando num botão que ainda não vai funcionar.
+ */
+function quandoLibera(envio: Record<string, unknown> | null): string | null {
+  const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+  const data = buffering?.date;
+
+  if (typeof data !== 'string' || !data) return null;
+
+  return new Date(data).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+}
+
+function motivoPeloSubstatus(
+  substatus: string,
+  envio: Record<string, unknown> | null
+): string | null {
+  if (substatus === 'buffered') {
+    const quando = quandoLibera(envio);
+
+    return (
+      'O Mercado Livre está segurando este envio para liberar junto com ' +
+      'outros. Não é preciso fazer nada — nem você, nem o vendedor. ' +
+      (quando
+        ? `A etiqueta libera em ${quando}.`
+        : 'Ele não informou a hora exata; tente de novo mais tarde.')
+    );
+  }
+
   const motivos: Record<string, string> = {
     invoice_pending:
       'Falta a Declaração de Conteúdo (DC-e) deste pedido. Avise o vendedor: no FORNEXA, em Pedidos, ele emite pelo botão Emitir DC-e — e a etiqueta libera na sequência.',
-
-    buffered:
-      'O Mercado Livre está segurando este envio para liberar junto com outros. Não é preciso fazer nada — tente de novo mais tarde.',
 
     fraudulent:
       'O Mercado Livre bloqueou este envio por suspeita de fraude. NÃO despache este pedido: o pagamento pode ser revertido e a mercadoria se perde.',
@@ -417,7 +449,9 @@ Deno.serve(async (req: Request) => {
     // precisa enviar a nota fiscal". Sem ela, o fornecedor ficava esperando um
     // pedido que nunca ia liberar sozinho.
     // O envio já foi lido acima, para conferir o remetente. Aproveita.
-    const motivoDoEnvio = envio ? motivoPeloSubstatus(String(envio?.substatus ?? '')) : null;
+    const motivoDoEnvio = envio
+      ? motivoPeloSubstatus(String(envio?.substatus ?? ''), envio)
+      : null;
 
     // O JSON cru sai da tela do fornecedor e passa a viver aqui. Quem separa
     // pedido não tem o que fazer com ele; quem dá suporte, tem.
