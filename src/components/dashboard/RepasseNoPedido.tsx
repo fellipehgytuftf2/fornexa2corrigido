@@ -198,10 +198,16 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
     setOcupado(true);
     setErro('');
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ pago_ao_fornecedor_em: pago ? null : new Date().toISOString() })
-      .eq('id', order.id);
+    // Marcar é uma escrita só. Desfazer são três, e precisam acontecer juntas:
+    // a data do pagamento, a confirmação do fornecedor e o status do lote.
+    // Enquanto isto era um update direto, desmarcar deixava o pedido liberado
+    // para despacho por um pagamento que o vendedor acabara de retirar.
+    const { error } = pago
+      ? (await supabase.rpc('desfazer_pagamento_do_pedido', { p_order_id: order.id }))
+      : (await supabase
+          .from('orders')
+          .update({ pago_ao_fornecedor_em: new Date().toISOString() })
+          .eq('id', order.id));
 
     setOcupado(false);
 
