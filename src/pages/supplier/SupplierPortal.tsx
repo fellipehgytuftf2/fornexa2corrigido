@@ -647,9 +647,6 @@ export default function SupplierPortal() {
     // Confirmando um pedido que faz parte de um lote, confirma o lote inteiro.
     // O PIX que caiu foi um só, com o valor de todos — repetir o mesmo
     // julgamento cinco vezes sobre um pagamento só é onde se erra uma delas.
-    //
-    // Desfazer continua sendo pedido a pedido: corrigir um engano é o oposto
-    // de aplicar em massa.
     const { error } =
       confirmar && order.repasse_id
         ? await supabase.rpc('fornecedor_confirma_repasse', {
