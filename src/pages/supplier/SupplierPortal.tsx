@@ -186,6 +186,7 @@ export default function SupplierPortal() {
   const [filtroPagamento, setFiltroPagamento] = useState<
     'todos' | 'aguardando' | 'conferir' | 'confirmados'
   >('todos');
+
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [labelId, setLabelId] = useState<string | null>(null);
@@ -927,7 +928,6 @@ export default function SupplierPortal() {
                 <div className="flex flex-wrap gap-2 mb-4">
                   {(
                     [
-                      ['todos', 'Todos', daAba.length],
                       ['conferir', 'Conferir pagamento', contagemPorFase.conferir],
                       ['aguardando', 'Aguardando o vendedor', contagemPorFase.aguardando],
                       ['confirmados', 'Confirmados', contagemPorFase.confirmados],
@@ -936,7 +936,12 @@ export default function SupplierPortal() {
                     <button
                       key={id}
                       type="button"
-                      onClick={() => setFiltroPagamento(id)}
+                      // Clicar no filtro ligado desliga. É o que faz o botão
+                      // "Todos" ser desnecessário: nenhum ligado já quer dizer
+                      // todos, e um botão a menos é uma decisão a menos.
+                      onClick={() =>
+                        setFiltroPagamento((atual) => (atual === id ? 'todos' : id))
+                      }
                       aria-pressed={filtroPagamento === id}
                       className={
                         filtroPagamento === id
