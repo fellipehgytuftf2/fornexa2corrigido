@@ -775,8 +775,28 @@ export default function SupplierPortal() {
               <span className="hidden sm:inline">Atualizar</span>
             </button>
 
-            {/* A troca de senha foi para dentro de Configurações: é cadastro,
-                e cabeçalho é para o que se usa todo dia. */}
+            {/* Configurações mora aqui, e não na fileira de abas.
+                
+                Aquela fileira é o trabalho do dia — pedidos em cada estágio,
+                estoque, devoluções. Cadastro não é estágio de pedido, e no
+                meio deles empurrava as abas para fora da tela.
+                
+                A troca de senha também veio para dentro dela: cabeçalho é
+                para o que se usa todo dia, e senha se troca uma vez por ano. */}
+            <button
+              onClick={() => setActiveTab('recebimento')}
+              aria-current={activeTab === 'recebimento' ? 'page' : undefined}
+              title="Configurações"
+              className={
+                activeTab === 'recebimento'
+                  ? 'inline-flex items-center gap-2 rounded-xl bg-gold px-3 sm:px-4 py-2 text-sm font-semibold text-navy-900'
+                  : 'inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 sm:px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50'
+              }
+            >
+              <Settings className="w-4 h-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Configurações</span>
+            </button>
+
 
             <button
               onClick={handleLogout}
@@ -884,21 +904,6 @@ export default function SupplierPortal() {
             Devoluções
           </button>
 
-          <button
-            onClick={() => setActiveTab('recebimento')}
-            aria-current={activeTab === 'recebimento' ? 'page' : undefined}
-            className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 ${
-              activeTab === 'recebimento'
-                ? 'bg-gold text-navy-900'
-                : 'border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            {/* Chamava-se "Recebimento", de quando só guardava a chave PIX.
-                Hoje guarda horários de corte, avisos, endereço do galpão e
-                taxa de embalagem — nome de um card só descrevendo cinco. */}
-            <Settings className="w-4 h-4" aria-hidden="true" />
-            Configurações
-          </button>
         </nav>
 
         <div className="mt-8">
