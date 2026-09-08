@@ -170,6 +170,22 @@ export default function SupplierPortal() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('novos');
+
+  /**
+   * Em que pé está o dinheiro de cada pedido.
+   *
+   * São três esperas diferentes, e só uma delas é do fornecedor:
+   *
+   *   aguardando o vendedor  — ele ainda não disse que pagou. Nada a fazer.
+   *   conferir               — ele disse. É AQUI que o fornecedor trabalha.
+   *   confirmados            — acabou; ficam à mão só para consulta.
+   *
+   * Misturadas numa lista só, a do meio se perde — e é a única que segura
+   * mercadoria parada esperando um clique dele.
+   */
+  const [filtroPagamento, setFiltroPagamento] = useState<
+    'todos' | 'aguardando' | 'conferir' | 'confirmados'
+  >('todos');
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [labelId, setLabelId] = useState<string | null>(null);
@@ -686,10 +702,39 @@ export default function SupplierPortal() {
     return counts;
   }, [orders]);
 
+  // Trocar de aba recomeça em "Todos": com o filtro preso, a aba nova abriria
+  // vazia e pareceria não ter pedido nenhum.
+  useEffect(() => {
+    setFiltroPagamento('todos');
+  }, [activeTab]);
+
+  /** Em qual das três esperas este pedido está. */
+  const faseDoPagamento = (order: SupplierOrder) =>
+    order.recebimento_confirmado_em
+      ? 'confirmados'
+      : order.pago_em
+        ? 'conferir'
+        : 'aguardando';
+
+  const daAba = useMemo(() => orders.filter(currentTab.match), [orders, currentTab]);
+
   const visibleOrders = useMemo(
-    () => orders.filter(currentTab.match),
-    [orders, currentTab]
+    () =>
+      filtroPagamento === 'todos'
+        ? daAba
+        : daAba.filter((order) => faseDoPagamento(order) === filtroPagamento),
+    [daAba, filtroPagamento]
   );
+
+  const contagemPorFase = useMemo(() => {
+    const contagem = { aguardando: 0, conferir: 0, confirmados: 0 };
+
+    daAba.forEach((order) => {
+      contagem[faseDoPagamento(order)] += 1;
+    });
+
+    return contagem;
+  }, [daAba]);
 
   return (
     <div className="min-h-screen bg-navy-950 text-white">
@@ -873,11 +918,54 @@ export default function SupplierPortal() {
               <Loader2 className="w-8 h-8 text-slate-600 animate-spin mx-auto" />
               <p className="text-slate-400 mt-4">Carregando seus pedidos...</p>
             </div>
-          ) : visibleOrders.length === 0 ? (
+          ) : (
+            <>
+              {/* Três esperas diferentes, e só a do meio é trabalho dele.
+                  Numa lista só, ela se perde entre pedidos que não dependem
+                  dele — e é a única que deixa mercadoria parada. */}
+              {daAba.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(
+                    [
+                      ['todos', 'Todos', daAba.length],
+                      ['conferir', 'Conferir pagamento', contagemPorFase.conferir],
+                      ['aguardando', 'Aguardando o vendedor', contagemPorFase.aguardando],
+                      ['confirmados', 'Confirmados', contagemPorFase.confirmados],
+                    ] as const
+                  ).map(([id, rotulo, quantos]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setFiltroPagamento(id)}
+                      aria-pressed={filtroPagamento === id}
+                      className={
+                        filtroPagamento === id
+                          ? 'rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-navy-900'
+                          : 'rounded-lg border border-white/10 px-3.5 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white'
+                      }
+                    >
+                      {rotulo}
+                      <span
+                        className={
+                          filtroPagamento === id
+                            ? 'ml-2 font-mono text-xs tabular-nums text-navy-900/60'
+                            : 'ml-2 font-mono text-xs tabular-nums text-slate-500'
+                        }
+                      >
+                        {quantos}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {visibleOrders.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center">
               <PackageSearch className="w-8 h-8 text-slate-600 mx-auto" aria-hidden="true" />
               <p className="text-slate-400 mt-4 max-w-md mx-auto leading-relaxed">
-                {currentTab.emptyMessage}
+                {filtroPagamento === 'todos'
+                  ? currentTab.emptyMessage
+                  : 'Nenhum pedido nesta situação de pagamento.'}
               </p>
             </div>
           ) : (
@@ -1358,6 +1446,8 @@ export default function SupplierPortal() {
                 );
               })}
             </ul>
+              )}
+            </>
           )}
         </div>
       </main>
