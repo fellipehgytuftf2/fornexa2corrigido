@@ -4,7 +4,6 @@ import {
   AlertCircle,
   CheckCircle,
   FileText,
-  KeyRound,
   Loader2,
   LogOut,
   MapPin,
@@ -12,6 +11,7 @@ import {
   PackageSearch,
   Phone,
   RefreshCw,
+  Settings,
   User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -775,18 +775,8 @@ export default function SupplierPortal() {
               <span className="hidden sm:inline">Atualizar</span>
             </button>
 
-            <button
-              onClick={() => {
-                setContaAberta(true);
-                setNovaSenha('');
-                setConfirmaSenha('');
-                setErrorMessage('');
-              }}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 sm:px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
-            >
-              <KeyRound className="w-4 h-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Minha senha</span>
-            </button>
+            {/* A troca de senha foi para dentro de Configurações: é cadastro,
+                e cabeçalho é para o que se usa todo dia. */}
 
             <button
               onClick={handleLogout}
@@ -903,7 +893,11 @@ export default function SupplierPortal() {
                 : 'border border-white/10 text-slate-300 hover:bg-white/5 hover:text-white'
             }`}
           >
-            Recebimento
+            {/* Chamava-se "Recebimento", de quando só guardava a chave PIX.
+                Hoje guarda horários de corte, avisos, endereço do galpão e
+                taxa de embalagem — nome de um card só descrevendo cinco. */}
+            <Settings className="w-4 h-4" aria-hidden="true" />
+            Configurações
           </button>
         </nav>
 
@@ -913,7 +907,14 @@ export default function SupplierPortal() {
           ) : activeTab === 'devolucoes' ? (
             <DevolucoesFornecedor />
           ) : activeTab === 'recebimento' ? (
-            <RecebimentoFornecedor />
+            <RecebimentoFornecedor
+              onTrocarSenha={() => {
+                setContaAberta(true);
+                setNovaSenha('');
+                setConfirmaSenha('');
+                setErrorMessage('');
+              }}
+            />
           ) : loading ? (
             <div className="py-20 text-center">
               <Loader2 className="w-8 h-8 text-slate-600 animate-spin mx-auto" />

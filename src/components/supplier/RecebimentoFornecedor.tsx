@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Check, Clock, Loader2, MapPin, Package, Wallet } from 'lucide-react';
+import {
+  AlertCircle,
+  Check,
+  Clock,
+  KeyRound,
+  Loader2,
+  MapPin,
+  Package,
+  Wallet,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 type TipoDeChave = 'celular' | 'cpf' | 'cnpj' | 'email' | 'aleatoria';
@@ -70,7 +79,12 @@ function adivinharTipo(chave: string): TipoDeChave {
  * terceiro manda dinheiro para estranho, e a responsabilidade tem que ser de
  * quem recebe.
  */
-export default function RecebimentoFornecedor() {
+interface Props {
+  /** Abre a troca de senha, que vive na página do portal. */
+  onTrocarSenha: () => void;
+}
+
+export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
   const [tipo, setTipo] = useState<TipoDeChave>('celular');
   const [chavePix, setChavePix] = useState('');
 
@@ -557,6 +571,29 @@ export default function RecebimentoFornecedor() {
         {salvo && !salvando && <Check className="w-4 h-4" aria-hidden="true" />}
         {salvando ? 'Salvando...' : salvo ? 'Salvo' : 'Salvar'}
       </button>
+
+      {/* Fica por último e fora do Salvar: a senha não é um campo desta
+          página, é outra coisa, com confirmação própria. Junto dos demais,
+          quem clicasse em Salvar acharia que tinha trocado a senha também. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <p className="font-semibold text-white flex items-center gap-2">
+          <KeyRound className="w-4 h-4 text-gold" aria-hidden="true" />
+          Sua senha
+        </p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          A senha de entrada neste portal. Só você a conhece — nem o FORNEXA
+          consegue vê-la.
+        </p>
+
+        <button
+          type="button"
+          onClick={onTrocarSenha}
+          className="inline-flex items-center gap-2 mt-3 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+        >
+          Trocar senha
+        </button>
+      </div>
     </div>
   );
 }
