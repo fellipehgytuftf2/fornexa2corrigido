@@ -988,10 +988,39 @@ export default function SupplierPortal() {
               {visibleOrders.map((order) => {
                 const isBusy = actionId === order.id;
 
+                /**
+                 * Este pedido pode ser despachado agora?
+                 *
+                 * Pronto quer dizer: pagamento resolvido e etiqueta liberada
+                 * pelo FORNEXA. Numa lista de vinte pedidos iguais, o
+                 * fornecedor clicava em cada um para descobrir quais dependiam
+                 * dele — e é justamente por isso que os pendentes ficavam
+                 * parados: davam o mesmo trabalho de conferir que os prontos.
+                 *
+                 * O Mercado Livre ainda pode recusar a etiqueta por conta
+                 * dele — DC-e faltando, envio segurado. Isso só se descobre
+                 * pedindo, e a mensagem no cartão explica quando acontece.
+                 */
+                const pronto = order.etiqueta_disponivel && !order.cancelado_no_marketplace;
+
+                const pendencia = order.cancelado_no_marketplace
+                  ? null
+                  : order.aguardando_pagamento
+                    ? 'Aguardando pagamento'
+                    : !order.etiqueta_disponivel
+                      ? 'Sem etiqueta ainda'
+                      : null;
+
                 return (
                   <li
                     key={order.id}
-                    className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden"
+                    className={
+                      pronto
+                        ? 'rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.04] overflow-hidden'
+                        : pendencia
+                          ? 'rounded-2xl border border-amber-500/30 bg-amber-500/[0.04] overflow-hidden'
+                          : 'rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden'
+                    }
                   >
                     <div className="p-5 sm:p-6">
                       <div className="flex flex-col sm:flex-row gap-5">
@@ -1015,6 +1044,22 @@ export default function SupplierPortal() {
                             <p className="font-mono text-[11px] text-slate-600">
                               {formatDate(order.created_at)}
                             </p>
+
+                            {/* O selo é a resposta que o fornecedor procura ao
+                                correr a lista: dá para despachar este agora? */}
+                            {pronto && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                                <CheckCircle className="w-3 h-3" aria-hidden="true" />
+                                Pronto para despachar
+                              </span>
+                            )}
+
+                            {pendencia && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-300">
+                                <AlertCircle className="w-3 h-3" aria-hidden="true" />
+                                {pendencia}
+                              </span>
+                            )}
                           </div>
 
                           <h2 className="font-display text-lg font-semibold mt-2 leading-snug">
