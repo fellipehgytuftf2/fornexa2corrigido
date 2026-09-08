@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Headset, Loader2, Trash2 } from 'lucide-react';
+import { Headset, Loader2, Trash2, UserCog } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ConversaDeSuporte, { type MensagemDeSuporte } from './ConversaDeSuporte';
+import PerfilDoCliente from './PerfilDoCliente';
 
 interface Conversa {
   id: string;
@@ -30,6 +31,15 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
   const [meuId, setMeuId] = useState('');
+
+  /**
+   * O perfil da pessoa com quem se está falando.
+   *
+   * A conversa mostra o problema; o perfil costuma ser onde ele está. WhatsApp
+   * com dígito a menos, nome de loja em branco — o suporte descobria e só
+   * podia pedir para a pessoa arrumar, e ela some no meio do caminho.
+   */
+  const [perfilAberto, setPerfilAberto] = useState<string | null>(null);
 
   const carregarConversas = async () => {
     const { data, error } = await supabase.rpc('suporte_conversas_abertas');
@@ -256,10 +266,21 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
                     {aberta.empresa || aberta.nome || aberta.email}
                   </p>
 
-                  <p className="text-xs text-gray-500 dark:text-slate-400">
-                    {aberta.email}
-                    {aberta.whatsapp ? ` · ${aberta.whatsapp}` : ''}
-                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                      {aberta.email}
+                      {aberta.whatsapp ? ` · ${aberta.whatsapp}` : ''}
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() => setPerfilAberto(aberta.user_id)}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
+                    >
+                      <UserCog className="w-3.5 h-3.5" />
+                      Ver perfil
+                    </button>
+                  </div>
                 </div>
 
                 <ConversaDeSuporte
@@ -273,6 +294,17 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
             )}
           </div>
         </div>
+      )}
+
+      {perfilAberto && (
+        <PerfilDoCliente
+          userId={perfilAberto}
+          onFechar={() => {
+            setPerfilAberto(null);
+            // A lista mostra nome e loja: corrigidos, precisa reler.
+            carregarConversas();
+          }}
+        />
       )}
     </div>
   );

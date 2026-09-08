@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import PerfilDoCliente from './PerfilDoCliente';
 import ModalPortal from '../ui/modal-portal';
 
 /** Janela do que ainda conta como cadastro novo. */
@@ -175,6 +176,15 @@ export default function AcessosAdmin() {
   const [entrando, setEntrando] = useState(false);
 
   const [detalhe, setDetalhe] = useState<Conta | null>(null);
+
+  /**
+   * O perfil aberto para correção.
+   *
+   * O detalhe da conta mostrava tudo e não deixava mudar nada. Nome de loja e
+   * WhatsApp errados aparecem em todo pedido que chega ao fornecedor, e o
+   * suporte só podia pedir para a pessoa arrumar.
+   */
+  const [perfilAberto, setPerfilAberto] = useState<string | null>(null);
   const [fornecedoresDaConta, setFornecedoresDaConta] = useState<FornecedorDaConta[]>([]);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
 
@@ -805,13 +815,22 @@ export default function AcessosAdmin() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => setDetalhe(null)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
-                  aria-label="Fechar"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setPerfilAberto(detalhe.user_id)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
+                  >
+                    Editar perfil
+                  </button>
+
+                  <button
+                    onClick={() => setDetalhe(null)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-white"
+                    aria-label="Fechar"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-6">
@@ -989,6 +1008,17 @@ export default function AcessosAdmin() {
             </div>
           </div>
         </ModalPortal>
+      )}
+
+      {perfilAberto && (
+        <PerfilDoCliente
+          userId={perfilAberto}
+          onFechar={() => {
+            setPerfilAberto(null);
+            // A tabela mostra nome e e-mail: corrigidos, precisa reler.
+            carregar();
+          }}
+        />
       )}
     </div>
   );
