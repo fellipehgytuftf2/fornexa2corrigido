@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AvisoDoSistema from '../components/dashboard/AvisoDoSistema';
+import PerfilObrigatorio from '../components/dashboard/PerfilObrigatorio';
 import {
   AlertCircle,
   DollarSign,
@@ -507,6 +508,11 @@ export default function DashboardLayout() {
           não conteúdo da tela em que a pessoa está. Aparece uma vez, em
           qualquer página do painel — quem precisa ser avisado do endereço de
           remetente raramente abre Integrações por conta própria. */}
+      {/* Antes do aviso, de propósito: o aviso pode esperar, o perfil não —
+          e empilhar os dois na mesma tela faria o vendedor fechar os dois sem
+          ler nenhum. Este tem z-index maior e cobre o outro. */}
+      <PerfilObrigatorio />
+
       <AvisoDoSistema />
     </div>
   );

@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, CheckCircle, CreditCard, Lock, Mail, Moon, Sun, User } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle,
+  CreditCard,
+  Lock,
+  Mail,
+  Moon,
+  Phone,
+  Store,
+  Sun,
+  User,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface SettingsProps {
@@ -48,7 +59,6 @@ const statusLabels: Record<string, { texto: string; cor: string }> = {
 export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
   const [carregando, setCarregando] = useState(true);
   const [nome, setNome] = useState('');
-  const [nomeOriginal, setNomeOriginal] = useState('');
   const [empresa, setEmpresa] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   /**
@@ -115,8 +125,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       const nomeAtual = perfil?.name || user.user_metadata?.name || '';
 
       setNome(nomeAtual);
-      setNomeOriginal(nomeAtual);
-      setEmpresa(perfil?.empresa || '');
+        setEmpresa(perfil?.empresa || '');
       setWhatsapp(perfil?.whatsapp || '');
       setPlano(perfil?.plan || 'free');
       setStatusPlano(perfil?.plan_status || 'inativo');
@@ -162,6 +171,18 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
     }
 
     setDceAutomatica(ligada);
+  };
+
+  /**
+   * Salva o perfil inteiro: nome, empresa e WhatsApp.
+   *
+   * Um botão só porque é uma coisa só. Eram dois cards e dois botões — o
+   * vendedor salvava o nome, achava que tinha terminado, e o fornecedor
+   * continuava recebendo pedido sem saber de quem era.
+   */
+  const salvarPerfil = async () => {
+    await salvarNome();
+    await salvarContato();
   };
 
   const salvarContato = async () => {
@@ -254,8 +275,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       }
     }
 
-    setNomeOriginal(nome.trim());
-    avisar('Nome atualizado.');
+    avisar('Perfil atualizado.');
   };
 
   const salvarSenha = async () => {
@@ -331,7 +351,15 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       )}
 
       <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-6">Perfil</h2>
+        <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-1">
+          Seu perfil
+        </h2>
+
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-5 leading-relaxed">
+          Estes dados aparecem em todo pedido que chega ao seu fornecedor. Sem
+          eles ele vê a venda, mas não sabe que foi você — e com vários
+          vendedores no mesmo fornecedor, os pedidos viram um monte sem dono.
+        </p>
 
         <div className="space-y-4">
           <div>
@@ -351,6 +379,48 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           </div>
 
           <div>
+            <label htmlFor="empresa" className={rotulo}>
+              <Store className="w-4 h-4" />
+              Nome da sua loja ou empresa
+            </label>
+
+            <input
+              id="empresa"
+              value={empresa}
+              onChange={(evento) => setEmpresa(evento.target.value)}
+              placeholder="Ex.: Teodoro Comércio"
+              className={campo}
+              disabled={carregando}
+            />
+
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+              É como o fornecedor vai te chamar. Vazio, ele vê seu nome pessoal.
+            </p>
+          </div>
+
+          <div>
+            <label htmlFor="whatsapp" className={rotulo}>
+              <Phone className="w-4 h-4" />
+              WhatsApp
+            </label>
+
+            <input
+              id="whatsapp"
+              value={whatsapp}
+              onChange={(evento) => setWhatsapp(evento.target.value)}
+              placeholder="(11) 90000-0000"
+              inputMode="tel"
+              className={campo}
+              disabled={carregando}
+            />
+
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+              Para urgência que não pode esperar chamado. O fornecedor vê este
+              número; o comprador nunca.
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="config-email" className={rotulo}>
               <Mail className="w-4 h-4" />
               E-mail
@@ -364,13 +434,22 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
             </p>
           </div>
 
-          <button
-            onClick={salvarNome}
-            disabled={salvandoNome || !nome.trim() || nome.trim() === nomeOriginal}
-            className="px-5 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {salvandoNome ? 'Salvando...' : 'Salvar nome'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={salvarPerfil}
+              disabled={salvandoNome || salvandoContato || carregando || !nome.trim()}
+              className="px-5 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {salvandoNome || salvandoContato ? 'Salvando...' : 'Salvar perfil'}
+            </button>
+
+            {contatoSalvo && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
+                <CheckCircle className="w-4 h-4" />
+                Salvo
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -420,83 +499,6 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           >
             {salvandoSenha ? 'Alterando...' : 'Alterar senha'}
           </button>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-1">
-          Como o fornecedor te encontra
-        </h2>
-
-        <p className="text-sm text-gray-500 dark:text-slate-400 mb-5">
-          Aparece em todo pedido que chega ao seu fornecedor. Sem isso ele vê a
-          venda, mas não sabe que foi você — e com vários vendedores no mesmo
-          fornecedor, os pedidos viram um monte sem dono.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <label
-              htmlFor="empresa"
-              className="block text-sm font-medium text-navy-900 dark:text-white mb-2"
-            >
-              Nome da sua loja ou empresa
-            </label>
-
-            <input
-              id="empresa"
-              value={empresa}
-              onChange={(evento) => setEmpresa(evento.target.value)}
-              placeholder="Ex.: Teodoro Comércio"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
-              disabled={carregando}
-            />
-
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
-              Deixe vazio para o fornecedor ver seu nome pessoal.
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="whatsapp"
-              className="block text-sm font-medium text-navy-900 dark:text-white mb-2"
-            >
-              WhatsApp
-            </label>
-
-            <input
-              id="whatsapp"
-              value={whatsapp}
-              onChange={(evento) => setWhatsapp(evento.target.value)}
-              placeholder="(11) 90000-0000"
-              inputMode="tel"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 bg-white dark:bg-navy-700 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold/40"
-              disabled={carregando}
-            />
-
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
-              Para urgência que não pode esperar chamado. O fornecedor vê este
-              número; o comprador nunca.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={salvarContato}
-              disabled={salvandoContato || carregando}
-              className="px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-            >
-              {salvandoContato ? 'Salvando...' : 'Salvar contato'}
-            </button>
-
-            {contatoSalvo && (
-              <span className="inline-flex items-center gap-1.5 text-sm text-green-600 dark:text-green-400">
-                <CheckCircle className="w-4 h-4" />
-                Salvo
-              </span>
-            )}
-          </div>
         </div>
       </div>
 
