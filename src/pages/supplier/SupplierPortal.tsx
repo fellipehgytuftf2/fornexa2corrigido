@@ -108,6 +108,18 @@ interface Tab {
 const emAndamento = (order: SupplierOrder, ...statuses: OrderStatus[]) =>
   !order.cancelado_no_marketplace && statuses.includes(order.status);
 
+/**
+ * As abas que ficam na fileira de baixo, no fim da sequência.
+ *
+ * A fileira de baixo conta a vida do pedido em ordem: aguardando o vendedor,
+ * conferir pagamento, confirmado, em separação, enviado. Ler da esquerda para
+ * a direita é ler o caminho que o pedido percorre.
+ *
+ * Em cima ficam os recortes que não são etapa — cancelados, histórico,
+ * estoque, devoluções.
+ */
+const ABAS_DE_ANDAMENTO = ['separacao', 'enviados'];
+
 const tabs: Tab[] = [
   {
     id: 'novos',
@@ -887,7 +899,7 @@ export default function SupplierPortal() {
         )}
 
         <nav className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1" aria-label="Filtrar pedidos">
-          {tabs.map((tab) => {
+          {tabs.filter((tab) => !ABAS_DE_ANDAMENTO.includes(tab.id)).map((tab) => {
             const isActive = tab.id === activeTab;
 
             return (
@@ -1005,6 +1017,37 @@ export default function SupplierPortal() {
                         }
                       >
                         {quantos}
+                      </span>
+                    </button>
+                  ))}
+
+                {/* Em separação e Enviados fecham a sequência: pagamento
+                    resolvido, pedido na bancada, caixa na rua. São abas de
+                    verdade, e não filtros — trocam a lista inteira —, por isso
+                    acendem em amarelo, como as de cima. */}
+                {tabs
+                  .filter((tab) => ABAS_DE_ANDAMENTO.includes(tab.id))
+                  .map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      aria-current={activeTab === tab.id ? 'page' : undefined}
+                      className={
+                        activeTab === tab.id
+                          ? 'rounded-lg bg-gold px-3.5 py-2 text-sm font-semibold text-navy-900'
+                          : 'rounded-lg border border-white/10 px-3.5 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white'
+                      }
+                    >
+                      {tab.label}
+                      <span
+                        className={
+                          activeTab === tab.id
+                            ? 'ml-2 font-mono text-xs tabular-nums text-navy-900/60'
+                            : 'ml-2 font-mono text-xs tabular-nums text-slate-500'
+                        }
+                      >
+                        {countByTab[tab.id] ?? 0}
                       </span>
                     </button>
                   ))}
