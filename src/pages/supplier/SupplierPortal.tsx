@@ -928,8 +928,11 @@ export default function SupplierPortal() {
                 <div className="flex flex-wrap gap-2 mb-4">
                   {(
                     [
-                      ['conferir', 'Conferir pagamento', contagemPorFase.conferir],
+                      // Na ordem em que o pedido anda: o vendedor paga, o
+                      // fornecedor confere, e fica confirmado. Fileira que
+                      // segue o fluxo se lê sem pensar.
                       ['aguardando', 'Aguardando o vendedor', contagemPorFase.aguardando],
+                      ['conferir', 'Conferir pagamento', contagemPorFase.conferir],
                       ['confirmados', 'Confirmados', contagemPorFase.confirmados],
                     ] as const
                   ).map(([id, rotulo, quantos]) => (
