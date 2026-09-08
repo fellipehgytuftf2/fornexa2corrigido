@@ -632,7 +632,7 @@ export default function SupplierPortal() {
 
   const alternarRecebimento = async (order: SupplierOrder) => {
     setConfirmandoId(order.id);
-    setErrorMessage('');
+    setErroNoPedido(null);
 
     const confirmar = !order.recebimento_confirmado_em;
 
@@ -656,7 +656,7 @@ export default function SupplierPortal() {
 
     if (error) {
       console.error('Erro ao confirmar recebimento:', error);
-      setErrorMessage(`Não foi possível salvar: ${error.message}`);
+      avisarNoPedido(order.id, `Não foi possível salvar: ${error.message}`);
       return;
     }
 
