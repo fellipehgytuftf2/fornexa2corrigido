@@ -37,7 +37,7 @@ function traduzirMotivo(motivoBruto: string): string {
     // O código do anúncio vem na mensagem crua e é o que resolve a dúvida:
     // sem ele, "não encontramos o produto" não dá para conferir nem
     // desmentir. Com ele, o vendedor abre o anúncio e vê na hora se é dele.
-    const anuncio = motivoBruto.match(/MLBd+/)?.[0];
+    const anuncio = motivoBruto.match(/MLB\d+/)?.[0];
 
     return anuncio
       ? `A venda foi do anúncio ${anuncio}, que não está em Meus Produtos. Costuma ser anúncio criado direto no Mercado Livre, ou de antes do FORNEXA — abra mercadolivre.com.br/p/${anuncio} para ver qual é.`
