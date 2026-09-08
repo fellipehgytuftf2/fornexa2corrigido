@@ -120,6 +120,41 @@ export default function DashboardLayout() {
   const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
+
+  /**
+   * Respostas de chamado que o vendedor ainda não leu.
+   *
+   * Mesma cadência do suporte, e pelo mesmo motivo: é aviso de que alguém
+   * respondeu, não conversa ao vivo. E confere de novo quando a aba volta a
+   * ficar visível — a resposta costuma chegar enquanto a pessoa está no
+   * Mercado Livre, em outra janela.
+   */
+  const [chamadosNaoLidos, setChamadosNaoLidos] = useState(0);
+
+  useEffect(() => {
+    let vivo = true;
+
+    const contar = async () => {
+      const { data } = await supabase.rpc('chamados_nao_lidos');
+      if (vivo) setChamadosNaoLidos(Number(data ?? 0));
+    };
+
+    contar();
+
+    const relogio = window.setInterval(contar, 60000);
+
+    const aoVoltar = () => {
+      if (document.visibilityState === 'visible') contar();
+    };
+
+    document.addEventListener('visibilitychange', aoVoltar);
+
+    return () => {
+      vivo = false;
+      window.clearInterval(relogio);
+      document.removeEventListener('visibilitychange', aoVoltar);
+    };
+  }, [location.pathname]);
   const [checkingRole, setCheckingRole] = useState(true);
 
   useEffect(() => {
@@ -350,6 +385,15 @@ export default function DashboardLayout() {
             >
               <Icon className="w-5 h-5" />
               {item.label}
+
+              {/* O fornecedor responde e o vendedor não vê: a contagem existia
+                  dentro da página, e quem não abre a página não sabe que tem
+                  resposta. Aqui ela alcança quem não foi procurar. */}
+              {item.path === '/dashboard/tickets' && chamadosNaoLidos > 0 && (
+                <span className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center tabular-nums">
+                  {chamadosNaoLidos}
+                </span>
+              )}
             </NavLink>
           );
         })}
