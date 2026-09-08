@@ -951,6 +951,13 @@ export default function Orders() {
                       </button>
                     )}
 
+                    {/* Excluir é para pedido que nasceu errado e nunca andou.
+                        Depois que o dinheiro entra na história, apagar levaria
+                        embora o registro do pagamento, o comprovante e a
+                        confirmação do fornecedor — e o pedido sumiria da tela
+                        dele sem explicação. O banco também recusa; ver a
+                        migração 20260908200000. */}
+                    {!order.pago_ao_fornecedor_em && !order.recebimento_confirmado_em && (
                     <button
                       onClick={() => handleDeleteOrder(order.id)}
                       disabled={actionId === order.id}
@@ -959,6 +966,7 @@ export default function Orders() {
                       <Trash2 className="w-4 h-4" />
                       Excluir
                     </button>
+                    )}
                   </div>
 
                   {/* A DC-e é documento fiscal em nome do vendedor. Quando quem
