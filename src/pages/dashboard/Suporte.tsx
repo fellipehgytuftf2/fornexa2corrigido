@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import ConversaDeSuporte, {
   type MensagemDeSuporte,
 } from '../../components/dashboard/ConversaDeSuporte';
+import SuporteAdmin from '../../components/dashboard/SuporteAdmin';
 
 /**
  * A conversa da pessoa com o suporte do FORNEXA.
@@ -22,6 +23,16 @@ export default function Suporte() {
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState('');
   const [meuId, setMeuId] = useState('');
+
+  /**
+   * Quem é admin vê a lista de conversas; o resto vê a própria.
+   *
+   * É o mesmo item de menu para os dois, e não uma seção escondida dentro do
+   * painel de Admin: quem responde suporte procura "Suporte", não "Admin". E
+   * quem só quer perguntar não deveria descobrir que existe um lugar onde as
+   * conversas de todo mundo aparecem.
+   */
+  const [ehAdmin, setEhAdmin] = useState(false);
 
   const carregar = async () => {
     const { data, error } = await supabase.rpc('minhas_mensagens_de_suporte');
@@ -43,6 +54,18 @@ export default function Suporte() {
       } = await supabase.auth.getUser();
 
       setMeuId(user?.id ?? '');
+
+      const { data: perfil } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user?.id ?? '')
+        .maybeSingle<{ role: string | null }>();
+
+      if (perfil?.role === 'admin') {
+        setEhAdmin(true);
+        setCarregando(false);
+        return;
+      }
 
       // Cria a conversa se ainda não existir, e marca como lida. Chamar isto
       // ao abrir, e não ao enviar, é o que faz o contador do menu zerar quando
@@ -75,6 +98,10 @@ export default function Suporte() {
 
     await carregar();
   };
+
+  if (ehAdmin) {
+    return <SuporteAdmin />;
+  }
 
   return (
     <div className="max-w-3xl">

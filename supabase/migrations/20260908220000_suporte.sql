@@ -213,13 +213,16 @@ begin
   end if;
 
   return query
+  -- Os `::text` não são enfeite: `auth.users.email` é varchar, e a função
+  -- declara text. Sem eles o Postgres recusa com "structure of query does not
+  -- match function result type" — erro que não diz qual coluna é.
   select
     c.id,
     c.user_id,
-    coalesce(nullif(p.name, ''), u.email),
-    u.email,
-    p.empresa,
-    p.whatsapp,
+    coalesce(nullif(p.name, ''), u.email::text)::text,
+    u.email::text,
+    p.empresa::text,
+    p.whatsapp::text,
     c.ultima_mensagem_em,
     (c.lida_suporte_em is null or c.ultima_mensagem_em > c.lida_suporte_em),
     (select count(*) from public.suporte_mensagens m where m.conversa_id = c.id)
