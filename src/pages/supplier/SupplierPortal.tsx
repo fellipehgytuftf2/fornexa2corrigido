@@ -402,6 +402,17 @@ export default function SupplierPortal() {
       if (mounted) {
         setLoading(false);
       }
+
+      // Depois de mostrar a lista, e não antes: perguntar ao Mercado Livre
+      // leva alguns segundos, e o fornecedor não deve esperar por isso para ver
+      // os pedidos. Os selos acertam sozinhos quando a resposta chega.
+      await supabase.functions
+        .invoke('supplier-atualizar-envios')
+        .catch((erro) => console.error('Não foi possível conferir os envios:', erro));
+
+      if (mounted) {
+        await loadOrders({ silencioso: true });
+      }
     };
 
     load();
@@ -473,10 +484,32 @@ export default function SupplierPortal() {
   // Vale para os dois modais do portal: conversa e troca de senha.
   useTravaScrollDeFundo(Boolean(conversaPedido) || contaAberta);
 
+  /**
+   * Pergunta ao Mercado Livre em que pé estão os envios, e relê a lista.
+   *
+   * Sem isto o selo "Pronto para despachar" só ficava certo depois de alguém
+   * clicar em Baixar etiqueta e levar a recusa — e é justamente para não ter de
+   * clicar em todos que o selo existe.
+   *
+   * A função do outro lado é que segura o custo: só pedidos que ainda não
+   * saíram, só os não consultados há alguns minutos, e um teto por chamada.
+   * Aqui não se decide nada disso.
+   */
+  const conferirEnvios = async () => {
+    const { error } = await supabase.functions.invoke('supplier-atualizar-envios');
+
+    if (error) {
+      // Conferência é melhoria da lista, não a lista. Falhando, os pedidos
+      // continuam aparecendo com o que já se sabia deles.
+      console.error('Não foi possível conferir os envios:', error);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     setErrorMessage('');
     setPedidosNovos(0);
+    await conferirEnvios();
     await loadOrders();
     setRefreshing(false);
   };
