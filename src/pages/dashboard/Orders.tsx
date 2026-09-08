@@ -143,6 +143,15 @@ export default function Orders() {
    * levar isso como se fosse instrução.
    */
   const [ehAdmin, setEhAdmin] = useState(false);
+
+  /**
+   * Quem está olhando.
+   *
+   * O admin enxerga os pedidos de todos, e o repasse é o pagamento do vendedor
+   * dono do pedido — as funções só encontram pedido de quem chamou. Sem saber
+   * quem sou eu, a tela oferecia botões que respondiam "pedido não encontrado".
+   */
+  const [usuarioId, setUsuarioId] = useState('');
   const [dcePedidoId, setDcePedidoId] = useState<string | null>(null);
   const [dceResultado, setDceResultado] = useState<{
     pedidoId: string;
@@ -328,6 +337,8 @@ export default function Orders() {
     const {
       data: { user: usuarioAtual },
     } = await supabase.auth.getUser();
+
+    setUsuarioId(usuarioAtual?.id ?? '');
 
     if (usuarioAtual) {
       const { data: perfil } = await supabase
@@ -904,6 +915,7 @@ export default function Orders() {
                       olhando um pedido, não a primeira. */}
                   <RepasseNoPedido
                     order={order}
+                    souODono={order.user_id === usuarioId}
                     fornecedor={
                       supplier
                         ? {

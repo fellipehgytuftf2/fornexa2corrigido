@@ -19,6 +19,14 @@ interface Props {
     cidade: string | null;
     chave_pix: string | null;
   } | null;
+  /**
+   * O pedido é de quem está olhando.
+   *
+   * O admin enxerga os pedidos de todo mundo, mas o repasse é o pagamento do
+   * VENDEDOR: as funções só encontram pedido de quem chamou, e os botões
+   * respondiam "pedido não encontrado" — que soa defeito e é regra.
+   */
+  souODono: boolean;
   onMudou: () => void;
 }
 
@@ -41,7 +49,7 @@ interface Props {
  * fácil seria marcar como pago sem ter pago nada — e é justamente essa marca
  * que o fornecedor usa para liberar mercadoria.
  */
-export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
+export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }: Props) {
   const [copiado, setCopiado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
@@ -77,7 +85,7 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
    * conferir um arquivo e guardar outro — e a tela seguiria dizendo
    * "confirmado" sobre um comprovante que ninguém viu.
    */
-  const fechado = Boolean(order.recebimento_confirmado_em);
+  const fechado = Boolean(order.recebimento_confirmado_em) || !souODono;
 
   /**
    * Qual dos três é o passo de agora.
@@ -352,9 +360,19 @@ export default function RepasseNoPedido({ order, fornecedor, onMudou }: Props) {
 
       {/* Diz onde termina a preparação e começa o compromisso. Sem isto, o
           vendedor não tem como saber que copiar e anexar são passos privados. */}
+      {/* Quem não é dono vê o valor e o comprovante, e nada mais: pagar é ato
+          do vendedor, e o admin clicando aqui levaria "pedido não encontrado"
+          — que soa defeito e é regra. */}
+      {!souODono && (
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+          Este repasse é do vendedor. Você vê como está, mas quem copia o PIX,
+          anexa o comprovante e marca como pago é ele.
+        </p>
+      )}
+
       {/* Botão que some sem explicação parece defeito. Aqui sumiram três, e o
           motivo é o oposto de defeito: o acerto fechou. */}
-      {fechado && (
+      {souODono && fechado && (
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
           O fornecedor confirmou que recebeu em{' '}
           {new Date(order.recebimento_confirmado_em as string).toLocaleDateString('pt-BR')}
