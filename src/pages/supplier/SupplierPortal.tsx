@@ -1579,9 +1579,16 @@ export default function SupplierPortal() {
                             {labelId === order.id ? 'Buscando...' : 'Baixar etiqueta'}
                           </button>
                         ) : (
+                          /* São dois motivos diferentes, com donos diferentes:
+                             o pagamento é do vendedor, o envio é do Mercado
+                             Livre. Juntos na mesma frase, o fornecedor não sabe
+                             a quem perguntar — e a resposta mais comum era
+                             cobrar o vendedor por algo que não era dele. */
                           <span className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/5 px-4 py-3 text-sm text-slate-600">
                             <FileText className="w-4 h-4" aria-hidden="true" />
-                            Etiqueta ainda não disponível
+                            {order.aguardando_pagamento
+                              ? 'Etiqueta libera após o pagamento'
+                              : 'Este pedido não tem envio no Mercado Livre'}
                           </span>
                         )}
 
