@@ -13,26 +13,22 @@ import { supabase } from '../../lib/supabase';
  * colar com fita em toda venda — sem nunca descobrir que a causa está na
  * configuração da conta de outra pessoa.
  *
- * A CONFERÊNCIA
+ * O QUE AS SONDAS DE 09/09 RESPONDERAM
  *
- * `GET /users/{id}/shipping_preferences` traz `thermal_printer`, e é assim que
- * a tela sabe dizer se está certo em vez de só pedir. O campo não está na
- * documentação; foi achado por sonda, como a API de DC-e.
+ * LER DÁ: `GET /users/{id}/shipping_preferences` responde 200 e traz
+ * `thermal_printer`. O campo não está na documentação — mesma história da API
+ * de DC-e. `null` é quem nunca configurou, e imprime em A4; conta em térmica
+ * traz texto, como "ZPL2". Por isso a leitura aceita qualquer valor
+ * preenchido em vez de comparar com `true`.
+ *
+ * GRAVAR NÃO DÁ: PUT e POST no mesmo caminho respondem 404 de rota
+ * inexistente, com dois formatos de corpo diferentes. Não há como o FORNEXA
+ * trocar isso pelo vendedor — é o mesmo muro do endereço de remetente, e por
+ * isso este card pede em vez de resolver.
  */
 export default function ImpressaoDaEtiqueta() {
   const [termica, setTermica] = useState<boolean | null>(null);
   const [conferiu, setConferiu] = useState(false);
-
-  /**
-   * Sonda de escrita, provisória e só para admin.
-   *
-   * Ler já se sabe que dá. Gravar é outra autorização — a lista de endereços
-   * lê com 403 e grava com 404. Escreve SOMENTE na conta conectada de quem
-   * clica; não aceita alvo, para não acabar apontada para conta de cliente.
-   */
-  const [ehAdmin, setEhAdmin] = useState(false);
-  const [sondando, setSondando] = useState(false);
-  const [resultadoDaSonda, setResultadoDaSonda] = useState('');
 
   useEffect(() => {
     const conferir = async () => {
@@ -47,46 +43,8 @@ export default function ImpressaoDaEtiqueta() {
       setConferiu(true);
     };
 
-    const verPapel = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const { data: perfil } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user?.id ?? '')
-        .maybeSingle<{ role: string | null }>();
-
-      setEhAdmin(perfil?.role === 'admin');
-    };
-
     conferir();
-    verPapel();
   }, []);
-
-  const sondarGravacao = async () => {
-    const certeza = window.confirm(
-      'Esta sonda TROCA a preferência de impressão da SUA conta do Mercado ' +
-        'Livre para térmica. Use numa conta de teste. Seguir?'
-    );
-
-    if (!certeza) return;
-
-    setSondando(true);
-    setResultadoDaSonda('');
-
-    const { data, error } = await supabase.functions.invoke(
-      'ml-sonda-gravar-impressao',
-      { body: { confirmo: true } }
-    );
-
-    setSondando(false);
-
-    setResultadoDaSonda(
-      JSON.stringify(data ?? { erro: error?.message }, null, 2)
-    );
-  };
 
   return (
     <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
@@ -124,25 +82,6 @@ export default function ImpressaoDaEtiqueta() {
             cortar com tesoura e colar com fita em toda venda sua. Em térmica,
             sai no tamanho do adesivo.
           </p>
-        </div>
-      )}
-
-      {ehAdmin && (
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-navy-700">
-          <button
-            type="button"
-            onClick={sondarGravacao}
-            disabled={sondando}
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors disabled:opacity-50"
-          >
-            {sondando ? 'Sondando...' : 'Sondar gravação (minha conta)'}
-          </button>
-
-          {resultadoDaSonda && (
-            <pre className="mt-3 text-xs text-navy-900 dark:text-slate-200 overflow-x-auto whitespace-pre-wrap break-words">
-              {resultadoDaSonda}
-            </pre>
-          )}
         </div>
       )}
 
