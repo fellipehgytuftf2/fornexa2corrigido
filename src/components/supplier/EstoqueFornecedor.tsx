@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Boxes, Check, Loader2, PackageSearch } from 'lucide-react';
+import {
+  AlertCircle,
+  Boxes,
+  Check,
+  Loader2,
+  PackageSearch,
+  Plus,
+  Search,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface ProdutoDoFornecedor {
@@ -47,6 +55,72 @@ export default function EstoqueFornecedor() {
    * "fora do catálogo" no meio da digitação.
    */
   const [rascunho, setRascunho] = useState<Record<string, string>>({});
+
+  /**
+   * Busca por nome.
+   *
+   * Catálogo de fornecedor passa de cem itens rápido, e contar estoque é ir
+   * atrás de UM produto de cada vez — com a caixa na mão, não rolando a tela.
+   */
+  const [busca, setBusca] = useState('');
+
+  /** Cadastro de produto novo, fechado até alguém pedir. */
+  const [cadastrando, setCadastrando] = useState(false);
+  const [salvandoNovo, setSalvandoNovo] = useState(false);
+  const [novo, setNovo] = useState({
+    nome: '',
+    preco: '',
+    estoque: '',
+    categoria: '',
+    descricao: '',
+    imagem: '',
+  });
+
+  const cadastrar = async () => {
+    setSalvandoNovo(true);
+    setErro('');
+
+    const { data, error } = await supabase.rpc('fornecedor_cadastra_produto', {
+      p_nome: novo.nome,
+      p_preco: Number(novo.preco.replace(',', '.')) || 0,
+      p_estoque: Number(novo.estoque) || 0,
+      p_categoria: novo.categoria || null,
+      p_descricao: novo.descricao || null,
+      p_imagem: novo.imagem || null,
+    });
+
+    setSalvandoNovo(false);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      setErro(error?.message ?? resposta?.erro ?? 'Não foi possível cadastrar.');
+      return;
+    }
+
+    setNovo({ nome: '', preco: '', estoque: '', categoria: '', descricao: '', imagem: '' });
+    setCadastrando(false);
+    carregar();
+  };
+
+  /**
+   * A lista depois da busca.
+   *
+   * Sem acento e sem maiúscula: quem procura "lanterna" não deve depender de
+   * ter digitado igual a quem cadastrou.
+   */
+  const simplificar = (texto: string) =>
+    texto
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .trim();
+
+  const visiveis = busca.trim()
+    ? produtos.filter((produto) =>
+        simplificar(produto.nome).includes(simplificar(busca))
+      )
+    : produtos;
 
   const carregar = async () => {
     setCarregando(true);
@@ -250,18 +324,114 @@ export default function EstoqueFornecedor() {
         )}
       </div>
 
-      {produtos.length === 0 ? (
+      {/* Busca e cadastro andam juntos: quem não acha o produto costuma ser
+          quem precisa cadastrá-lo. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search
+            className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"
+            aria-hidden="true"
+          />
+
+          <input
+            value={busca}
+            onChange={(evento) => setBusca(evento.target.value)}
+            placeholder="Buscar produto pelo nome"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.02] pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-slate-500"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCadastrando((aberto) => !aberto)}
+          className="inline-flex items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-navy-900 transition-opacity hover:opacity-90"
+        >
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          {cadastrando ? 'Cancelar' : 'Novo produto'}
+        </button>
+      </div>
+
+      {cadastrando && (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 space-y-3">
+          <p className="font-semibold text-white">Cadastrar produto</p>
+
+          <p className="text-sm text-slate-400 leading-relaxed">
+            O preço é o seu, de custo — o de venda cada vendedor define ao
+            publicar. Assim que salvar, o produto aparece no catálogo deles.
+          </p>
+
+          <input
+            value={novo.nome}
+            onChange={(evento) => setNovo({ ...novo, nome: evento.target.value })}
+            placeholder="Nome do produto"
+            className="w-full rounded-lg border border-white/10 bg-navy-900 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+          />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <input
+              value={novo.preco}
+              onChange={(evento) => setNovo({ ...novo, preco: evento.target.value })}
+              placeholder="Preço de custo"
+              inputMode="decimal"
+              className="rounded-lg border border-white/10 bg-navy-900 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+
+            <input
+              value={novo.estoque}
+              onChange={(evento) => setNovo({ ...novo, estoque: evento.target.value })}
+              placeholder="Quantidade"
+              inputMode="numeric"
+              className="rounded-lg border border-white/10 bg-navy-900 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+
+            <input
+              value={novo.categoria}
+              onChange={(evento) => setNovo({ ...novo, categoria: evento.target.value })}
+              placeholder="Categoria"
+              className="rounded-lg border border-white/10 bg-navy-900 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+          </div>
+
+          <input
+            value={novo.imagem}
+            onChange={(evento) => setNovo({ ...novo, imagem: evento.target.value })}
+            placeholder="Link da foto (opcional)"
+            className="w-full rounded-lg border border-white/10 bg-navy-900 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+          />
+
+          <textarea
+            value={novo.descricao}
+            onChange={(evento) => setNovo({ ...novo, descricao: evento.target.value })}
+            placeholder="Descrição (opcional) — medidas, material, o que vem na caixa"
+            rows={3}
+            className="w-full rounded-lg border border-white/10 bg-navy-900 px-3 py-2 text-sm text-white placeholder:text-slate-500 leading-relaxed"
+          />
+
+          <button
+            type="button"
+            onClick={cadastrar}
+            disabled={salvandoNovo || !novo.nome.trim() || !novo.preco.trim()}
+            className="inline-flex items-center gap-2 rounded-xl bg-gold px-5 py-2.5 text-sm font-semibold text-navy-900 transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {salvandoNovo && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
+            {salvandoNovo ? 'Salvando...' : 'Cadastrar'}
+          </button>
+        </div>
+      )}
+
+      {visiveis.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-12 text-center">
           <PackageSearch className="w-8 h-8 text-slate-600 mx-auto" aria-hidden="true" />
 
           <p className="text-slate-400 mt-4 max-w-md mx-auto leading-relaxed">
-            Nenhum produto seu está no catálogo do FORNEXA ainda. Assim que a
-            equipe cadastrar, eles aparecem aqui para você contar.
+            {produtos.length === 0
+              ? 'Nenhum produto seu está no catálogo do FORNEXA ainda. Cadastre pelo botão acima e ele aparece para os vendedores.'
+              : `Nenhum produto com "${busca}". Confira o nome, ou cadastre como novo.`}
           </p>
         </div>
       ) : (
         <ul className="space-y-3">
-          {produtos.map((produto) => {
+          {visiveis.map((produto) => {
             const fora = produto.indisponivel;
             const acabando = !fora && produto.estoque > 0 && produto.estoque <= ACABANDO;
 
