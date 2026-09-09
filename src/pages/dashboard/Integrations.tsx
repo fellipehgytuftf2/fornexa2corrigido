@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import EnderecoDoFornecedor from '../../components/dashboard/EnderecoDoFornecedor';
+import ImpressaoDaEtiqueta from '../../components/dashboard/ImpressaoDaEtiqueta';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
 
 interface MlConnection {
@@ -264,6 +265,11 @@ export default function Integrations() {
           descoberto quando a primeira etiqueta sai — e aí não dá mais para
           mudar aquele envio. */}
       <EnderecoDoFornecedor />
+
+      {/* Ao lado do endereço de propósito: são as duas configurações que o
+          vendedor faz uma vez no Mercado Livre e que decidem como o pacote
+          sai do galpão do fornecedor. */}
+      <ImpressaoDaEtiqueta />
 
       {successMessage && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start gap-3">
