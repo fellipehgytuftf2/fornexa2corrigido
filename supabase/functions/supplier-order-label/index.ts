@@ -241,7 +241,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Apenas fornecedores podem baixar etiquetas por aqui.' }, 403);
   }
 
-  let payload: { pedido_id?: string };
+  let payload: { pedido_id?: string; formato?: 'pdf' | 'zpl2' };
 
   try {
     payload = await req.json();
@@ -446,10 +446,25 @@ Deno.serve(async (req: Request) => {
   // 5. Busca a etiqueta.
   //    A etiqueta só existe quando o envio está em ready_to_ship no Mercado
   //    Livre; antes disso o próprio ML recusa.
+  /**
+   * PDF ou ZPL.
+   *
+   * O PDF sai no formato que a conta do VENDEDOR tem configurada no Mercado
+   * Livre — A4 ou térmica. Não é parâmetro nosso, e por isso não adianta
+   * pedir de outro jeito daqui.
+   *
+   * O ZPL é a linguagem das impressoras Zebra: vai direto para a impressora,
+   * no tamanho exato, sem passar por página nenhuma. Quem tem térmica prefere
+   * este, e é a única saída quando a conta do vendedor está em A4.
+   *
+   * O Mercado Livre devolve o ZPL dentro de um ZIP, junto com o PDF da PLP.
+   */
+  const zpl = payload.formato === 'zpl2';
+
   const labelResponse = await fetch(
     `https://api.mercadolibre.com/shipment_labels?shipment_ids=${encodeURIComponent(
       pedido.ml_shipment_id
-    )}&response_type=pdf`,
+    )}&response_type=${zpl ? 'zpl2' : 'pdf'}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
@@ -485,14 +500,17 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const pdf = await labelResponse.arrayBuffer();
+  const arquivo = await labelResponse.arrayBuffer();
 
-  return new Response(pdf, {
+  return new Response(arquivo, {
     status: 200,
     headers: {
       ...corsHeaders,
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="etiqueta-${pedido.ml_shipment_id}.pdf"`,
+      'Content-Type': zpl ? 'application/zip' : 'application/pdf',
+      // ZIP é para baixar, PDF é para abrir e conferir antes de imprimir.
+      'Content-Disposition': zpl
+        ? `attachment; filename="etiqueta-${pedido.ml_shipment_id}.zip"`
+        : `inline; filename="etiqueta-${pedido.ml_shipment_id}.pdf"`,
     },
   });
 });

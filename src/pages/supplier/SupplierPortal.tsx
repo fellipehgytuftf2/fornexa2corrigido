@@ -552,13 +552,14 @@ export default function SupplierPortal() {
   const abrirPdfDoPedido = async (
     order: SupplierOrder,
     funcao: string,
-    oQueE: string
+    oQueE: string,
+    formato?: 'zpl2'
   ) => {
     setLabelId(order.id);
     setErroNoPedido(null);
 
     const { data, error } = await supabase.functions.invoke<Blob>(funcao, {
-      body: { pedido_id: order.id },
+      body: { pedido_id: order.id, formato },
     });
 
     setLabelId(null);
@@ -584,6 +585,18 @@ export default function SupplierPortal() {
     }
 
     const url = URL.createObjectURL(data);
+
+    // ZPL vem num ZIP: não há o que abrir numa aba. Baixa direto.
+    if (formato === 'zpl2') {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `etiqueta-${order.id}.zip`;
+      link.click();
+
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
+
     const aberta = window.open(url, '_blank', 'noopener,noreferrer');
 
     if (!aberta) {
@@ -596,6 +609,17 @@ export default function SupplierPortal() {
     // Libera a memória depois que o navegador teve tempo de carregar o PDF.
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
+
+  /**
+   * A etiqueta na linguagem da impressora Zebra.
+   *
+   * O PDF sai no formato configurado na conta do VENDEDOR — A4 ou térmica — e
+   * isso não é parâmetro nosso. Quem imprime em térmica e recebe A4 não tem o
+   * que fazer com o arquivo; o ZPL vai direto para a impressora, no tamanho
+   * exato.
+   */
+  const baixarZpl = (order: SupplierOrder) =>
+    abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta', 'zpl2');
 
   const baixarEtiqueta = (order: SupplierOrder) =>
     abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta');
@@ -1470,6 +1494,18 @@ export default function SupplierPortal() {
                         {/* Dois papéis, não um: a etiqueta vai colada e
                             visível, e o DACE dobrado num saquinho plástico do
                             lado de fora. Sem os dois a encomenda não é postada. */}
+                        {order.etiqueta_disponivel && (
+                          <button
+                            onClick={() => baixarZpl(order)}
+                            disabled={labelId === order.id}
+                            title="Para impressora térmica Zebra. Vai direto para a impressora, no tamanho exato."
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50"
+                          >
+                            <FileText className="w-4 h-4" aria-hidden="true" />
+                            Etiqueta ZPL
+                          </button>
+                        )}
+
                         {order.etiqueta_disponivel && (
                           <button
                             onClick={() => baixarDace(order)}
