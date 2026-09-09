@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AvisoDoSistema from '../components/dashboard/AvisoDoSistema';
+import Notificacoes from '../components/dashboard/Notificacoes';
 import SuporteFlutuante from '../components/dashboard/SuporteFlutuante';
 import {
   AlertCircle,
@@ -475,6 +476,10 @@ export default function DashboardLayout() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3">
+              {/* Antes do tema: o sino é sobre o que mudou na conta, e o tema é
+                  preferência pessoal. O que pede ação vem primeiro. */}
+              <Notificacoes />
+
               <button
                 onClick={handleToggleTheme}
                 aria-label={darkMode ? 'Usar tema claro' : 'Usar tema escuro'}
