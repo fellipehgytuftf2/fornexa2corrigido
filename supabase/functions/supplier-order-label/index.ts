@@ -24,6 +24,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { chavePublica, chaveSecreta, urlDoProjeto } from '../_shared/chaves.ts';
 import { obterAccessToken } from '../_shared/tokenMercadoLivre.ts';
+import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -500,7 +501,42 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const arquivo = await labelResponse.arrayBuffer();
+  let arquivo = await labelResponse.arrayBuffer();
+
+  /**
+   * Só a etiqueta, sem a DACE.
+   *
+   * O Mercado Livre entrega as duas no mesmo PDF: página 1 a etiqueta, página
+   * 2 a Declaração de Conteúdo. Na impressora térmica isso vira uma etiqueta
+   * adesiva cheia de texto miúdo que ninguém cola em lugar nenhum — adesivo
+   * jogado fora em toda venda.
+   *
+   * A DACE continua inteira no botão dela, para sair em papel comum, que é
+   * como se faz.
+   *
+   * Falhando, devolve o PDF como veio: etiqueta com página a mais é
+   * inconveniente; etiqueta que não sai é pedido parado.
+   */
+  if (!zpl) {
+    try {
+      const original = await PDFDocument.load(arquivo);
+
+      if (original.getPageCount() > 1) {
+        const soAEtiqueta = await PDFDocument.create();
+        const [primeira] = await soAEtiqueta.copyPages(original, [0]);
+
+        soAEtiqueta.addPage(primeira);
+
+        const bytes = await soAEtiqueta.save();
+        arquivo = bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength
+        ) as ArrayBuffer;
+      }
+    } catch (erro) {
+      console.error('Não foi possível separar a etiqueta da DACE:', erro);
+    }
+  }
 
   return new Response(arquivo, {
     status: 200,
