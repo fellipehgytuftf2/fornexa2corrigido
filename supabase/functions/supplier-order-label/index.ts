@@ -506,7 +506,11 @@ Deno.serve(async (req: Request) => {
     status: 200,
     headers: {
       ...corsHeaders,
-      'Content-Type': zpl ? 'application/zip' : 'application/pdf',
+      // `octet-stream` e nao `application/zip`: o cliente do Supabase decide
+      // como ler a resposta pelo Content-Type, e para tipo que ele nao conhece
+      // tenta ler como texto — o binario se perde e a chamada estoura. Com
+      // octet-stream ele devolve um Blob, que e o que o navegador precisa.
+      'Content-Type': zpl ? 'application/octet-stream' : 'application/pdf',
       // ZIP é para baixar, PDF é para abrir e conferir antes de imprimir.
       'Content-Disposition': zpl
         ? `attachment; filename="etiqueta-${pedido.ml_shipment_id}.zip"`

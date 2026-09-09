@@ -604,9 +604,22 @@ export default function SupplierPortal() {
     setLabelId(order.id);
     setErroNoPedido(null);
 
-    const { data, error } = await supabase.functions.invoke<Blob>(funcao, {
-      body: { pedido_id: order.id, formato },
-    });
+    // Envolvido em try/catch porque `invoke` estoura em resposta binaria que
+    // ele nao consegue interpretar — e sem isto o botao girava para sempre,
+    // sem erro na tela e sem arquivo.
+    let data: Blob | null = null;
+    let error: unknown = null;
+
+    try {
+      const resposta = await supabase.functions.invoke<Blob>(funcao, {
+        body: { pedido_id: order.id, formato },
+      });
+
+      data = resposta.data;
+      error = resposta.error;
+    } catch (estouro) {
+      error = estouro;
+    }
 
     setLabelId(null);
 
