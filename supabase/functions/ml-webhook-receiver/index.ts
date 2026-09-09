@@ -97,13 +97,44 @@ Deno.serve(async (req: Request) => {
     // perguntas, itens) ficam só registrados, sem ação, por enquanto.
     const isOrderTopic = typeof topic === "string" && topic.includes("order");
 
-    if (!isOrderTopic || !resource || !mlUserIdRaw) {
+    /**
+     * O aviso de ENVIO, que a gente ignorava.
+     *
+     * O envio nem sempre existe quando a venda chega: o Mercado Livre cria o
+     * pedido, avisa em "orders", e segundos depois cria o envio e avisa em
+     * "shipments". Escutando só o primeiro, o pedido nascia sem envio e ficava
+     * assim — sem etiqueta, para sempre, até alguém sincronizar na mão.
+     *
+     * O fornecedor via "este pedido não tem envio no Mercado Livre" num pedido
+     * pago, e não havia nada que ele pudesse fazer.
+     */
+    const isShipmentTopic = typeof topic === "string" && topic.includes("shipment");
+
+    if (!isOrderTopic && !isShipmentTopic) {
       if (webhookEventId) {
         await supabase
           .from("webhook_events")
           .update({
             status: "processado",
-            erro_mensagem: isOrderTopic ? "Payload incompleto (sem resource/user_id)" : "Tópico não relacionado a pedidos, ignorado",
+            erro_mensagem: "Tópico não relacionado a pedidos, ignorado",
+            processado_em: new Date().toISOString(),
+          })
+          .eq("id", webhookEventId);
+      }
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!resource || !mlUserIdRaw) {
+      if (webhookEventId) {
+        await supabase
+          .from("webhook_events")
+          .update({
+            status: "processado",
+            erro_mensagem: "Payload incompleto (sem resource/user_id)",
             processado_em: new Date().toISOString(),
           })
           .eq("id", webhookEventId);
@@ -182,6 +213,55 @@ Deno.serve(async (req: Request) => {
     }
 
     const accessToken = token.accessToken;
+
+    // 2.5 Aviso de envio: liga o envio ao pedido que já existe aqui.
+    //
+    // O recurso é "/shipments/{id}", e o próprio envio diz de qual venda é.
+    // Não cria pedido: se a venda ainda não chegou, o aviso de "orders" vem
+    // logo e traz tudo.
+    if (isShipmentTopic) {
+      const envioResposta = await fetch(`https://api.mercadolibre.com${resource}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (envioResposta.ok) {
+        const envio = await envioResposta.json();
+        const mlOrderDoEnvio = envio?.order_id ? String(envio.order_id) : null;
+
+        if (mlOrderDoEnvio) {
+          const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+
+          await supabase
+            .from("orders")
+            .update({
+              ml_shipment_id: String(envio.id ?? resource.split("/").pop()),
+              ml_shipment_substatus: envio?.substatus ? String(envio.substatus) : null,
+              ml_shipment_visto_em: new Date().toISOString(),
+              ml_liberacao_em:
+                typeof buffering?.date === "string" ? buffering.date : null,
+              tracking_code: envio?.tracking_number ?? null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("ml_order_id", mlOrderDoEnvio)
+            .eq("user_id", vendedorId);
+        }
+      }
+
+      if (webhookEventId) {
+        await supabase
+          .from("webhook_events")
+          .update({
+            status: "processado",
+            processado_em: new Date().toISOString(),
+          })
+          .eq("id", webhookEventId);
+      }
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // 3. Buscar os detalhes do pedido direto pelo "resource" que o webhook
     // já indica (ex: "/orders/1234567890")
