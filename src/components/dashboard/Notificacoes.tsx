@@ -54,7 +54,7 @@ export default function Notificacoes() {
 
     const aoClicar = (evento: MouseEvent) => {
       if (caixa.current && !caixa.current.contains(evento.target as Node)) {
-        setAberto(false);
+        fechar();
       }
     };
 
@@ -62,23 +62,58 @@ export default function Notificacoes() {
     return () => document.removeEventListener('mousedown', aoClicar);
   }, [aberto]);
 
-  const naoLidos = avisos.filter((aviso) => !aviso.lida).length;
+  // Aberto, o número some: a pessoa está lendo. O destaque de cada aviso
+  // continua até ela fechar — some debaixo do olho apagaria a pista do que era
+  // novo.
+  const naoLidos = aberto
+    ? 0
+    : avisos.filter((aviso) => !aviso.lida).length;
 
-  const marcarLido = async (aviso: Notificacao) => {
-    if (aviso.lida) return;
+  /**
+   * Abrir o sino é ler.
+   *
+   * Marcar item por item, no passar do mouse, deixava o número vermelho aceso
+   * enquanto a pessoa estava com a lista aberta na frente dela — e ela voltava
+   * amanhã achando que tinha coisa nova. Quem abriu, viu.
+   *
+   * A marca visual de cada um permanece durante a visita: some quando ele
+   * fecha, não enquanto lê. Sumir debaixo do olho apagaria a única pista de o
+   * que era novo.
+   */
+  const marcarTodosLidos = async () => {
+    const novos = avisos.filter((aviso) => !aviso.lida);
 
-    await supabase.rpc('marcar_aviso_lido', { p_aviso_id: aviso.id });
+    if (novos.length === 0) return;
 
-    setAvisos((atuais) =>
-      atuais.map((item) => (item.id === aviso.id ? { ...item, lida: true } : item))
+    await Promise.all(
+      novos.map((aviso) =>
+        supabase.rpc('marcar_aviso_lido', { p_aviso_id: aviso.id })
+      )
     );
+
+  };
+
+  /** Fechar limpa o destaque: o que era novo já foi visto. */
+  const fechar = () => {
+    setAberto(false);
+    setAvisos((atuais) => atuais.map((item) => ({ ...item, lida: true })));
+  };
+
+  const alternar = () => {
+    if (aberto) {
+      fechar();
+      return;
+    }
+
+    setAberto(true);
+    marcarTodosLidos();
   };
 
   return (
     <div className="relative" ref={caixa}>
       <button
         type="button"
-        onClick={() => setAberto((estava) => !estava)}
+        onClick={alternar}
         aria-label={naoLidos > 0 ? `${naoLidos} avisos não lidos` : 'Avisos'}
         className="relative p-2 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-navy-800 transition-colors"
       >
@@ -107,14 +142,18 @@ export default function Notificacoes() {
             {avisos.map((aviso) => (
               <li
                 key={aviso.id}
-                onMouseEnter={() => marcarLido(aviso)}
                 className={
                   aviso.lida
                     ? 'px-4 py-3'
-                    : 'px-4 py-3 bg-gold/5 border-l-2 border-gold'
+                    : 'px-4 py-3 bg-gold/10 border-l-[3px] border-gold'
                 }
               >
-                <p className="font-medium text-navy-900 dark:text-white text-sm">
+                <p className="font-medium text-navy-900 dark:text-white text-sm flex items-start gap-2">
+                  {!aviso.lida && (
+                    <span className="shrink-0 mt-0.5 inline-flex items-center rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-navy-900">
+                      Novo
+                    </span>
+                  )}
                   {aviso.titulo}
                 </p>
 
@@ -126,10 +165,7 @@ export default function Notificacoes() {
                   {aviso.link_para ? (
                     <Link
                       to={aviso.link_para}
-                      onClick={() => {
-                        marcarLido(aviso);
-                        setAberto(false);
-                      }}
+                      onClick={fechar}
                       className="text-xs font-semibold text-navy-900 dark:text-gold underline underline-offset-2"
                     >
                       {aviso.link_rotulo || 'Ver agora'}
