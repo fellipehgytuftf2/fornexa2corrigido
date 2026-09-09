@@ -118,5 +118,16 @@ Deno.serve(async (req: Request) => {
   // preenchido — booleano ou o nome do formato — significa térmica.
   const termica = bruto === null || bruto === undefined ? false : Boolean(bruto);
 
+  // Guarda o que leu: é o que permite ao admin ver quem resolveu sem ter de
+  // varrer todas as contas de novo. Cada vez que o vendedor abre Integrações,
+  // a lista dele fica em dia sozinha.
+  await admin
+    .from('ml_connections')
+    .update({
+      impressao_termica: termica,
+      impressao_vista_em: new Date().toISOString(),
+    })
+    .eq('id', conexao.id);
+
   return json({ conectado: true, termica, bruto: bruto ?? null });
 });
