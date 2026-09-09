@@ -133,6 +133,14 @@ Deno.serve(async (req: Request) => {
   const shippingId = mlPedido?.shipping?.id ?? null;
 
   if (!shippingId) {
+    // Marcado só aqui, por conferência explícita. Marcar na chegada da venda
+    // chamaria de "sem Mercado Envios" quase todo pedido, porque nesse momento
+    // o envio quase sempre ainda não existe.
+    await admin
+      .from('orders')
+      .update({ sem_mercado_envios: true })
+      .eq('id', pedido.id);
+
     return json({
       ok: true,
       encontrou_envio: false,
@@ -172,6 +180,7 @@ Deno.serve(async (req: Request) => {
   await admin
     .from('orders')
     .update({
+      sem_mercado_envios: false,
       ml_shipment_id: String(shippingId),
       ml_shipment_substatus: envio?.substatus ? String(envio.substatus) : null,
       ml_shipment_visto_em: new Date().toISOString(),

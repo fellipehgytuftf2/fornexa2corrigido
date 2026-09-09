@@ -77,6 +77,9 @@ interface SupplierOrder {
 
   /** Quando ele libera a etiqueta, quando o envio está agendado. */
   ml_liberacao_em: string | null;
+
+  /** O Mercado Livre confirmou que esta venda não tem envio. */
+  sem_mercado_envios: boolean;
   /** Este fornecedor exige pagamento antes do despacho. */
   exige_pagamento_antecipado: boolean;
   /** Quem vendeu: empresa, ou o nome pessoal quando não houver empresa. */
@@ -1229,9 +1232,11 @@ export default function SupplierPortal() {
                   ? null
                   : order.aguardando_pagamento
                     ? 'Aguardando pagamento'
-                    : !order.etiqueta_disponivel
-                      ? 'Sem etiqueta ainda'
-                      : pendenciaNoMl;
+                    : order.sem_mercado_envios
+                      ? 'Sem Mercado Envios'
+                      : !order.etiqueta_disponivel
+                        ? 'Sem etiqueta ainda'
+                        : pendenciaNoMl;
 
                 return (
                   <li
@@ -1588,7 +1593,9 @@ export default function SupplierPortal() {
                             <FileText className="w-4 h-4" aria-hidden="true" />
                             {order.aguardando_pagamento
                               ? 'Etiqueta libera após o pagamento'
-                              : 'Este pedido não tem envio no Mercado Livre'}
+                              : order.sem_mercado_envios
+                                ? 'Venda sem Mercado Envios — não haverá etiqueta'
+                                : 'Envio ainda não criado pelo Mercado Livre'}
                           </span>
                         )}
 
