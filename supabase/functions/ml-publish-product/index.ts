@@ -640,6 +640,61 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // 2.7 A etiqueta sai em térmica?
+    //
+    // Em A4 o fornecedor recebe uma folha com a etiqueta num pedaço e a
+    // Declaração no outro, e corta com tesoura e cola com fita em toda venda
+    // deste vendedor. Ele não descobre sozinho que a causa está na conta de
+    // outra pessoa, e o vendedor não sente o custo — quem sente é quem despacha.
+    //
+    // Trava na publicação porque é o único momento anterior à venda em que dá
+    // para pedir. Depois, cada pedido novo é mais uma folha cortada.
+    //
+    // `thermal_printer` não está na documentação; foi achado por sonda. `null`
+    // é quem nunca configurou. Conta em térmica traz texto, como "ZPL2" — por
+    // isso qualquer valor preenchido conta, e não `=== true`.
+    try {
+      const preferencias = await fetch(
+        `https://api.mercadolibre.com/users/${mlUserId}/shipping_preferences`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (preferencias.ok) {
+        const dados = await preferencias.json();
+        const termica = Boolean(dados?.thermal_printer);
+
+        // Aproveita a leitura para manter o painel do admin em dia — é a mesma
+        // pergunta, e assim ela se responde sozinha a cada publicação.
+        await supabase
+          .from("ml_connections")
+          .update({
+            impressao_termica: termica,
+            impressao_vista_em: new Date().toISOString(),
+          })
+          .eq("user_id", vendedorId);
+
+        if (!termica && !isTestAdmin) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Sua conta do Mercado Livre está imprimindo etiqueta em A4. " +
+                "Assim seu fornecedor recebe uma folha e precisa cortar com " +
+                "tesoura e colar com fita em cada pedido seu. Troque em Vendas → " +
+                "Preferências de venda → Configurações de impressão de etiqueta, " +
+                "escolhendo impressora térmica, e publique de novo.",
+              impressao_em_a4: true,
+            }),
+            { status: 428, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+    } catch (erro) {
+      // Falha de leitura não trava publicação: seria parar venda por causa de
+      // um soluço da API, e o problema que isto evita é um incômodo, não um
+      // pedido perdido.
+      console.error("Não foi possível conferir a impressão:", erro);
+    }
+
     // 3. Descobrir a categoria automaticamente
     //
     // A busca usa o NOME do produto, não o título do anúncio. O título é
