@@ -526,6 +526,52 @@ export default function SupplierPortal() {
     setRefreshing(false);
   };
 
+  /**
+   * O admin voltando para a própria conta.
+   *
+   * Entrar no Portal do fornecedor troca a sessão do navegador — não há como
+   * ter as duas ao mesmo tempo. Sem este caminho, sair daqui significaria
+   * digitar a senha de admin de novo, e é isso que fazia o suporte preferir
+   * pedir print a olhar a tela.
+   *
+   * Os tokens foram guardados antes da troca, em Contas e acessos.
+   */
+  const modoSuporte = (() => {
+    try {
+      return Boolean(localStorage.getItem('fornexa:sessao-admin'));
+    } catch {
+      return false;
+    }
+  })();
+
+  const voltarParaAdmin = async () => {
+    let guardada: { access_token?: string; refresh_token?: string } | null = null;
+
+    try {
+      const bruto = localStorage.getItem('fornexa:sessao-admin');
+      guardada = bruto ? JSON.parse(bruto) : null;
+    } catch {
+      guardada = null;
+    }
+
+    localStorage.removeItem('fornexa:sessao-admin');
+    localStorage.removeItem('fornexa_supplier');
+
+    if (guardada?.access_token && guardada?.refresh_token) {
+      const { error } = await supabase.auth.setSession({
+        access_token: guardada.access_token,
+        refresh_token: guardada.refresh_token,
+      });
+
+      if (!error) {
+        window.location.assign('/dashboard/admin');
+        return;
+      }
+    }
+
+    await handleLogout();
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     localStorage.removeItem('fornexa_supplier');
@@ -869,6 +915,15 @@ export default function SupplierPortal() {
               <span className="hidden sm:inline">Configurações</span>
             </button>
 
+
+            {modoSuporte && (
+              <button
+                onClick={voltarParaAdmin}
+                className="inline-flex items-center gap-2 rounded-xl bg-gold px-3 sm:px-4 py-2 text-sm font-semibold text-navy-900 transition-opacity hover:opacity-90"
+              >
+                Voltar para minha conta
+              </button>
+            )}
 
             <button
               onClick={handleLogout}

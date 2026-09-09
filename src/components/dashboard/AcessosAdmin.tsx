@@ -329,6 +329,7 @@ export default function AcessosAdmin() {
     const { data, error } = await supabase.functions.invoke<{
       token_hash?: string;
       error?: string;
+      tipo?: 'vendedor' | 'fornecedor';
     }>('admin-entrar-como', {
       body: { user_id: conta.user_id },
     });
@@ -392,7 +393,11 @@ export default function AcessosAdmin() {
       JSON.stringify({ nome: conta.nome, email: conta.email })
     );
 
-    window.location.assign('/dashboard');
+    // Fornecedor tem portal próprio. Mandá-lo para o painel do vendedor daria
+    // tela vazia com erro de permissão, e pareceria que a entrada falhou.
+    window.location.assign(
+      data.tipo === 'fornecedor' || conta.tipo === 'Fornecedor' ? '/fornecedor' : '/dashboard'
+    );
   };
 
   const formatarData = (valor: string | null) => {
@@ -741,9 +746,24 @@ export default function AcessosAdmin() {
                       </p>
                     </div>
 
-                    <p className="text-xs text-gray-500 dark:text-slate-400">
-                      Último acesso: {formatarData(conta.ultimo_acesso)}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        Último acesso: {formatarData(conta.ultimo_acesso)}
+                      </p>
+
+                      {/* Entrar no Portal dele resolve em segundos o que a
+                          conversa leva um dia: "não aparece o pedido", "o
+                          botão da etiqueta sumiu". Vale para fornecedor tanto
+                          quanto valia para vendedor. */}
+                      <button
+                        type="button"
+                        onClick={() => setConfirmarEntrada(conta)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
+                      >
+                        <KeyRound className="w-3.5 h-3.5" />
+                        Entrar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

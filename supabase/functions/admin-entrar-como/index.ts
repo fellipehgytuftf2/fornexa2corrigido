@@ -113,18 +113,45 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Você já está nesta conta.' }, 400);
   }
 
-  const { data: alvo } = await admin
+const { data: perfil } = await admin
     .from('profiles')
     .select('id, email, name, role')
     .eq('id', alvoId)
     .maybeSingle();
 
-  if (!alvo?.email) {
-    return json({ error: 'Conta não encontrada ou sem e-mail cadastrado.' }, 404);
+  if (perfil?.role === 'admin') {
+    return json({ error: 'Não é possível entrar na conta de outro administrador.' }, 403);
   }
 
-  if (alvo.role === 'admin') {
-    return json({ error: 'Não é possível entrar na conta de outro administrador.' }, 403);
+  /**
+   * Fornecedor também entra por aqui.
+   *
+   * Ele tem conta em `auth.users` como qualquer um, mas não tem linha em
+   * `profiles` — o cadastro dele vive em `suppliers`. Enquanto a busca era só
+   * por perfil, "conta não encontrada" era a resposta para todo fornecedor, e
+   * o suporte dele voltava a ser pedir print.
+   */
+  const { data: fornecedor } = perfil?.email
+    ? { data: null }
+    : await admin
+        .from('suppliers')
+        .select('id, email, name, company_name')
+        .eq('auth_user_id', alvoId)
+        .maybeSingle();
+
+  const alvo = perfil?.email
+    ? { id: perfil.id, email: perfil.email, name: perfil.name, tipo: 'vendedor' as const }
+    : fornecedor?.email
+      ? {
+          id: alvoId,
+          email: fornecedor.email as string,
+          name: (fornecedor.company_name || fornecedor.name) as string,
+          tipo: 'fornecedor' as const,
+        }
+      : null;
+
+  if (!alvo) {
+    return json({ error: 'Conta não encontrada ou sem e-mail cadastrado.' }, 404);
   }
 
   // `magiclink` em vez de `invite` ou `signup`: os outros dois mexem no estado
@@ -168,5 +195,9 @@ Deno.serve(async (req: Request) => {
     token_hash: tokenHash,
     email: alvo.email,
     nome: alvo.name ?? null,
+
+    // O navegador precisa saber para onde ir: fornecedor tem portal próprio, e
+    // cair no painel do vendedor é tela vazia com erro de permissão.
+    tipo: alvo.tipo,
   });
 });
