@@ -669,16 +669,17 @@ export default function SupplierPortal() {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
-  /**
-   * A etiqueta na linguagem da impressora Zebra.
+  /*
+   * O botão de ZPL saiu daqui.
    *
-   * O PDF sai no formato configurado na conta do VENDEDOR — A4 ou térmica — e
-   * isso não é parâmetro nosso. Quem imprime em térmica e recebe A4 não tem o
-   * que fazer com o arquivo; o ZPL vai direto para a impressora, no tamanho
-   * exato.
+   * O Mercado Livre devolve o ZPL dentro de um ZIP, com um PDF em branco e um
+   * .txt — e o .txt É a etiqueta, em linguagem de impressora. Só serve mandado
+   * direto para a Zebra por software de impressão; para quem abre o arquivo e
+   * clica em imprimir, é lixo.
+   *
+   * A função continua aceitando `formato: 'zpl2'`, para quando existir alguém
+   * do outro lado que saiba o que fazer com isso.
    */
-  const baixarZpl = (order: SupplierOrder) =>
-    abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta', 'zpl2');
 
   const baixarEtiqueta = (order: SupplierOrder) =>
     abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta');
@@ -1562,18 +1563,6 @@ export default function SupplierPortal() {
                         {/* Dois papéis, não um: a etiqueta vai colada e
                             visível, e o DACE dobrado num saquinho plástico do
                             lado de fora. Sem os dois a encomenda não é postada. */}
-                        {order.etiqueta_disponivel && (
-                          <button
-                            onClick={() => baixarZpl(order)}
-                            disabled={labelId === order.id}
-                            title="Para impressora térmica Zebra. Vai direto para a impressora, no tamanho exato."
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50"
-                          >
-                            <FileText className="w-4 h-4" aria-hidden="true" />
-                            Etiqueta ZPL
-                          </button>
-                        )}
-
                         {order.etiqueta_disponivel && (
                           <button
                             onClick={() => baixarDace(order)}
