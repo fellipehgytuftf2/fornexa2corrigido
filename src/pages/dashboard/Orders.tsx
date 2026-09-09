@@ -158,6 +158,35 @@ export default function Orders() {
     conteudo: string;
   } | null>(null);
 
+  /**
+   * Relê um pedido no Mercado Livre e grava o envio.
+   *
+   * Pedido que nasceu sem envio só se conserta sincronizando, e sincronizar é
+   * botão do vendedor — o suporte via o pedido parado e dependia de pedir a
+   * ele que clicasse. Aqui resolve num pedido só.
+   *
+   * A resposta também diz o que o Mercado Livre devolveu: envio nulo depois
+   * disto não é "falta sincronizar", é venda sem Mercado Envios.
+   */
+  const ressincronizar = async (order: Order) => {
+    setDcePedidoId(order.id);
+    setDceResultado(null);
+
+    const { data, error } = await supabase.functions.invoke(
+      'admin-ressincronizar-pedido',
+      { body: { pedido_id: order.id } }
+    );
+
+    setDcePedidoId(null);
+
+    setDceResultado({
+      pedidoId: order.id,
+      conteudo: JSON.stringify(data ?? { erro: error?.message }, null, 2),
+    });
+
+    await loadOrders();
+  };
+
   const consultarDce = async (order: Order, acao: 'info' | 'emitir' = 'info') => {
     // Emitir é ato fiscal: a DC-e declara o que vai dentro da caixa e acompanha
     // a carga. Um clique por engano vira documento errado em nome do vendedor.
@@ -953,6 +982,19 @@ export default function Orders() {
                     {/* A sonda "Testar DC-e" saiu daqui. Existia para descobrir
                         se a API de emissão existia — descobriu, e virou a
                         emissão de verdade logo abaixo. */}
+                    {/* Sem envio, e o pedido não anda: nem etiqueta, nem
+                        endereço. Reler o pedido no Mercado Livre é o que
+                        resolve, e não precisa ser o vendedor a fazer. */}
+                    {ehAdmin && !order.ml_shipment_id && (
+                      <button
+                        onClick={() => ressincronizar(order)}
+                        disabled={dcePedidoId === order.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        {dcePedidoId === order.id ? 'Lendo...' : 'Buscar envio no ML'}
+                      </button>
+                    )}
+
                     {order.ml_shipment_id && !order.dce_emitida_em && (
                       <button
                         onClick={() => consultarDce(order, 'emitir')}
