@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { Bell, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Notificacao {
@@ -23,27 +23,37 @@ interface Notificacao {
  * voltar a ela. Um aviso que só existe por três segundos é um aviso que metade
  * da base nunca leu.
  *
- * Aqui ele fica: a pessoa abre quando puder, relê o que já fechou, e vê o que
- * ainda não abriu marcado.
+ * SÓ OS TÍTULOS
+ *
+ * Com o texto inteiro aberto, dois avisos já enchiam a tela e viravam um bloco
+ * que ninguém lê. Cada um aparece fechado e abre no clique: a lista responde
+ * "o que chegou" numa olhada, e o texto fica para quem quer aquele.
+ *
+ * ABRIR O AVISO É QUE MARCA COMO LIDO
+ *
+ * Abrir o sino não marca. Antes marcava, e quem passasse o olho para ver se
+ * tinha algo perdia a indicação de qual era novo — inclusive sem ter lido
+ * nada. Lido é o que a pessoa abriu.
  */
 export default function Notificacoes() {
   const [avisos, setAvisos] = useState<Notificacao[]>([]);
   const [aberto, setAberto] = useState(false);
+  const [expandido, setExpandido] = useState<string | null>(null);
   const caixa = useRef<HTMLDivElement | null>(null);
 
-  const carregar = async () => {
-    const { data, error } = await supabase.rpc('minhas_notificacoes');
-
-    if (error) {
-      // Sino que falha não pode atrapalhar quem veio trabalhar.
-      console.error('Erro ao carregar avisos:', error);
-      return;
-    }
-
-    setAvisos((data as Notificacao[]) || []);
-  };
-
   useEffect(() => {
+    const carregar = async () => {
+      const { data, error } = await supabase.rpc('minhas_notificacoes');
+
+      if (error) {
+        // Sino que falha não pode atrapalhar quem veio trabalhar.
+        console.error('Erro ao carregar avisos:', error);
+        return;
+      }
+
+      setAvisos((data as Notificacao[]) || []);
+    };
+
     carregar();
   }, []);
 
@@ -54,7 +64,7 @@ export default function Notificacoes() {
 
     const aoClicar = (evento: MouseEvent) => {
       if (caixa.current && !caixa.current.contains(evento.target as Node)) {
-        fechar();
+        setAberto(false);
       }
     };
 
@@ -62,58 +72,26 @@ export default function Notificacoes() {
     return () => document.removeEventListener('mousedown', aoClicar);
   }, [aberto]);
 
-  // Aberto, o número some: a pessoa está lendo. O destaque de cada aviso
-  // continua até ela fechar — some debaixo do olho apagaria a pista do que era
-  // novo.
-  const naoLidos = aberto
-    ? 0
-    : avisos.filter((aviso) => !aviso.lida).length;
+  const naoLidos = avisos.filter((aviso) => !aviso.lida).length;
 
-  /**
-   * Abrir o sino é ler.
-   *
-   * Marcar item por item, no passar do mouse, deixava o número vermelho aceso
-   * enquanto a pessoa estava com a lista aberta na frente dela — e ela voltava
-   * amanhã achando que tinha coisa nova. Quem abriu, viu.
-   *
-   * A marca visual de cada um permanece durante a visita: some quando ele
-   * fecha, não enquanto lê. Sumir debaixo do olho apagaria a única pista de o
-   * que era novo.
-   */
-  const marcarTodosLidos = async () => {
-    const novos = avisos.filter((aviso) => !aviso.lida);
+  const abrirAviso = async (aviso: Notificacao) => {
+    const fechando = expandido === aviso.id;
+    setExpandido(fechando ? null : aviso.id);
 
-    if (novos.length === 0) return;
+    if (fechando || aviso.lida) return;
 
-    await Promise.all(
-      novos.map((aviso) =>
-        supabase.rpc('marcar_aviso_lido', { p_aviso_id: aviso.id })
-      )
+    await supabase.rpc('marcar_aviso_lido', { p_aviso_id: aviso.id });
+
+    setAvisos((atuais) =>
+      atuais.map((item) => (item.id === aviso.id ? { ...item, lida: true } : item))
     );
-
-  };
-
-  /** Fechar limpa o destaque: o que era novo já foi visto. */
-  const fechar = () => {
-    setAberto(false);
-    setAvisos((atuais) => atuais.map((item) => ({ ...item, lida: true })));
-  };
-
-  const alternar = () => {
-    if (aberto) {
-      fechar();
-      return;
-    }
-
-    setAberto(true);
-    marcarTodosLidos();
   };
 
   return (
     <div className="relative" ref={caixa}>
       <button
         type="button"
-        onClick={alternar}
+        onClick={() => setAberto((estava) => !estava)}
         aria-label={naoLidos > 0 ? `${naoLidos} avisos não lidos` : 'Avisos'}
         className="relative p-2 rounded-xl border border-gray-200 dark:border-navy-700 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-navy-800 transition-colors"
       >
@@ -127,10 +105,16 @@ export default function Notificacoes() {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 mt-2 w-[min(380px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-xl z-50">
-          <p className="px-4 py-3 border-b border-gray-200 dark:border-navy-700 font-semibold text-navy-900 dark:text-white">
-            Avisos
-          </p>
+        <div className="absolute right-0 mt-2 w-[min(400px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-xl z-50">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-navy-700 flex items-center justify-between gap-3">
+            <p className="font-semibold text-navy-900 dark:text-white">Avisos</p>
+
+            {naoLidos > 0 && (
+              <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">
+                {naoLidos} por ler
+              </span>
+            )}
+          </div>
 
           {avisos.length === 0 && (
             <p className="px-4 py-6 text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
@@ -139,47 +123,66 @@ export default function Notificacoes() {
           )}
 
           <ul className="divide-y divide-gray-100 dark:divide-navy-700">
-            {avisos.map((aviso) => (
-              <li
-                key={aviso.id}
-                className={
-                  aviso.lida
-                    ? 'px-4 py-3'
-                    : 'px-4 py-3 bg-gold/10 border-l-[3px] border-gold'
-                }
-              >
-                <p className="font-medium text-navy-900 dark:text-white text-sm flex items-start gap-2">
-                  {!aviso.lida && (
-                    <span className="shrink-0 mt-0.5 inline-flex items-center rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-navy-900">
-                      Novo
+            {avisos.map((aviso) => {
+              const aberta = expandido === aviso.id;
+
+              return (
+                <li key={aviso.id} className={aviso.lida ? '' : 'bg-gold/[0.07]'}>
+                  <button
+                    type="button"
+                    onClick={() => abrirAviso(aviso)}
+                    aria-expanded={aberta}
+                    className="w-full text-left px-4 py-3 flex items-start gap-2 hover:bg-gray-50 dark:hover:bg-navy-700/50 transition-colors"
+                  >
+                    {aberta ? (
+                      <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
+                    )}
+
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        {!aviso.lida && (
+                          <span className="shrink-0 w-2 h-2 rounded-full bg-gold" />
+                        )}
+
+                        <span
+                          className={
+                            aviso.lida
+                              ? 'text-sm text-gray-600 dark:text-slate-300'
+                              : 'text-sm font-semibold text-navy-900 dark:text-white'
+                          }
+                        >
+                          {aviso.titulo}
+                        </span>
+                      </span>
+
+                      <span className="block text-[11px] text-gray-400 dark:text-slate-500 mt-0.5 tabular-nums">
+                        {new Date(aviso.criado_em).toLocaleDateString('pt-BR')}
+                      </span>
                     </span>
+                  </button>
+
+                  {aberta && (
+                    <div className="px-4 pb-4 pl-10">
+                      <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                        {aviso.corpo}
+                      </p>
+
+                      {aviso.link_para && (
+                        <Link
+                          to={aviso.link_para}
+                          onClick={() => setAberto(false)}
+                          className="inline-block mt-3 px-3 py-1.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-xs font-semibold hover:opacity-90"
+                        >
+                          {aviso.link_rotulo || 'Ver agora'}
+                        </Link>
+                      )}
+                    </div>
                   )}
-                  {aviso.titulo}
-                </p>
-
-                <p className="text-sm text-gray-600 dark:text-slate-300 mt-1 leading-relaxed whitespace-pre-line">
-                  {aviso.corpo}
-                </p>
-
-                <div className="flex items-center justify-between gap-3 mt-2">
-                  {aviso.link_para ? (
-                    <Link
-                      to={aviso.link_para}
-                      onClick={fechar}
-                      className="text-xs font-semibold text-navy-900 dark:text-gold underline underline-offset-2"
-                    >
-                      {aviso.link_rotulo || 'Ver agora'}
-                    </Link>
-                  ) : (
-                    <span />
-                  )}
-
-                  <span className="text-[11px] text-gray-400 dark:text-slate-500 tabular-nums">
-                    {new Date(aviso.criado_em).toLocaleDateString('pt-BR')}
-                  </span>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
