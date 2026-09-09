@@ -158,6 +158,29 @@ export default function Orders() {
     conteudo: string;
   } | null>(null);
 
+  /**
+   * Pergunta ao Mercado Livre se a preferência de impressão é legível pela API.
+   *
+   * Provisória, como foi a sonda da DC-e. A resposta crua é o produto: um 200
+   * em qualquer caminho diz que existe; 404 em todos diz que o aviso na tela é
+   * o que temos.
+   */
+  const sondarPreferencias = async (order: Order) => {
+    setDcePedidoId(order.id);
+    setDceResultado(null);
+
+    const { data, error } = await supabase.functions.invoke('ml-sonda-preferencias', {
+      body: { pedido_id: order.id },
+    });
+
+    setDcePedidoId(null);
+
+    setDceResultado({
+      pedidoId: order.id,
+      conteudo: JSON.stringify(data ?? { erro: error?.message }, null, 2),
+    });
+  };
+
   const consultarDce = async (order: Order, acao: 'info' | 'emitir' = 'info') => {
     // Emitir é ato fiscal: a DC-e declara o que vai dentro da caixa e acompanha
     // a carga. Um clique por engano vira documento errado em nome do vendedor.
@@ -953,6 +976,19 @@ export default function Orders() {
                     {/* A sonda "Testar DC-e" saiu daqui. Existia para descobrir
                         se a API de emissão existia — descobriu, e virou a
                         emissão de verdade logo abaixo. */}
+                    {/* PROVISÓRIO. Responde se dá para ler a preferência de
+                        impressão pela API — a documentação não menciona, e a da
+                        DC-e também não mencionava. Sai daqui com a resposta. */}
+                    {ehAdmin && order.ml_shipment_id && (
+                      <button
+                        onClick={() => sondarPreferencias(order)}
+                        disabled={dcePedidoId === order.id}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-sm font-semibold transition-colors disabled:opacity-50"
+                      >
+                        Sondar impressão
+                      </button>
+                    )}
+
                     {order.ml_shipment_id && !order.dce_emitida_em && (
                       <button
                         onClick={() => consultarDce(order, 'emitir')}
