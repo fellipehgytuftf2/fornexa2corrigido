@@ -168,11 +168,18 @@ Deno.serve(async (req: Request) => {
 
       const envio = (await resposta.json()) as Record<string, unknown>;
 
+      // Quando o Mercado Livre solta um envio que está segurando. Sem esta
+      // data o cartão dizia "segurando" e o fornecedor voltava de hora em
+      // hora para descobrir se já tinha soltado.
+      const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+      const liberaEm = typeof buffering?.date === 'string' ? buffering.date : null;
+
       await admin
         .from('orders')
         .update({
           ml_shipment_substatus: envio?.substatus ? String(envio.substatus) : null,
           ml_shipment_visto_em: new Date().toISOString(),
+          ml_liberacao_em: liberaEm,
         })
         .eq('id', pedido.id);
 

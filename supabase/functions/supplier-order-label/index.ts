@@ -382,11 +382,14 @@ Deno.serve(async (req: Request) => {
   // sincronização, porque acabou de acontecer. Guardar aqui é o que faz o
   // cartão parar de dizer "pronto" logo depois de o Mercado Livre recusar.
   if (envio?.substatus) {
+    const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+
     await admin
       .from('orders')
       .update({
         ml_shipment_substatus: String(envio.substatus),
         ml_shipment_visto_em: new Date().toISOString(),
+        ml_liberacao_em: typeof buffering?.date === 'string' ? buffering.date : null,
       })
       .eq('id', pedido.id);
   }

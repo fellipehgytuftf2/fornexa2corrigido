@@ -74,6 +74,9 @@ interface SupplierOrder {
 
   /** O que o Mercado Livre respondeu sobre o envio na última consulta. */
   ml_shipment_substatus: string | null;
+
+  /** Quando ele libera a etiqueta, quando o envio está agendado. */
+  ml_liberacao_em: string | null;
   /** Este fornecedor exige pagamento antes do despacho. */
   exige_pagamento_antecipado: boolean;
   /** Quem vendeu: empresa, ou o nome pessoal quando não houver empresa. */
@@ -1191,9 +1194,31 @@ export default function SupplierPortal() {
                   fraudulent: 'Bloqueado por suspeita de fraude',
                 };
 
-                const pendenciaNoMl = order.ml_shipment_substatus
+                let pendenciaNoMl = order.ml_shipment_substatus
                   ? travadoNoMl[order.ml_shipment_substatus] ?? null
                   : null;
+
+                // "Segurando" sem data manda o fornecedor voltar de hora em
+                // hora para descobrir se já soltou. Com a data ele volta na
+                // hora certa — e para de cobrar o vendedor por algo que não
+                // depende dele.
+                if (order.ml_shipment_substatus === 'buffered' && order.ml_liberacao_em) {
+                  const quando = new Date(order.ml_liberacao_em);
+                  const hoje = new Date().toDateString() === quando.toDateString();
+
+                  pendenciaNoMl = hoje
+                    ? `Libera hoje às ${quando.toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}`
+                    : `Libera ${quando.toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                      })} às ${quando.toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}`;
+                }
 
                 const pronto =
                   order.etiqueta_disponivel &&
