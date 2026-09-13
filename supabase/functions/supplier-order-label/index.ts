@@ -507,28 +507,45 @@ Deno.serve(async (req: Request) => {
   let arquivo = await labelResponse.arrayBuffer();
 
   /**
-   * Só a etiqueta, sem a DACE.
+   * Só a etiqueta, no tamanho dela.
    *
-   * O Mercado Livre entrega as duas no mesmo PDF: página 1 a etiqueta, página
-   * 2 a Declaração de Conteúdo. Na impressora térmica isso vira uma etiqueta
-   * adesiva cheia de texto miúdo que ninguém cola em lugar nenhum — adesivo
-   * jogado fora em toda venda.
+   * O Mercado Livre entrega etiqueta e Declaração de Conteúdo no mesmo PDF, e
+   * de dois jeitos conforme a conta do vendedor:
    *
-   * A DACE continua inteira no botão dela, para sair em papel comum, que é
-   * como se faz.
+   *   PÁGINAS SEPARADAS — página 1 a etiqueta, página 2 a DACE. Na térmica, a
+   *   segunda vira um adesivo cheio de texto miúdo que ninguém cola em lugar
+   *   nenhum: adesivo jogado fora em toda venda.
    *
-   * Falhando, devolve o PDF como veio: etiqueta com página a mais é
-   * inconveniente; etiqueta que não sai é pedido parado.
+   *   LADO A LADO — uma folha deitada com a etiqueta à esquerda e a DACE à
+   *   direita. As duas em medida térmica, mas montadas numa página A4. É o que
+   *   obriga o fornecedor a cortar com tesoura e colar com fita.
+   *
+   * Os dois viram a mesma coisa aqui: uma página só, com a etiqueta e mais
+   * nada. A DACE continua inteira no botão dela, para sair em papel comum.
+   *
+   * Falhando, devolve o PDF como veio: etiqueta com sobra é inconveniente;
+   * etiqueta que não sai é pedido parado.
    */
   if (!zpl) {
     try {
       const original = await PDFDocument.load(arquivo);
+      const pagina = original.getPage(0);
+      const { width, height } = pagina.getSize();
 
-      if (original.getPageCount() > 1) {
+      // Folha deitada é o montado lado a lado — etiqueta em pé não fica mais
+      // larga que alta. Corta a metade esquerda; a direita é a DACE.
+      const deitada = width > height;
+
+      const recorte = deitada
+        ? { left: 0, bottom: 0, right: width / 2, top: height }
+        : { left: 0, bottom: 0, right: width, top: height };
+
+      if (deitada || original.getPageCount() > 1) {
         const soAEtiqueta = await PDFDocument.create();
-        const [primeira] = await soAEtiqueta.copyPages(original, [0]);
+        const embutida = await soAEtiqueta.embedPage(pagina, recorte);
 
-        soAEtiqueta.addPage(primeira);
+        const nova = soAEtiqueta.addPage([embutida.width, embutida.height]);
+        nova.drawPage(embutida, { x: 0, y: 0 });
 
         const bytes = await soAEtiqueta.save();
         arquivo = bytes.buffer.slice(
