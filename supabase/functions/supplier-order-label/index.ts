@@ -79,6 +79,25 @@ function json(body: unknown, status = 200) {
  */
 const REGRA_DO_REMETENTE_VALE_A_PARTIR_DE = new Date('2026-09-07T05:30:00Z');
 
+/**
+ * O adesivo térmico, em pontos de PDF: 10 x 15 cm.
+ *
+ * Um centímetro tem 28,35 pontos. É a medida que a impressora espera, e é o
+ * tamanho do bloco que o Mercado Livre desenha dentro da folha A4 deitada —
+ * conferido no PDF real: folha 842 x 595, etiqueta encostada na esquerda.
+ */
+const ETIQUETA_LARGURA = 283.46;
+const ETIQUETA_ALTURA = 425.2;
+
+/**
+ * Quanto o bloco da etiqueta fica abaixo do topo da folha.
+ *
+ * Medido no PDF real. Existe como constante, e não como número solto no meio
+ * do corte, porque é o primeiro valor a rever se o Mercado Livre mudar o
+ * desenho da folha.
+ */
+const MARGEM_DE_CIMA = 30;
+
 /** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
 const nomeDe = (valor: unknown): string | null => {
   if (typeof valor === 'string') return valor || null;
@@ -553,6 +572,52 @@ Deno.serve(async (req: Request) => {
             paginas: original.getPageCount(),
           },
         });
+
+        const soAEtiqueta = await PDFDocument.create();
+
+        // A folha medida é A4 deitada — 842 x 595 pt — com a etiqueta encostada
+        // na borda esquerda e a DACE ao lado. O bloco da etiqueta é 10 x 15 cm,
+        // que em pontos dá 283 x 425: é o tamanho do adesivo térmico.
+        //
+        // Cortar na metade (421) levava junto uma tira da DACE, porque ela
+        // começa bem antes do meio. O corte certo é logo depois do bloco.
+        const recorte = {
+          left: 0,
+          // Uns pontos a menos que a divisória estimada, para a margem de erro
+          // cair dentro da etiqueta e não dentro da DACE: sobra branca não
+          // atrapalha, tira da DACE colada na caixa atrapalha.
+          right: Math.min(width, ETIQUETA_LARGURA + 8),
+          bottom: Math.max(0, height - MARGEM_DE_CIMA - ETIQUETA_ALTURA - 12),
+          top: Math.min(height, height - MARGEM_DE_CIMA + 12),
+        };
+
+        const embutida = await soAEtiqueta.embedPage(pagina, recorte);
+
+        // A página final é o adesivo: 10 x 15 cm exatos. O recorte entra
+        // inteiro dentro dela, sem esticar — encolher um pouco e sobrar branco
+        // é aceitável; cortar a etiqueta não é.
+        const nova = soAEtiqueta.addPage([ETIQUETA_LARGURA, ETIQUETA_ALTURA]);
+
+        const escala = Math.min(
+          ETIQUETA_LARGURA / embutida.width,
+          ETIQUETA_ALTURA / embutida.height
+        );
+
+        const larguraFinal = embutida.width * escala;
+        const alturaFinal = embutida.height * escala;
+
+        nova.drawPage(embutida, {
+          x: (ETIQUETA_LARGURA - larguraFinal) / 2,
+          y: (ETIQUETA_ALTURA - alturaFinal) / 2,
+          width: larguraFinal,
+          height: alturaFinal,
+        });
+
+        const bytes = await soAEtiqueta.save();
+        arquivo = bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength
+        ) as ArrayBuffer;
       }
 
       // Páginas separadas: a segunda é a DACE, e na térmica ela vira adesivo
