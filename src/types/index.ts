@@ -18,6 +18,15 @@ export interface Product {
   /** Quanto o fornecedor cobra por pedido pela embalagem. Zero quando não cobra. */
   supplierPackagingFee?: number;
 
+  /**
+   * O fornecedor mantém o estoque em dia, e o número dá para acreditar.
+   *
+   * Sem isso o catálogo dizia "Em estoque" para tudo — inclusive para produto
+   * com zero —, e o vendedor anunciava o que não existe. Quem descobre é o
+   * comprador, e a punição do marketplace cai sobre o vendedor.
+   */
+  estoqueConfirmado?: boolean;
+
   /** Fotos adicionais do catálogo. A principal continua em `image`. */
   images?: string[];
 }

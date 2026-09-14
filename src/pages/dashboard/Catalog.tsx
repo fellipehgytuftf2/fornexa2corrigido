@@ -172,6 +172,10 @@ export default function Catalog() {
           // Entra na conta da margem. Sem isto o vendedor calculava lucro
           // sobre um custo menor que o real, e descobria no repasse.
           supplierPackagingFee: Number(supplier?.taxa_embalagem || 0),
+
+          // Só quem mantém o estoque em dia tem número em que acreditar. Dos
+          // outros, o catálogo não afirma disponibilidade nenhuma.
+          estoqueConfirmado: Boolean(supplier?.controla_estoque),
         };
       }
     );
@@ -402,13 +406,24 @@ export default function Catalog() {
                   {product.name}
                 </h3>
 
-                {/* O catálogo só traz produto ativo, então "em estoque" vale
-                    para todos os que chegam aqui. É sinal de disponibilidade,
-                    não quantidade — quem tem o número é o fornecedor. */}
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
-                  Em estoque
-                </p>
+                {/* "Em estoque" só para quem tem estoque conferido.
+                
+                    Antes valia para todos, porque o catálogo só traz produto
+                    ativo — mas produto de fornecedor que não conta estoque
+                    entra aqui com zero e a mesma bolinha verde. O vendedor
+                    anunciava o que não existe, o comprador descobria, e a
+                    punição do marketplace caía sobre o vendedor. */}
+                {product.estoqueConfirmado ? (
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
+                    Em estoque
+                  </p>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-slate-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400" aria-hidden="true" />
+                    Confirme com o fornecedor
+                  </p>
+                )}
 
                 <div className="bg-gray-50 dark:bg-navy-700 rounded-lg p-2">
                   <p className="text-[10px] text-gray-500 dark:text-slate-400">
