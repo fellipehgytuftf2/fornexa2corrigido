@@ -98,6 +98,15 @@ const ETIQUETA_ALTURA = 425.2;
  */
 const MARGEM_DE_CIMA = 30;
 
+/**
+ * Onde o bloco da DACE começa, na folha deitada.
+ *
+ * Logo depois da etiqueta, com a folga que separa os dois. Foi a distância
+ * errada na primeira tentativa de corte: cortar em 421 — a metade da folha —
+ * trazia uma tira da DACE colada na etiqueta.
+ */
+const DACE_COMECA = 295;
+
 /** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
 const nomeDe = (valor: unknown): string | null => {
   if (typeof valor === 'string') return valor || null;
@@ -573,47 +582,68 @@ Deno.serve(async (req: Request) => {
           },
         });
 
-        const soAEtiqueta = await PDFDocument.create();
+        const emTermica = await PDFDocument.create();
 
         // A folha medida é A4 deitada — 842 x 595 pt — com a etiqueta encostada
-        // na borda esquerda e a DACE ao lado. O bloco da etiqueta é 10 x 15 cm,
-        // que em pontos dá 283 x 425: é o tamanho do adesivo térmico.
+        // na borda esquerda e a DACE ao lado, as duas em 10 x 15 cm.
         //
-        // Cortar na metade (421) levava junto uma tira da DACE, porque ela
-        // começa bem antes do meio. O corte certo é logo depois do bloco.
-        const recorte = {
-          left: 0,
-          // Uns pontos a menos que a divisória estimada, para a margem de erro
-          // cair dentro da etiqueta e não dentro da DACE: sobra branca não
-          // atrapalha, tira da DACE colada na caixa atrapalha.
-          right: Math.min(width, ETIQUETA_LARGURA + 8),
+        // Cortar na metade (421) levava uma tira da DACE junto da etiqueta,
+        // porque a divisória fica bem antes do meio.
+        //
+        // As DUAS saem, uma por página: a etiqueta vai colada na caixa, e a
+        // DACE dobrada num saquinho do lado de fora. Sem a segunda, a encomenda
+        // não é postada — foi o que faltou na primeira versão deste corte.
+        const faixaVertical = {
           bottom: Math.max(0, height - MARGEM_DE_CIMA - ETIQUETA_ALTURA - 12),
           top: Math.min(height, height - MARGEM_DE_CIMA + 12),
         };
 
-        const embutida = await soAEtiqueta.embedPage(pagina, recorte);
+        const recortes = [
+          // Etiqueta: para uns pontos antes da divisória, para a margem de erro
+          // cair dentro dela e não trazer tira da DACE colada na caixa.
+          {
+            left: 0,
+            right: Math.min(width, ETIQUETA_LARGURA + 8),
+            ...faixaVertical,
+          },
+          // DACE: começa logo depois, e vai até o fim do bloco dela.
+          {
+            left: Math.min(width, DACE_COMECA),
+            right: Math.min(width, DACE_COMECA + ETIQUETA_LARGURA + 8),
+            ...faixaVertical,
+          },
+        ];
 
-        // A página final é o adesivo: 10 x 15 cm exatos. O recorte entra
-        // inteiro dentro dela, sem esticar — encolher um pouco e sobrar branco
-        // é aceitável; cortar a etiqueta não é.
-        const nova = soAEtiqueta.addPage([ETIQUETA_LARGURA, ETIQUETA_ALTURA]);
+        for (const recorte of recortes) {
+          // Bloco que não cabe na folha não vira página em branco: folha menor
+          // que a medida significa desenho diferente, e aí é melhor faltar do
+          // que entregar papel vazio.
+          if (recorte.right <= recorte.left) continue;
 
-        const escala = Math.min(
-          ETIQUETA_LARGURA / embutida.width,
-          ETIQUETA_ALTURA / embutida.height
-        );
+          const embutida = await emTermica.embedPage(pagina, recorte);
 
-        const larguraFinal = embutida.width * escala;
-        const alturaFinal = embutida.height * escala;
+          // Cada página é o adesivo: 10 x 15 cm exatos. O recorte entra inteiro
+          // dentro dela, sem esticar — encolher um pouco e sobrar branco é
+          // aceitável; cortar a etiqueta não é.
+          const nova = emTermica.addPage([ETIQUETA_LARGURA, ETIQUETA_ALTURA]);
 
-        nova.drawPage(embutida, {
-          x: (ETIQUETA_LARGURA - larguraFinal) / 2,
-          y: (ETIQUETA_ALTURA - alturaFinal) / 2,
-          width: larguraFinal,
-          height: alturaFinal,
-        });
+          const escala = Math.min(
+            ETIQUETA_LARGURA / embutida.width,
+            ETIQUETA_ALTURA / embutida.height
+          );
 
-        const bytes = await soAEtiqueta.save();
+          const larguraFinal = embutida.width * escala;
+          const alturaFinal = embutida.height * escala;
+
+          nova.drawPage(embutida, {
+            x: (ETIQUETA_LARGURA - larguraFinal) / 2,
+            y: (ETIQUETA_ALTURA - alturaFinal) / 2,
+            width: larguraFinal,
+            height: alturaFinal,
+          });
+        }
+
+        const bytes = await emTermica.save();
         arquivo = bytes.buffer.slice(
           bytes.byteOffset,
           bytes.byteOffset + bytes.byteLength
