@@ -532,20 +532,36 @@ Deno.serve(async (req: Request) => {
       const pagina = original.getPage(0);
       const { width, height } = pagina.getSize();
 
-      // Folha deitada é o montado lado a lado — etiqueta em pé não fica mais
-      // larga que alta. Corta a metade esquerda; a direita é a DACE.
+      // Folha deitada é o formato montado lado a lado, etiqueta e DACE na
+      // mesma página.
+      //
+      // JÁ TENTEI CORTAR AO MEIO, E SAIU PIOR: a divisória não fica na metade,
+      // então o recorte levava junto uma tira da DACE. Cortar exige saber onde
+      // uma acaba e a outra começa, e isso não se adivinha — por isso a medida
+      // da página fica registrada aqui, para o corte certo ser calculado com
+      // número na mão em vez de palpite.
       const deitada = width > height;
 
-      const recorte = deitada
-        ? { left: 0, bottom: 0, right: width / 2, top: height }
-        : { left: 0, bottom: 0, right: width, top: height };
+      if (deitada) {
+        await admin.from('log_integracao_ml').insert({
+          contexto: 'supplier-order-label',
+          mensagem: 'Etiqueta veio montada lado a lado, em folha deitada',
+          detalhes: {
+            pedido_id: pedido.id,
+            largura: Math.round(width),
+            altura: Math.round(height),
+            paginas: original.getPageCount(),
+          },
+        });
+      }
 
-      if (deitada || original.getPageCount() > 1) {
+      // Páginas separadas: a segunda é a DACE, e na térmica ela vira adesivo
+      // cheio de texto miúdo que ninguém cola. Esta parte funciona e fica.
+      if (!deitada && original.getPageCount() > 1) {
         const soAEtiqueta = await PDFDocument.create();
-        const embutida = await soAEtiqueta.embedPage(pagina, recorte);
+        const [primeira] = await soAEtiqueta.copyPages(original, [0]);
 
-        const nova = soAEtiqueta.addPage([embutida.width, embutida.height]);
-        nova.drawPage(embutida, { x: 0, y: 0 });
+        soAEtiqueta.addPage(primeira);
 
         const bytes = await soAEtiqueta.save();
         arquivo = bytes.buffer.slice(
