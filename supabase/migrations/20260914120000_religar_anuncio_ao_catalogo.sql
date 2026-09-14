@@ -26,7 +26,7 @@ set catalog_product_id = unico.produto
 from (
   select
     up2.id as anuncio,
-    min(p.id) as produto
+    (array_agg(p.id))[1] as produto
   from public.user_products up2
   join public.catalog_products p
     on p.supplier_id = up2.supplier_id
@@ -60,7 +60,7 @@ begin
     return new;
   end if;
 
-  select count(*), min(p.id) into v_quantos, v_produto
+  select count(*), (array_agg(p.id))[1] into v_quantos, v_produto
   from public.catalog_products p
   where p.supplier_id = new.supplier_id
     and lower(btrim(p.name)) = lower(btrim(new.name));
