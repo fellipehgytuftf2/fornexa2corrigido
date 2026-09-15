@@ -28,6 +28,7 @@ import ModalPortal from '../../components/ui/modal-portal';
 import AcessosAdmin from '../../components/dashboard/AcessosAdmin';
 import AvisosAdmin from '../../components/dashboard/AvisosAdmin';
 import ImpressaoDasContas from '../../components/dashboard/ImpressaoDasContas';
+import PausasPorEstoque from '../../components/dashboard/PausasPorEstoque';
 import AfiliadosAdmin from '../../components/dashboard/AfiliadosAdmin';
 import {
   CSV_MODELO,
@@ -2069,6 +2070,8 @@ export default function Admin() {
       {/* Logo abaixo dos avisos de propósito: o aviso diz quantos leram, esta
           lista diz quantos resolveram. São a mesma pergunta em dois pedaços. */}
       <ImpressaoDasContas />
+
+      <PausasPorEstoque />
 
       <AcessosAdmin />
 

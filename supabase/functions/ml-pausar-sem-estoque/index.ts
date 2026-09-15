@@ -139,6 +139,13 @@ Deno.serve(async (req: Request) => {
   /** O Mercado Livre aceitou, e o banco não gravou. Precisa aparecer. */
   const errosDeGravacao: string[] = [];
 
+  /** Por vendedor, para um recado só no fim da rodada. */
+  const pausadosPorVendedor = new Map<string, number>();
+  const reativadosPorVendedor = new Map<string, number>();
+
+  const somar = (mapa: Map<string, number>, userId: string) =>
+    mapa.set(userId, (mapa.get(userId) ?? 0) + 1);
+
   const { data: paraPausar, error: erroPausar } = await admin.rpc('anuncios_para_pausar', {
     p_limite: TETO_PAUSAR,
   });
@@ -166,6 +173,7 @@ Deno.serve(async (req: Request) => {
         .eq('id', anuncio.id);
 
       if (error) errosDeGravacao.push(`${anuncio.id}: ${error.message}`);
+      else somar(pausadosPorVendedor, anuncio.user_id);
     } else {
       falhas += 1;
       await admin
@@ -200,6 +208,7 @@ Deno.serve(async (req: Request) => {
         .eq('id', anuncio.id);
 
       if (error) errosDeGravacao.push(`${anuncio.id}: ${error.message}`);
+      else somar(reativadosPorVendedor, anuncio.user_id);
     } else {
       falhas += 1;
       await admin
@@ -207,6 +216,25 @@ Deno.serve(async (req: Request) => {
         .update({ pausa_tentada_em: agora(), pausa_falha: falha })
         .eq('id', anuncio.id);
     }
+  }
+
+  // O Mercado Livre mostra "pausado" sem motivo. Sem este recado o vendedor
+  // conclui que o sistema quebrou, ou reativa na mão e vende o que não existe.
+  // Falha aqui não desfaz a pausa: o recado é complemento.
+  for (const [userId, quantidade] of pausadosPorVendedor) {
+    await admin.rpc('notificar_anuncios_por_estoque', {
+      p_user_id: userId,
+      p_tipo: 'pausa-sem-estoque',
+      p_quantidade: quantidade,
+    });
+  }
+
+  for (const [userId, quantidade] of reativadosPorVendedor) {
+    await admin.rpc('notificar_anuncios_por_estoque', {
+      p_user_id: userId,
+      p_tipo: 'reativado-com-estoque',
+      p_quantidade: quantidade,
+    });
   }
 
   if (pausados || reativados || falhas) {
