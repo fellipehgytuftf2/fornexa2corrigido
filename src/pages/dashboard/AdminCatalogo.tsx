@@ -21,14 +21,10 @@ import {
   Trash2,
   Truck,
   Upload,
+  X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import RepassesAdmin from '../../components/dashboard/RepassesAdmin';
 import ModalPortal from '../../components/ui/modal-portal';
-import AcessosAdmin from '../../components/dashboard/AcessosAdmin';
-import AvisosAdmin from '../../components/dashboard/AvisosAdmin';
-import ImpressaoDasContas from '../../components/dashboard/ImpressaoDasContas';
-import AfiliadosAdmin from '../../components/dashboard/AfiliadosAdmin';
 import {
   CSV_MODELO,
   lerArquivo,
@@ -95,7 +91,7 @@ const initialForm: ProductForm = {
   supplier_id: '',
 };
 
-export default function Admin() {
+export default function AdminCatalogo() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [checkingPermission, setCheckingPermission] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -720,7 +716,6 @@ export default function Admin() {
 
   const handleEditProduct = (product: CatalogProduct) => {
     setEditingProductId(product.id);
-    // Sem isto, clicar em Editar rolaria para um formulário fechado.
     setFormAberto(true);
 
     setForm({
@@ -732,11 +727,6 @@ export default function Admin() {
       stock: String(product.stock || ''),
       status: product.status || 'active',
       supplier_id: product.supplier_id || '',
-    });
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth',
     });
   };
 
@@ -1536,20 +1526,38 @@ export default function Admin() {
         )}
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden"
+      {/* Era um acordeão que abria dentro da página — os campos ficavam
+          espremidos no meio de tudo mais. Modal isola o formulário, mais
+          fácil de ler e preencher. */}
+      <button
+        type="button"
+        onClick={() => {
+          resetForm();
+          setFormAberto(true);
+        }}
+        className="w-full bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm p-5 flex items-center gap-3 text-left hover:bg-gray-50 dark:hover:bg-navy-700/50 transition-colors"
       >
-        {/* O cabeçalho inteiro abre e fecha: o formulário é alto e fica no
-            caminho de quem só quer ver a lista de produtos. */}
-        <button
-          type="button"
-          onClick={() => setFormAberto((aberto) => !aberto)}
-          aria-expanded={formAberto}
-          className={`w-full p-5 flex items-start justify-between gap-4 text-left hover:bg-gray-50 dark:hover:bg-navy-700/50 transition-colors ${
-            formAberto ? 'border-b border-gray-200 dark:border-navy-700' : ''
-          }`}
+        <Plus className="w-5 h-5 text-navy-900 dark:text-white shrink-0" />
+
+        <div>
+          <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+            Cadastrar produto no catálogo
+          </h2>
+
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+            Clique para abrir o formulário.
+          </p>
+        </div>
+      </button>
+
+      {formAberto && (
+      <ModalPortal>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center p-4 py-8 bg-black/50 backdrop-blur-sm overflow-y-auto">
+        <form
+          onSubmit={handleSubmit}
+          className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-2xl w-full max-w-3xl"
         >
+        <div className="p-5 border-b border-gray-200 dark:border-navy-700 flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
               <Plus className="w-5 h-5 text-navy-900 dark:text-white" />
@@ -1560,20 +1568,23 @@ export default function Admin() {
             </div>
 
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-              {formAberto
-                ? 'Preencha os dados do produto e escolha o fornecedor responsável.'
-                : 'Clique para abrir o formulário.'}
+              Preencha os dados do produto e escolha o fornecedor responsável.
             </p>
           </div>
 
-          <ChevronDown
-            className={`w-5 h-5 text-gray-500 dark:text-slate-400 shrink-0 mt-1 transition-transform ${
-              formAberto ? 'rotate-180' : ''
-            }`}
-          />
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setFormAberto(false);
+              resetForm();
+            }}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-white shrink-0"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-        <div className={`${formAberto ? '' : 'hidden'}`}>
         <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
@@ -1763,8 +1774,10 @@ export default function Admin() {
             )}
           </button>
         </div>
+        </form>
         </div>
-      </form>
+      </ModalPortal>
+      )}
 
       {/* A lista abre e fecha igual ao formulário. Com centenas de produtos
           importados, ela empurra para muito longe tudo o que vem depois —
@@ -2063,18 +2076,6 @@ export default function Admin() {
           </div>
         </ModalPortal>
       )}
-
-      <AvisosAdmin />
-
-      {/* Logo abaixo dos avisos de propósito: o aviso diz quantos leram, esta
-          lista diz quantos resolveram. São a mesma pergunta em dois pedaços. */}
-      <ImpressaoDasContas />
-
-      <AcessosAdmin />
-
-      <AfiliadosAdmin />
-
-      <RepassesAdmin />
     </div>
   );
 }

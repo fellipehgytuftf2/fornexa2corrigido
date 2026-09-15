@@ -18,7 +18,12 @@ import MyProducts from './pages/dashboard/MyProducts';
 import Orders from './pages/dashboard/Orders';
 import Financial from './pages/dashboard/Financial';
 import Integrations from './pages/dashboard/Integrations';
-import Admin from './pages/dashboard/Admin';
+import AdminCatalogo from './pages/dashboard/AdminCatalogo';
+import AdminAvisos from './pages/dashboard/AdminAvisos';
+import AdminImpressao from './pages/dashboard/AdminImpressao';
+import AdminContas from './pages/dashboard/AdminContas';
+import AdminAfiliados from './pages/dashboard/AdminAfiliados';
+import AdminRepasses from './pages/dashboard/AdminRepasses';
 import Tickets from './pages/dashboard/Tickets';
 import Suporte from './pages/dashboard/Suporte';
 import Tools from './pages/dashboard/Tools';
@@ -264,7 +269,13 @@ function App() {
           <Route path="orders" element={<Orders />} />
           <Route path="financial" element={<Financial />} />
           <Route path="integrations" element={<Integrations />} />
-          <Route path="admin" element={<Admin />} />
+          <Route path="admin" element={<Navigate to="/dashboard/admin/catalogo" replace />} />
+          <Route path="admin/catalogo" element={<AdminCatalogo />} />
+          <Route path="admin/avisos" element={<AdminAvisos />} />
+          <Route path="admin/impressao" element={<AdminImpressao />} />
+          <Route path="admin/contas" element={<AdminContas />} />
+          <Route path="admin/afiliados" element={<AdminAfiliados />} />
+          <Route path="admin/repasses" element={<AdminRepasses />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="suporte" element={<Suporte />} />
           <Route path="tools" element={<Tools />} />
