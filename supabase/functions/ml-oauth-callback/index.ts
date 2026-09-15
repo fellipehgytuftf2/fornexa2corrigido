@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { conferirEstado } from "../_shared/estadoOAuth.ts";
 
 Deno.serve(async (req: Request) => {
   const frontendUrl = Deno.env.get("FRONTEND_URL")!;
@@ -23,7 +24,7 @@ Deno.serve(async (req: Request) => {
 
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const vendedorId = url.searchParams.get("state");
+  const state = url.searchParams.get("state");
   const mlError = url.searchParams.get("error");
 
   // Caso o vendedor tenha negado a autorização no Mercado Livre
@@ -31,8 +32,23 @@ Deno.serve(async (req: Request) => {
     return Response.redirect(`${frontendUrl}/dashboard?ml=erro&motivo=recusado`, 302);
   }
 
-  if (!code || !vendedorId) {
+  if (!code || !state) {
     return Response.redirect(`${frontendUrl}/dashboard?ml=erro&motivo=parametros_invalidos`, 302);
+  }
+
+  // O state só é aceito se tiver sido assinado por ml-oauth-start para este
+  // vendedor específico — sem isso, qualquer um poderia forjar state=<uuid
+  // de outra pessoa> e vincular sua própria conta ML à conta FORNEXA da
+  // vítima (CSRF de conexão de conta). Ver _shared/estadoOAuth.ts.
+  const vendedorId = await conferirEstado(state);
+
+  if (!vendedorId) {
+    await supabase.from("log_integracao_ml").insert({
+      contexto: "ml-oauth-callback",
+      mensagem: "State do OAuth inválido, expirado ou forjado — conexão recusada",
+      detalhes: { state_recebido: state },
+    });
+    return Response.redirect(`${frontendUrl}/dashboard?ml=erro&motivo=state_invalido`, 302);
   }
 
   try {
