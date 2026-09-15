@@ -4,5 +4,12 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "crons": [
+    { "path": "/api/ms-digital-sync", "schedule": "0 3 * * *" },
+    { "path": "/api/ms-digital-sync", "schedule": "0 15 * * *" }
+  ],
+  "functions": {
+    "api/ms-digital-sync.js": { "maxDuration": 60 }
+  }
 }
