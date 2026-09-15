@@ -142,7 +142,25 @@ export default function MyProducts() {
     }
 
     setProducts((data || []) as UserProduct[]);
+
+    // Falhar aqui não pode esconder a lista: o aviso é complemento.
+    const { data: semEstoque } = await supabase.rpc('meus_anuncios_sem_estoque');
+
+    setSemEstoque(
+      new Map(
+        ((semEstoque || []) as { user_product_id: string; pausado: boolean }[]).map((linha) => [
+          linha.user_product_id,
+          linha.pausado,
+        ])
+      )
+    );
   };
+
+  /**
+   * Anúncios cujo fornecedor está sem estoque. `true` quando o FORNEXA já
+   * pausou no Mercado Livre; `false` quando ainda está no ar.
+   */
+  const [semEstoque, setSemEstoque] = useState<Map<string, boolean>>(new Map());
 
   useEffect(() => {
     loadProducts();
@@ -366,15 +384,28 @@ export default function MyProducts() {
                           {product.marketplace}
                         </span>
 
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            product.status === 'active'
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300'
-                          }`}
-                        >
-                          {product.status === 'active' ? 'Ativo' : product.status}
-                        </span>
+                        {/* A pausa por falta de estoque não mexe em `status` —
+                            a tabela recusa 'paused'. Sem olhar a marca, o selo
+                            dizia "Ativo" ao lado do aviso de pausado. */}
+                        {semEstoque.get(product.id) ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            Pausado · sem estoque
+                          </span>
+                        ) : (
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              product.status === 'active'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {product.status === 'active'
+                              ? 'Ativo'
+                              : product.status === 'paused'
+                                ? 'Pausado'
+                                : product.status}
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="text-navy-900 dark:text-white font-bold mt-3 line-clamp-2">
@@ -384,6 +415,24 @@ export default function MyProducts() {
                       <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
                         Salvo em {formatDate(product.created_at)}
                       </p>
+
+                      {/* Pausa sem explicação parece defeito do sistema. */}
+                      {semEstoque.has(product.id) && (
+                        <div
+                          className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
+                            semEstoque.get(product.id)
+                              ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
+                              : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                          }`}
+                        >
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <span>
+                            {semEstoque.get(product.id)
+                              ? 'Pausado pelo FORNEXA: o fornecedor está sem estoque. Volta ao ar sozinho quando ele repor.'
+                              : 'O fornecedor está sem estoque. Este anúncio será pausado no Mercado Livre para você não vender o que não existe.'}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
