@@ -457,7 +457,24 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  // Liberação manual, pedido a pedido. Consulta separada de propósito: se a
+  // coluna ainda não existir, o erro vira "não liberado" e a trava segue igual
+  // — em vez de derrubar a etiqueta de todos os pedidos.
+  let remetenteLiberado = false;
+
   if (origemErrada && pedidoAlcancadoPelaRegra) {
+    const { data: liberacao } = await admin
+      .from('orders')
+      .select('remetente_liberado_em')
+      .eq('id', pedido.id)
+      .maybeSingle();
+
+    remetenteLiberado = Boolean(
+      (liberacao as { remetente_liberado_em?: string | null } | null)?.remetente_liberado_em
+    );
+  }
+
+  if (origemErrada && pedidoAlcancadoPelaRegra && !remetenteLiberado) {
     return json(
       {
         error:
