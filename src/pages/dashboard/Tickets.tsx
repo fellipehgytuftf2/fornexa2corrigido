@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle, Info, Plus, Ticket, Truck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
+import Pagination from '../../components/ui/pagination';
+
+const CHAMADOS_POR_PAGINA = 15;
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
@@ -59,6 +62,7 @@ export default function Tickets() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   /** Respostas do fornecedor ainda não lidas, por chamado. */
   const [naoLidas, setNaoLidas] = useState<Record<string, number>>({});
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
   // Conversa do chamado aberto.
   const [chamadoAberto, setChamadoAberto] = useState<SupportTicket | null>(null);
@@ -238,6 +242,19 @@ export default function Tickets() {
     loadTickets();
   }, []);
 
+  const totalPaginas = Math.max(1, Math.ceil(tickets.length / CHAMADOS_POR_PAGINA));
+
+  // Volta para a primeira sempre que a lista muda de tamanho: sem isso, um
+  // chamado a menos podia deixar a página atual vazia sem explicação.
+  useEffect(() => {
+    setPaginaAtual((atual) => Math.min(atual, Math.max(1, Math.ceil(tickets.length / CHAMADOS_POR_PAGINA))));
+  }, [tickets.length]);
+
+  const chamadosDaPagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * CHAMADOS_POR_PAGINA;
+    return tickets.slice(inicio, inicio + CHAMADOS_POR_PAGINA);
+  }, [tickets, paginaAtual]);
+
   /**
    * Só admin muda status — é o que a policy "Admins can manage all tickets"
    * permite. Sem isto todo chamado ficava `open` para sempre, e no Portal o
@@ -378,8 +395,15 @@ export default function Tickets() {
             <p className="text-gray-500 dark:text-slate-400 text-sm">Carregando chamados...</p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            {/* min-w-full (não w-full): com w-full a tabela travava na
+                largura do cartão, e os 4 botões da coluna Ações quebravam em
+                várias linhas dentro de cada chamado — inflando toda linha da
+                tabela e, com 109 chamados, a página inteira. min-w-full deixa
+                a tabela crescer conforme o conteúdo pede, e o overflow-x-auto
+                acima vira scroll horizontal em vez de espremer as colunas. */}
+            <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-navy-700 bg-gray-50 dark:bg-navy-700">
                   {isAdmin && (
@@ -409,7 +433,7 @@ export default function Tickets() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-navy-700">
-                {tickets.map((ticket) => (
+                {chamadosDaPagina.map((ticket) => (
                   <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-navy-700/50">
                     {isAdmin && (
                       <td className="px-5 py-4 text-sm">
@@ -454,16 +478,18 @@ export default function Tickets() {
                     )}
 
                     <td className="px-5 py-4 text-sm text-navy-900 dark:text-white font-medium">
-                      {ticket.subject}
+                      <div className="flex items-center gap-2 max-w-xs">
+                        <span className="truncate">{ticket.subject}</span>
 
-                      {/* Chamado aberto pelo fornecedor no Portal, e não pelo
-                          vendedor sobre a plataforma. Muda quem precisa agir. */}
-                      {ticket.supplier_id && (
-                        <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 align-middle">
-                          <Truck className="w-3 h-3" />
-                          Do fornecedor
-                        </span>
-                      )}
+                        {/* Chamado aberto pelo fornecedor no Portal, e não pelo
+                            vendedor sobre a plataforma. Muda quem precisa agir. */}
+                        {ticket.supplier_id && (
+                          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                            <Truck className="w-3 h-3" />
+                            Do fornecedor
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-500 dark:text-slate-400 max-w-md truncate">
                       {ticket.message}
@@ -481,7 +507,7 @@ export default function Tickets() {
 
                     {isAdmin && (
                       <td className="px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-nowrap gap-2">
                           <button
                             onClick={() => abrirConversa(ticket)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors"
@@ -520,6 +546,16 @@ export default function Tickets() {
               </tbody>
             </table>
           </div>
+
+          <div className="p-4 border-t border-gray-200 dark:border-navy-700">
+            <Pagination
+              page={paginaAtual}
+              totalPages={totalPaginas}
+              onPageChange={setPaginaAtual}
+              label="Páginas de chamados"
+            />
+          </div>
+          </>
         )}
 
         {!loading && tickets.length === 0 && (

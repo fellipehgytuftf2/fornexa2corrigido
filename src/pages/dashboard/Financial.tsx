@@ -14,6 +14,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import Pagination from '../../components/ui/pagination';
+
+const TRANSACOES_POR_PAGINA = 10;
 
 interface Order {
   id: string;
@@ -49,6 +52,7 @@ export default function Financial() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
   const loadFinancialData = async () => {
     setLoading(true);
@@ -66,6 +70,11 @@ export default function Financial() {
       return;
     }
 
+    // Sem .eq('user_id', ...): a RLS já restringe às linhas do vendedor
+    // logado e libera todas para admin — mesmo padrão do Orders.tsx. Filtrar
+    // aqui por cima era redundante para vendedor comum e quebrava a tela para
+    // admin, que não é dono de pedido nenhum (via zero, mesmo com pedidos
+    // reais no banco).
     const { data, error } = await supabase
       .from('orders')
       .select(`
@@ -88,7 +97,6 @@ export default function Financial() {
         marketplace,
         created_at
       `)
-      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     setLoading(false);
@@ -120,6 +128,19 @@ export default function Financial() {
       );
     });
   }, [orders, searchTerm]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filteredOrders.length / TRANSACOES_POR_PAGINA));
+
+  // Volta para a primeira sempre que a busca muda: sem isso, filtrar estando
+  // na página 3 mostraria uma lista vazia sem explicação.
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [searchTerm]);
+
+  const transacoesDaPagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * TRANSACOES_POR_PAGINA;
+    return filteredOrders.slice(inicio, inicio + TRANSACOES_POR_PAGINA);
+  }, [filteredOrders, paginaAtual]);
 
   const financialSummary = useMemo(() => {
     const validOrders = orders.filter((order) => order.status !== 'cancelled');
@@ -614,8 +635,9 @@ export default function Financial() {
             </div>
 
             {filteredOrders.length > 0 ? (
+              <>
               <div className="divide-y divide-gray-200 dark:divide-navy-700">
-                {filteredOrders.map((order) => (
+                {transacoesDaPagina.map((order) => (
                   <div key={order.id} className="p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3 min-w-0">
@@ -645,8 +667,18 @@ export default function Financial() {
                           {formatCurrency(order.sale_price)}
                         </p>
 
-                        <p className="text-xs text-green-600 dark:text-green-400 font-medium mt-1">
-                          + {formatCurrency(order.profit)}
+                        {/* Sinal e cor seguem o valor: prejuízo (custo +
+                            taxas acima da venda) não pode aparecer como se
+                            fosse ganho. */}
+                        <p
+                          className={`text-xs font-medium mt-1 ${
+                            Number(order.profit || 0) >= 0
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-red-600 dark:text-red-400'
+                          }`}
+                        >
+                          {Number(order.profit || 0) >= 0 ? '+ ' : '- '}
+                          {formatCurrency(Math.abs(Number(order.profit || 0)))}
                         </p>
                       </div>
                     </div>
@@ -667,6 +699,16 @@ export default function Financial() {
                   </div>
                 ))}
               </div>
+
+              <div className="p-5 border-t border-gray-200 dark:border-navy-700">
+                <Pagination
+                  page={paginaAtual}
+                  totalPages={totalPaginas}
+                  onPageChange={setPaginaAtual}
+                  label="Páginas de transações"
+                />
+              </div>
+              </>
             ) : (
               <div className="p-16 text-center">
                 <Package className="w-12 h-12 text-gray-300 dark:text-navy-600 mx-auto mb-4" />
