@@ -376,19 +376,28 @@ export default function MyProducts() {
                           {product.marketplace}
                         </span>
 
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            product.status === 'active'
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300'
-                          }`}
-                        >
-                          {product.status === 'active'
-                            ? 'Ativo'
-                            : product.status === 'paused'
-                              ? 'Pausado'
-                              : product.status}
-                        </span>
+                        {/* A pausa por falta de estoque não mexe em `status` —
+                            a tabela recusa 'paused'. Sem olhar a marca, o selo
+                            dizia "Ativo" ao lado do aviso de pausado. */}
+                        {semEstoque.get(product.id) ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            Pausado · sem estoque
+                          </span>
+                        ) : (
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              product.status === 'active'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300'
+                            }`}
+                          >
+                            {product.status === 'active'
+                              ? 'Ativo'
+                              : product.status === 'paused'
+                                ? 'Pausado'
+                                : product.status}
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="text-navy-900 dark:text-white font-bold mt-3 line-clamp-2">
