@@ -136,6 +136,9 @@ Deno.serve(async (req: Request) => {
   let reativados = 0;
   let falhas = 0;
 
+  /** O Mercado Livre aceitou, e o banco não gravou. Precisa aparecer. */
+  const errosDeGravacao: string[] = [];
+
   const { data: paraPausar, error: erroPausar } = await admin.rpc('anuncios_para_pausar', {
     p_limite: TETO_PAUSAR,
   });
@@ -149,15 +152,20 @@ Deno.serve(async (req: Request) => {
 
     if (ok) {
       pausados += 1;
-      await admin
+
+      // Sem mexer em `status`: a tabela recusa 'paused', e a gravação inteira
+      // caía junto — o anúncio ficava pausado no Mercado Livre sem a marca, e
+      // sem a marca nunca voltaria. A marca sozinha já diz o que aconteceu.
+      const { error } = await admin
         .from('user_products')
         .update({
-          status: 'paused',
           pausado_sem_estoque_em: agora(),
           pausa_tentada_em: null,
           pausa_falha: null,
         })
         .eq('id', anuncio.id);
+
+      if (error) errosDeGravacao.push(`${anuncio.id}: ${error.message}`);
     } else {
       falhas += 1;
       await admin
@@ -181,15 +189,17 @@ Deno.serve(async (req: Request) => {
 
     if (ok) {
       reativados += 1;
-      await admin
+
+      const { error } = await admin
         .from('user_products')
         .update({
-          status: 'active',
           pausado_sem_estoque_em: null,
           pausa_tentada_em: null,
           pausa_falha: null,
         })
         .eq('id', anuncio.id);
+
+      if (error) errosDeGravacao.push(`${anuncio.id}: ${error.message}`);
     } else {
       falhas += 1;
       await admin
@@ -202,10 +212,12 @@ Deno.serve(async (req: Request) => {
   if (pausados || reativados || falhas) {
     await admin.from('log_integracao_ml').insert({
       contexto: 'pausar-sem-estoque',
-      mensagem: `Pausados ${pausados}, reativados ${reativados}, falhas ${falhas}`,
-      detalhes: { pausados, reativados, falhas },
+      mensagem:
+        `Pausados ${pausados}, reativados ${reativados}, falhas ${falhas}` +
+        (errosDeGravacao.length ? `, SEM GRAVAR ${errosDeGravacao.length}` : ''),
+      detalhes: { pausados, reativados, falhas, errosDeGravacao: errosDeGravacao.slice(0, 20) },
     });
   }
 
-  return json({ ok: true, pausados, reativados, falhas });
+  return json({ ok: true, pausados, reativados, falhas, semGravar: errosDeGravacao.length });
 });
