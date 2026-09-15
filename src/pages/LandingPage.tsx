@@ -15,7 +15,7 @@ export default function LandingPage() {
         <Plans />
         <FinalCTA />
       </main>
-      <footer className="bg-navy-900 border-t border-navy-600 py-8">
+      <footer className="bg-navy-900 py-8">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
