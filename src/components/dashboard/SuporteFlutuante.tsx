@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Headset, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import MinhaConversaDeSuporte from './MinhaConversaDeSuporte';
@@ -90,6 +91,40 @@ export default function SuporteFlutuante() {
     };
   }, []);
 
+  // O painel ficava aberto por cima de tudo: abrir o menu ou trocar de página
+  // deixava o chat tapando a tela que a pessoa foi buscar.
+  const painel = useRef<HTMLDivElement | null>(null);
+  const botao = useRef<HTMLButtonElement | null>(null);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    setAberto(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!aberto) return;
+
+    const aoClicar = (evento: MouseEvent | TouchEvent) => {
+      const alvo = evento.target as Node;
+
+      // Só conta clique na tela do app. Janela aberta por cima (perfil do
+      // cliente, foto ampliada) é montada fora dela, e clicar ali não é sair
+      // do suporte.
+      if (!document.getElementById('root')?.contains(alvo)) return;
+      if (painel.current?.contains(alvo) || botao.current?.contains(alvo)) return;
+
+      setAberto(false);
+    };
+
+    document.addEventListener('mousedown', aoClicar);
+    document.addEventListener('touchstart', aoClicar);
+
+    return () => {
+      document.removeEventListener('mousedown', aoClicar);
+      document.removeEventListener('touchstart', aoClicar);
+    };
+  }, [aberto]);
+
   // Enquanto não se sabe o papel, não aparece: um balão que troca de conteúdo
   // depois de aberto pisca na cara de quem clicou.
   if (ehAdmin === null) return null;
@@ -104,6 +139,7 @@ export default function SuporteFlutuante() {
     <>
       {aberto && (
         <div
+          ref={painel}
           className={`fixed bottom-24 right-4 sm:right-6 z-[120] flex flex-col rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-2xl overflow-hidden ${
             ehAdmin
               ? 'w-[min(940px,calc(100vw-2rem))] h-[min(640px,calc(100vh-10rem))]'
@@ -144,6 +180,7 @@ export default function SuporteFlutuante() {
       )}
 
       <button
+        ref={botao}
         type="button"
         onClick={alternar}
         aria-label={aberto ? 'Fechar suporte' : 'Abrir suporte'}

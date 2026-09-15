@@ -104,8 +104,11 @@ export default function Notificacoes() {
         )}
       </button>
 
+      {/* No celular o sino não fica no canto: o tema, a conta e o sair vêm
+          depois dele. Alinhado ao sino, o painel saía pela esquerda da tela.
+          Ali ele se prende à tela; no computador, ao sino. */}
       {aberto && (
-        <div className="absolute right-0 mt-2 w-[min(400px,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-xl z-50">
+        <div className="fixed left-4 right-4 top-[4.5rem] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[400px] max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-xl z-50">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-navy-700 flex items-center justify-between gap-3">
             <p className="font-semibold text-navy-900 dark:text-white">Avisos</p>
 
