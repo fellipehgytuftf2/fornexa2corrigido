@@ -24,7 +24,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { chavePublica, chaveSecreta, urlDoProjeto } from '../_shared/chaves.ts';
 import { obterAccessToken } from '../_shared/tokenMercadoLivre.ts';
-import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  PDFNumber,
+  PDFPage,
+  PDFRawStream,
+  decodePDFRawStream,
+} from 'https://esm.sh/pdf-lib@1.17.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -106,6 +115,179 @@ const MARGEM_DE_CIMA = 30;
  * trazia uma tira da DACE colada na etiqueta.
  */
 const DACE_COMECA = 295;
+
+// ----------------------------------------------------------------------------
+// Onde a etiqueta está desenhada
+// ----------------------------------------------------------------------------
+// O corte por medida fixa deixava a etiqueta torta no adesivo: sobra de um
+// lado, falta do outro. As medidas eram da folha, e o desenho dentro dela não
+// começa onde a folha começa.
+//
+// O Mercado Livre abre a etiqueta e a DACE com uma moldura — um retângulo de
+// uns 256 x 422 pt, o primeiro traço de cada uma. Achar a moldura dá a posição
+// exata do desenho, e recortar em volta dela centraliza sem depender de número
+// medido à mão. Se o Mercado Livre mover o desenho, o corte vai junto.
+
+/** Retângulo desenhado, em pontos da página, já com as transformações. */
+interface Moldura {
+  x: number;
+  y: number;
+  largura: number;
+  altura: number;
+}
+
+type Matriz = [number, number, number, number, number, number];
+
+const IDENTIDADE: Matriz = [1, 0, 0, 1, 0, 0];
+
+/** `m` aplicada antes de `n`, como o `cm` do PDF. */
+const multiplicar = (m: Matriz, n: Matriz): Matriz => [
+  m[0] * n[0] + m[1] * n[2],
+  m[0] * n[1] + m[1] * n[3],
+  m[2] * n[0] + m[3] * n[2],
+  m[2] * n[1] + m[3] * n[3],
+  m[4] * n[0] + m[5] * n[2] + n[4],
+  m[4] * n[1] + m[5] * n[3] + n[5],
+];
+
+/** Do tamanho da moldura da etiqueta ou da DACE, com folga. */
+const pareceMoldura = (m: Moldura) =>
+  m.largura >= 235 && m.largura <= 280 && m.altura >= 395 && m.altura <= 440;
+
+const conteudoDe = (stream: unknown): string =>
+  stream instanceof PDFRawStream
+    ? new TextDecoder('latin1').decode(decodePDFRawStream(stream).decode())
+    : '';
+
+/**
+ * Lê os comandos de desenho e guarda os retângulos com cara de moldura.
+ *
+ * Acompanha `q`/`Q`/`cm` para a posição sair em pontos da página, e entra nos
+ * blocos desenhados com `Do` — a folha pode trazer a etiqueta montada como um
+ * bloco reaproveitado, e aí a moldura mora dentro dele.
+ */
+function procurarMolduras(
+  texto: string,
+  recursos: PDFDict | undefined,
+  inicial: Matriz,
+  achadas: Moldura[],
+  profundidade: number
+) {
+  // Texto entre parênteses e hexadecimal podem conter qualquer coisa,
+  // inclusive algo que pareça comando.
+  const limpo = texto
+    .replace(/\((?:\\.|[^\\)])*\)/g, ' ')
+    .replace(/<[0-9A-Fa-f\s]*>/g, ' ');
+
+  const tokens = limpo.match(/\/[^\s/[\]<>()]+|[-+]?(?:\d+\.?\d*|\.\d+)|[A-Za-z'"*]+/g) ?? [];
+
+  let ctm = inicial;
+  const pilha: Matriz[] = [];
+  const numeros: number[] = [];
+  let nome: string | null = null;
+
+  for (const token of tokens) {
+    if (token.startsWith('/')) {
+      nome = token.slice(1);
+      continue;
+    }
+
+    const numero = Number(token);
+
+    if (!Number.isNaN(numero)) {
+      numeros.push(numero);
+      continue;
+    }
+
+    if (token === 'q') {
+      pilha.push(ctm);
+    } else if (token === 'Q') {
+      ctm = pilha.pop() ?? inicial;
+    } else if (token === 'cm' && numeros.length >= 6) {
+      ctm = multiplicar(numeros.slice(-6) as Matriz, ctm);
+    } else if (token === 're' && numeros.length >= 4) {
+      const [x, y, w, h] = numeros.slice(-4);
+      const cantos = [
+        [x, y],
+        [x + w, y],
+        [x, y + h],
+        [x + w, y + h],
+      ].map(([px, py]) => [
+        ctm[0] * px + ctm[2] * py + ctm[4],
+        ctm[1] * px + ctm[3] * py + ctm[5],
+      ]);
+      const xs = cantos.map((c) => c[0]);
+      const ys = cantos.map((c) => c[1]);
+
+      const moldura = {
+        x: Math.min(...xs),
+        y: Math.min(...ys),
+        largura: Math.max(...xs) - Math.min(...xs),
+        altura: Math.max(...ys) - Math.min(...ys),
+      };
+
+      if (pareceMoldura(moldura)) achadas.push(moldura);
+    } else if (token === 'Do' && nome && recursos && profundidade < 3) {
+      const bloco = recursos.lookupMaybe(PDFName.of('XObject'), PDFDict)?.lookup(PDFName.of(nome));
+
+      if (bloco instanceof PDFRawStream && String(bloco.dict.get(PDFName.of('Subtype'))) === '/Form') {
+        const matriz = bloco.dict.lookupMaybe(PDFName.of('Matrix'), PDFArray);
+
+        procurarMolduras(
+          conteudoDe(bloco),
+          bloco.dict.lookupMaybe(PDFName.of('Resources'), PDFDict) ?? recursos,
+          multiplicar(
+            matriz
+              ? (matriz.asArray().map((v) => (v as PDFNumber).asNumber()) as Matriz)
+              : IDENTIDADE,
+            ctm
+          ),
+          achadas,
+          profundidade + 1
+        );
+      }
+    }
+
+    numeros.length = 0;
+    nome = null;
+  }
+}
+
+/** As molduras da página, da esquerda para a direita, sem repetição. */
+function moldurasDaPagina(pagina: PDFPage): Moldura[] {
+  const conteudo = pagina.node.Contents();
+  const partes =
+    conteudo instanceof PDFArray
+      ? conteudo.asArray().map((ref) => pagina.doc.context.lookup(ref))
+      : [conteudo];
+
+  const achadas: Moldura[] = [];
+
+  procurarMolduras(
+    partes.map(conteudoDe).join('\n'),
+    pagina.node.Resources(),
+    IDENTIDADE,
+    achadas,
+    0
+  );
+
+  // O Mercado Livre desenha a moldura duas vezes — borda de fora e de dentro,
+  // um ponto de diferença. Fica a maior de cada lugar.
+  const unicas: Moldura[] = [];
+
+  for (const m of achadas.sort((a, b) => b.largura * b.altura - a.largura * a.altura)) {
+    const cx = m.x + m.largura / 2;
+    const cy = m.y + m.altura / 2;
+
+    const repetida = unicas.some(
+      (u) => Math.abs(u.x + u.largura / 2 - cx) < 8 && Math.abs(u.y + u.altura / 2 - cy) < 8
+    );
+
+    if (!repetida) unicas.push(m);
+  }
+
+  return unicas.sort((a, b) => a.x - b.x);
+}
 
 /** Cidade e estado vêm ora como texto, ora como `{ id, name }`. */
 const nomeDe = (valor: unknown): string | null => {
@@ -557,16 +739,16 @@ Deno.serve(async (req: Request) => {
    * O Mercado Livre entrega etiqueta e Declaração de Conteúdo no mesmo PDF, e
    * de dois jeitos conforme a conta do vendedor:
    *
-   *   PÁGINAS SEPARADAS — página 1 a etiqueta, página 2 a DACE. Na térmica, a
-   *   segunda vira um adesivo cheio de texto miúdo que ninguém cola em lugar
-   *   nenhum: adesivo jogado fora em toda venda.
+   *   PÁGINAS SEPARADAS — conta já em térmica. Página 1 a etiqueta, página 2
+   *   a DACE, as duas em 10 x 15. Já está no formato certo e passa como veio.
    *
-   *   LADO A LADO — uma folha deitada com a etiqueta à esquerda e a DACE à
-   *   direita. As duas em medida térmica, mas montadas numa página A4. É o que
-   *   obriga o fornecedor a cortar com tesoura e colar com fita.
+   *   LADO A LADO — conta em A4. Uma folha deitada com a etiqueta à esquerda e
+   *   a DACE à direita. É o que obrigava o fornecedor a cortar com tesoura e
+   *   colar com fita.
    *
-   * Os dois viram a mesma coisa aqui: uma página só, com a etiqueta e mais
-   * nada. A DACE continua inteira no botão dela, para sair em papel comum.
+   * O lado a lado vira o mesmo que as páginas separadas: etiqueta numa página
+   * e DACE na outra, cada uma centralizada no adesivo de 10 x 15. As duas
+   * saem, porque sem a DACE a encomenda não é postada.
    *
    * Falhando, devolve o PDF como veio: etiqueta com sobra é inconveniente;
    * etiqueta que não sai é pedido parado.
@@ -588,48 +770,73 @@ Deno.serve(async (req: Request) => {
       const deitada = width > height;
 
       if (deitada) {
+        const emTermica = await PDFDocument.create();
+
+        // Etiqueta e DACE, cada uma pela moldura dela. Leitura que falha não
+        // derruba a etiqueta: cai no corte por medida, que já funcionava.
+        let molduras: Moldura[] = [];
+
+        try {
+          molduras = moldurasDaPagina(pagina).slice(0, 2);
+        } catch (erro) {
+          console.error('Não foi possível ler as molduras da etiqueta:', erro);
+        }
+
         await admin.from('log_integracao_ml').insert({
           contexto: 'supplier-order-label',
-          mensagem: 'Etiqueta veio montada lado a lado, em folha deitada',
+          mensagem: molduras.length
+            ? `Etiqueta lado a lado: ${molduras.length} moldura(s), recorte centralizado`
+            : 'Etiqueta lado a lado: moldura não encontrada, recorte por medida',
           detalhes: {
             pedido_id: pedido.id,
             largura: Math.round(width),
             altura: Math.round(height),
             paginas: original.getPageCount(),
+            molduras: molduras.map((m) => ({
+              x: Math.round(m.x * 10) / 10,
+              y: Math.round(m.y * 10) / 10,
+              largura: Math.round(m.largura * 10) / 10,
+              altura: Math.round(m.altura * 10) / 10,
+            })),
           },
         });
 
-        const emTermica = await PDFDocument.create();
-
-        // A folha medida é A4 deitada — 842 x 595 pt — com a etiqueta encostada
-        // na borda esquerda e a DACE ao lado, as duas em 10 x 15 cm.
+        // Com moldura: uma janela do tamanho do adesivo com a moldura bem no
+        // meio. A página final é essa janela sem escala — mesma margem dos
+        // quatro lados.
         //
-        // Cortar na metade (421) levava uma tira da DACE junto da etiqueta,
-        // porque a divisória fica bem antes do meio.
-        //
-        // As DUAS saem, uma por página: a etiqueta vai colada na caixa, e a
-        // DACE dobrada num saquinho do lado de fora. Sem a segunda, a encomenda
-        // não é postada — foi o que faltou na primeira versão deste corte.
+        // Sem moldura: o corte por medida da folha A4 deitada (842 x 595),
+        // etiqueta encostada na esquerda e DACE a partir de 295. Deixa a
+        // etiqueta um pouco fora do centro, mas inteira.
         const faixaVertical = {
           bottom: Math.max(0, height - MARGEM_DE_CIMA - ETIQUETA_ALTURA - 12),
           top: Math.min(height, height - MARGEM_DE_CIMA + 12),
         };
 
-        const recortes = [
-          // Etiqueta: para uns pontos antes da divisória, para a margem de erro
-          // cair dentro dela e não trazer tira da DACE colada na caixa.
-          {
-            left: 0,
-            right: Math.min(width, ETIQUETA_LARGURA + 8),
-            ...faixaVertical,
-          },
-          // DACE: começa logo depois, e vai até o fim do bloco dela.
-          {
-            left: Math.min(width, DACE_COMECA),
-            right: Math.min(width, DACE_COMECA + ETIQUETA_LARGURA + 8),
-            ...faixaVertical,
-          },
-        ];
+        const recortes = molduras.length
+          ? molduras.map((m) => {
+              const centroX = m.x + m.largura / 2;
+              const centroY = m.y + m.altura / 2;
+
+              return {
+                left: centroX - ETIQUETA_LARGURA / 2,
+                right: centroX + ETIQUETA_LARGURA / 2,
+                bottom: centroY - ETIQUETA_ALTURA / 2,
+                top: centroY + ETIQUETA_ALTURA / 2,
+              };
+            })
+          : [
+              {
+                left: 0,
+                right: Math.min(width, ETIQUETA_LARGURA + 8),
+                ...faixaVertical,
+              },
+              {
+                left: Math.min(width, DACE_COMECA),
+                right: Math.min(width, DACE_COMECA + ETIQUETA_LARGURA + 8),
+                ...faixaVertical,
+              },
+            ];
 
         for (const recorte of recortes) {
           // Bloco que não cabe na folha não vira página em branco: folha menor
@@ -667,20 +874,9 @@ Deno.serve(async (req: Request) => {
         ) as ArrayBuffer;
       }
 
-      // Páginas separadas: a segunda é a DACE, e na térmica ela vira adesivo
-      // cheio de texto miúdo que ninguém cola. Esta parte funciona e fica.
-      if (!deitada && original.getPageCount() > 1) {
-        const soAEtiqueta = await PDFDocument.create();
-        const [primeira] = await soAEtiqueta.copyPages(original, [0]);
-
-        soAEtiqueta.addPage(primeira);
-
-        const bytes = await soAEtiqueta.save();
-        arquivo = bytes.buffer.slice(
-          bytes.byteOffset,
-          bytes.byteOffset + bytes.byteLength
-        ) as ArrayBuffer;
-      }
+      // Páginas separadas — conta já em térmica — passam como vieram. Antes a
+      // segunda página era jogada fora por ser a DACE, e sem a DACE a
+      // encomenda não é postada.
     } catch (erro) {
       console.error('Não foi possível separar a etiqueta da DACE:', erro);
     }
