@@ -339,24 +339,32 @@ export default function Dashboard({ darkMode }: DashboardProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end gap-3">
-        <Link
-          to="/dashboard/catalog"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 hover:bg-navy-850 text-white text-sm font-medium transition-colors"
-        >
-          <Package className="w-4 h-4" />
-          Ver catálogo
-        </Link>
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 px-5 py-4 shadow-sm">
+        <div>
+          <h2 className="text-navy-900 dark:text-white font-semibold">Ações rápidas</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+            Vá direto para o catálogo ou para os seus anúncios publicados.
+          </p>
+        </div>
 
-        <Link
-          to="/dashboard/my-products"
-          className="glow-gold-hover inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold hover:bg-gold-hover text-black text-sm font-semibold transition-all"
-        >
-          <ShoppingCart className="w-4 h-4" />
-          Meus Produtos
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            to="/dashboard/catalog"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 hover:bg-navy-850 text-white text-sm font-medium transition-colors"
+          >
+            <Package className="w-4 h-4" />
+            Ver catálogo
+          </Link>
+
+          <Link
+            to="/dashboard/my-products"
+            className="glow-gold-hover inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold hover:bg-gold-hover text-black text-sm font-semibold transition-all"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Meus Produtos
+          </Link>
+        </div>
       </div>
-
 
       {errorMessage && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">

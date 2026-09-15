@@ -103,7 +103,7 @@ export default function RepassesAdmin() {
   const divergentes = repasses.filter((r) => r.divergente);
 
   return (
-    <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm mt-8">
+    <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
       <div className="flex items-center gap-3 mb-1">
         <Wallet className="w-5 h-5 text-gray-600 dark:text-slate-400" />
 

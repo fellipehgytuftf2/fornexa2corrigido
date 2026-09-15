@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
-  ChevronLeft,
-  ChevronRight,
   Package,
   Search,
   X,
@@ -10,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { Product } from '../../types';
 import ProductModal from '../../components/dashboard/ProductModal';
+import Pagination from '../../components/ui/pagination';
 
 /**
  * O que o catálogo busca do fornecedor.
@@ -242,34 +241,6 @@ export default function Catalog() {
     return filteredProducts.slice(inicio, inicio + PRODUTOS_POR_PAGINA);
   }, [filteredProducts, paginaAtual]);
 
-  /**
-   * Números a exibir: sempre a primeira e a última, a atual e as vizinhas, com
-   * reticências no lugar do que foi omitido. Evita uma fileira de 60 botões
-   * quando o catálogo crescer.
-   */
-  const paginasVisiveis = useMemo(() => {
-    if (totalPaginas <= 7) {
-      return Array.from({ length: totalPaginas }, (_, i) => i + 1);
-    }
-
-    const paginas = new Set([1, totalPaginas, paginaAtual]);
-
-    if (paginaAtual - 1 > 1) paginas.add(paginaAtual - 1);
-    if (paginaAtual + 1 < totalPaginas) paginas.add(paginaAtual + 1);
-
-    const ordenadas = [...paginas].sort((a, b) => a - b);
-    const comLacunas: (number | 'lacuna')[] = [];
-
-    ordenadas.forEach((pagina, indice) => {
-      if (indice > 0 && pagina - ordenadas[indice - 1] > 1) {
-        comLacunas.push('lacuna');
-      }
-      comLacunas.push(pagina);
-    });
-
-    return comLacunas;
-  }, [totalPaginas, paginaAtual]);
-
   const formatCurrency = (value: number) => {
     return `R$ ${Number(value || 0).toFixed(2).replace('.', ',')}`;
   };
@@ -443,54 +414,12 @@ export default function Catalog() {
           ))}
           </div>
 
-          {totalPaginas > 1 && (
-            <nav
-              aria-label="Páginas do catálogo"
-              className="flex flex-wrap items-center justify-center gap-1.5 pt-2"
-            >
-              <button
-                onClick={() => setPaginaAtual((atual) => Math.max(1, atual - 1))}
-                disabled={paginaAtual === 1}
-                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Anterior
-              </button>
-
-              {paginasVisiveis.map((pagina, indice) =>
-                pagina === 'lacuna' ? (
-                  <span
-                    key={`lacuna-${indice}`}
-                    className="w-9 h-9 flex items-center justify-center text-gray-400"
-                  >
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={pagina}
-                    onClick={() => setPaginaAtual(pagina)}
-                    aria-current={pagina === paginaAtual ? 'page' : undefined}
-                    className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
-                      pagina === paginaAtual
-                        ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                        : 'border border-gray-200 dark:border-navy-700 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700'
-                    }`}
-                  >
-                    {pagina}
-                  </button>
-                )
-              )}
-
-              <button
-                onClick={() => setPaginaAtual((atual) => Math.min(totalPaginas, atual + 1))}
-                disabled={paginaAtual === totalPaginas}
-                className="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Próxima
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </nav>
-          )}
+          <Pagination
+            page={paginaAtual}
+            totalPages={totalPaginas}
+            onPageChange={setPaginaAtual}
+            label="Páginas do catálogo"
+          />
         </>
       ) : (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">

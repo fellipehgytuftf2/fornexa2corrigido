@@ -10,6 +10,9 @@ import {
   Truck,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import Pagination from '../../components/ui/pagination';
+
+const PRODUTOS_POR_PAGINA = 10;
 
 interface SupplierFromSupabase {
   id: string;
@@ -76,6 +79,7 @@ export default function MyProducts() {
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -189,6 +193,19 @@ export default function MyProducts() {
     });
   }, [products, searchTerm]);
 
+  const totalPaginas = Math.max(1, Math.ceil(filteredProducts.length / PRODUTOS_POR_PAGINA));
+
+  // Volta para a primeira sempre que a busca muda: sem isso, filtrar estando
+  // na página 3 mostraria uma lista vazia sem explicação.
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [searchTerm]);
+
+  const produtosDaPagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * PRODUTOS_POR_PAGINA;
+    return filteredProducts.slice(inicio, inicio + PRODUTOS_POR_PAGINA);
+  }, [filteredProducts, paginaAtual]);
+
   const totalProfit = useMemo(() => {
     return products.reduce((total, product) => total + Number(product.margin || 0), 0);
   }, [products]);
@@ -284,16 +301,6 @@ export default function MyProducts() {
         </div>
       )}
 
-      <div className="">
-        <p className="t">
-         
-        </p>
-
-        <p className="">
-        
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
           <p className="text-sm text-gray-500 dark:text-slate-400">Produtos salvos</p>
@@ -351,8 +358,9 @@ export default function MyProducts() {
           </p>
         </div>
       ) : filteredProducts.length > 0 ? (
+        <>
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {filteredProducts.map((product) => {
+          {produtosDaPagina.map((product) => {
             const supplier = getSupplier(product);
             const marginPercent = getMarginPercent(product);
             const productHasSupplier = Boolean(product.supplier_id && supplier);
@@ -529,6 +537,14 @@ export default function MyProducts() {
             );
           })}
         </div>
+
+        <Pagination
+          page={paginaAtual}
+          totalPages={totalPaginas}
+          onPageChange={setPaginaAtual}
+          label="Páginas de produtos"
+        />
+        </>
       ) : (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
           <Store className="w-12 h-12 text-gray-300 dark:text-navy-600 mx-auto mb-4" />

@@ -497,6 +497,41 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // 1.1 O preço de custo e o fornecedor vêm do catálogo, nunca do body.
+    //
+    // Achado em auditoria: esta função gravava `body.supplier_price` e
+    // `body.supplier_id` direto do que o front-end mandasse, sem checar nada
+    // no servidor. Como o repasse ao fornecedor é `soma(orders.supplier_price)`
+    // (ver migração repasse_com_identificador), um vendedor mal-intencionado
+    // podia publicar com supplier_price=0,01 e pagar centavos por produto que
+    // custa de verdade R$100 — ou, com um supplier_id de outro vendedor,
+    // "roubar" o contato daquele fornecedor sem ele nunca ter combinado nada.
+    //
+    // A defesa é buscar os dois no catálogo, pelo id que o produto realmente
+    // é, e ignorar o que o body disser sobre eles.
+    if (!body.catalog_product_id) {
+      return new Response(
+        JSON.stringify({ error: "Produto do catálogo não informado." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { data: catalogProduct, error: catalogProductError } = await supabase
+      .from("catalog_products")
+      .select("id, supplier_id, supplier_price")
+      .eq("id", body.catalog_product_id)
+      .maybeSingle();
+
+    if (catalogProductError || !catalogProduct || !catalogProduct.supplier_id) {
+      return new Response(
+        JSON.stringify({ error: "Produto do catálogo não encontrado." }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supplierId = catalogProduct.supplier_id as string;
+    const supplierPriceReal = Number(catalogProduct.supplier_price ?? 0);
+
     // 1.5 Verifica se este usuário é admin (coluna role já existente em
     // profiles). Só para role === 'admin', o título do anúncio recebe um
     // prefixo de aviso de teste — clientes reais do FORNEXA (role 'user')
@@ -629,7 +664,7 @@ Deno.serve(async (req: Request) => {
     // vendedor está mexendo na loja, com a conta do Mercado Livre aberta.
     const bloqueio = await conferirRemetente(supabase, {
       vendedorId,
-      supplierId: body.supplier_id,
+      supplierId,
       accessToken,
     });
 
@@ -1172,10 +1207,10 @@ Deno.serve(async (req: Request) => {
       .insert({
         user_id: vendedorId,
         catalog_product_id: body.catalog_product_id ?? null,
-        supplier_id: body.supplier_id,
+        supplier_id: supplierId,
         name: body.name,
         image_url: body.image_url,
-        supplier_price: body.supplier_price,
+        supplier_price: supplierPriceReal,
         sale_price: body.sale_price,
         margin: body.margin,
         status: "active",

@@ -4,18 +4,24 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
+  Info,
   Link2,
   Package,
   RefreshCw,
   Trash2,
   Truck,
+  X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
 import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
 import RepasseNoPedido from '../../components/dashboard/RepasseNoPedido';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
+import ModalPortal from '../../components/ui/modal-portal';
+import Pagination from '../../components/ui/pagination';
 import { situacaoDoCorte } from '../../lib/horarioDeCorte';
+
+const PEDIDOS_POR_PAGINA = 8;
 
 type OrderStatus =
   | 'pending'
@@ -131,6 +137,22 @@ export default function Orders() {
   const [showIssues, setShowIssues] = useState(false);
   const [diagnosticoId, setDiagnosticoId] = useState<string | null>(null);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoEnvio | null>(null);
+
+  /**
+   * Avisos do fornecedor abertos no momento (nome + texto), ou null se
+   * nenhum modal estiver aberto.
+   *
+   * Antes o texto (às vezes vários parágrafos) ficava sempre visível dentro
+   * de CADA pedido daquele fornecedor — com muitos pedidos do mesmo
+   * fornecedor, a mesma instrução repetia dezenas de vezes na tela e a
+   * página ficava enorme. Agora é um botão, e o texto só aparece quando
+   * pedido.
+   */
+  const [avisosAbertos, setAvisosAbertos] = useState<{ nome: string; texto: string } | null>(
+    null
+  );
+
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
   /**
    * Emissão da DC-e, e a resposta crua da API do Mercado Livre.
@@ -553,6 +575,20 @@ export default function Orders() {
     [orders, filtroRepasse]
   );
 
+  const totalPaginas = Math.max(1, Math.ceil(pedidosVisiveis.length / PEDIDOS_POR_PAGINA));
+
+  // Volta para a primeira sempre que a aba muda: sem isso, trocar de "A
+  // pagar" pra "Pagos" estando na página 3 mostraria uma lista vazia sem
+  // explicação.
+  useEffect(() => {
+    setPaginaAtual(1);
+  }, [filtroRepasse]);
+
+  const pedidosDaPagina = useMemo(() => {
+    const inicio = (paginaAtual - 1) * PEDIDOS_POR_PAGINA;
+    return pedidosVisiveis.slice(inicio, inicio + PEDIDOS_POR_PAGINA);
+  }, [pedidosVisiveis, paginaAtual]);
+
   const summary = useMemo(() => {
     const totalOrders = orders.length;
     const revenue = orders.reduce((total, order) => total + Number(order.sale_price || 0), 0);
@@ -754,8 +790,9 @@ export default function Orders() {
           </p>
         </div>
       ) : pedidosVisiveis.length > 0 ? (
+        <>
         <div className="space-y-5">
-          {pedidosVisiveis.map((order) => {
+          {pedidosDaPagina.map((order) => {
             const supplier = getSupplier(order);
             const supplierWhatsapp = order.supplier_whatsapp || supplier?.whatsapp;
 
@@ -930,9 +967,19 @@ export default function Orders() {
                             ))}
 
                           {supplier?.avisos && (
-                            <p className="text-sm text-gray-600 dark:text-slate-300 mt-2 leading-relaxed whitespace-pre-line border-l-2 border-gray-300 dark:border-navy-600 pl-3">
-                              {supplier.avisos}
-                            </p>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setAvisosAbertos({
+                                  nome: supplier.name,
+                                  texto: supplier.avisos!,
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-navy-900 dark:text-white hover:underline"
+                            >
+                              <Info className="w-3.5 h-3.5" />
+                              Ver avisos do fornecedor
+                            </button>
                           )}
                         </div>
                       </div>
@@ -1107,6 +1154,14 @@ export default function Orders() {
             );
           })}
         </div>
+
+        <Pagination
+          page={paginaAtual}
+          totalPages={totalPaginas}
+          onPageChange={setPaginaAtual}
+          label="Páginas de pedidos"
+        />
+        </>
       ) : (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
           <Package className="w-12 h-12 text-gray-300 dark:text-navy-600 mx-auto mb-4" />
@@ -1119,6 +1174,38 @@ export default function Orders() {
             Quando você registrar uma venda em Meus Produtos, o pedido aparecerá aqui.
           </p>
         </div>
+      )}
+
+      {avisosAbertos && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl">
+              <div className="p-5 border-b border-gray-200 dark:border-navy-700 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
+                    Avisos do fornecedor
+                  </h3>
+
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                    {avisosAbertos.nome}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setAvisosAbertos(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-white shrink-0"
+                  aria-label="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="p-5 text-sm text-gray-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                {avisosAbertos.texto}
+              </p>
+            </div>
+          </div>
+        </ModalPortal>
       )}
     </div>
   );

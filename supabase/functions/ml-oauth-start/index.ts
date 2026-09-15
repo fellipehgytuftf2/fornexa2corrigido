@@ -11,6 +11,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { assinarEstado } from "../_shared/estadoOAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,11 +46,7 @@ Deno.serve(async (req: Request) => {
     if (userError || !userData?.user) {
       console.error("Detalhe do erro de autenticação:", userError);
       return new Response(
-        JSON.stringify({
-          error: "Usuário não autenticado ou token inválido",
-          // TEMPORÁRIO — só para diagnóstico. Remover depois de resolver.
-          detalhe_debug: userError?.message ?? "sem detalhe",
-        }),
+        JSON.stringify({ error: "Usuário não autenticado ou token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -59,14 +56,17 @@ Deno.serve(async (req: Request) => {
     const clientId = Deno.env.get("ML_CLIENT_ID")!;
     const redirectUri = Deno.env.get("ML_REDIRECT_URI")!;
 
-    // "state" carrega o ID do vendedor. O Mercado Livre devolve esse valor
-    // sem alterar no callback, e é assim que sabemos para quem salvar o token.
+    // "state" carrega o ID do vendedor, assinado: sem a assinatura, qualquer
+    // um poderia montar esta URL na mão com o ID de outra pessoa e o
+    // callback vincularia a conta ML errada. Ver _shared/estadoOAuth.ts.
+    const state = await assinarEstado(vendedorId);
+
     const authUrl =
       `https://auth.mercadolivre.com.br/authorization` +
       `?response_type=code` +
       `&client_id=${encodeURIComponent(clientId)}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&state=${encodeURIComponent(vendedorId)}`;
+      `&state=${encodeURIComponent(state)}`;
 
     return new Response(JSON.stringify({ url: authUrl }), {
       status: 200,

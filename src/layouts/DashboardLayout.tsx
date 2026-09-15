@@ -5,6 +5,7 @@ import Notificacoes from '../components/dashboard/Notificacoes';
 import SuporteFlutuante from '../components/dashboard/SuporteFlutuante';
 import {
   AlertCircle,
+  ChevronDown,
   DollarSign,
   LayoutDashboard,
   LifeBuoy,
@@ -22,11 +23,18 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
+interface NavigationSubItem {
+  path: string;
+  label: string;
+}
+
 interface NavigationItem {
   path: string;
   label: string;
   icon: typeof LayoutDashboard;
   adminOnly?: boolean;
+  /** Item vira um grupo expansível na barra lateral em vez de um link direto. */
+  children?: NavigationSubItem[];
 }
 
 const navigationItems: NavigationItem[] = [
@@ -86,6 +94,14 @@ const navigationItems: NavigationItem[] = [
     label: 'Admin',
     icon: Store,
     adminOnly: true,
+    children: [
+      { path: '/dashboard/admin/catalogo', label: 'Catálogo' },
+      { path: '/dashboard/admin/avisos', label: 'Avisos' },
+      { path: '/dashboard/admin/impressao', label: 'Impressão' },
+      { path: '/dashboard/admin/contas', label: 'Contas e acessos' },
+      { path: '/dashboard/admin/afiliados', label: 'Afiliados' },
+      { path: '/dashboard/admin/repasses', label: 'Repasses' },
+    ],
   },
 ];
 
@@ -121,6 +137,21 @@ export default function DashboardLayout() {
   const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
+
+  /**
+   * Grupos da barra lateral abertos (ex: "Admin", com os seis submenus).
+   * Abre sozinho ao entrar numa página do grupo — recarregar em
+   * /dashboard/admin/contas não pode esconder o link em que a pessoa está.
+   */
+  const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(() => {
+    const abertos = new Set<string>();
+    navigationItems.forEach((item) => {
+      if (item.children?.some((filho) => location.pathname.startsWith(filho.path))) {
+        abertos.add(item.path);
+      }
+    });
+    return abertos;
+  });
 
   /**
    * Respostas de chamado que o vendedor ainda não leu.
@@ -356,6 +387,18 @@ export default function DashboardLayout() {
     );
   };
 
+  const alternarGrupo = (path: string) => {
+    setGruposAbertos((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(path)) {
+        proximo.delete(path);
+      } else {
+        proximo.add(path);
+      }
+      return proximo;
+    });
+  };
+
   const renderNavigation = () => {
     const visibleItems = navigationItems.filter((item) => {
       if (item.adminOnly && userRole !== 'admin') {
@@ -369,6 +412,55 @@ export default function DashboardLayout() {
       <nav className="space-y-1">
         {visibleItems.map((item) => {
           const Icon = item.icon;
+
+          if (item.children) {
+            const grupoAberto = gruposAbertos.has(item.path);
+            const grupoAtivo = item.children.some((filho) =>
+              location.pathname.startsWith(filho.path)
+            );
+
+            return (
+              <div key={item.path}>
+                <button
+                  type="button"
+                  onClick={() => alternarGrupo(item.path)}
+                  aria-expanded={grupoAberto}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    grupoAtivo
+                      ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  {item.label}
+                  <ChevronDown
+                    className={`w-4 h-4 ml-auto transition-transform ${grupoAberto ? 'rotate-180' : ''}`}
+                  />
+                </button>
+
+                {grupoAberto && (
+                  <div className="mt-1 ml-4 pl-4 border-l border-gray-200 dark:border-navy-700 space-y-1">
+                    {item.children.map((filho) => (
+                      <NavLink
+                        key={filho.path}
+                        to={filho.path}
+                        onClick={() => setSidebarOpen(false)}
+                        className={({ isActive }) =>
+                          `block px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                              : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                          }`
+                        }
+                      >
+                        {filho.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          }
 
           return (
             <NavLink

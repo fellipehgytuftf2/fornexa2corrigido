@@ -40,9 +40,42 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * Confere o segredo opcional na query string (?secret=...).
+ *
+ * Achado em auditoria: esta função não verificava de forma alguma que a
+ * notificação veio do Mercado Livre — qualquer um podia forjar um POST e
+ * forçar ressincronizações arbitrárias (gasto de cota de API do vendedor).
+ *
+ * O Mercado Livre não assina os webhooks dele, então a defesa de mercado é
+ * um segredo na própria URL cadastrada no painel de notificações. Fica
+ * opcional (devolve true se ML_WEBHOOK_SECRET não estiver configurado) para
+ * não quebrar o recebimento em produção antes de alguém:
+ *   1. Definir o secret ML_WEBHOOK_SECRET nas Edge Functions do Supabase;
+ *   2. Trocar, no painel de desenvolvedor do Mercado Livre, a URL cadastrada
+ *      em Notificações para .../ml-webhook-receiver?secret=<o mesmo valor>.
+ * Enquanto isso não for feito, o comportamento é o de antes.
+ */
+function segredoConfere(req: Request): boolean {
+  const esperado = Deno.env.get("ML_WEBHOOK_SECRET");
+  if (!esperado) return true;
+
+  const recebido = new URL(req.url).searchParams.get("secret");
+  return recebido === esperado;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (!segredoConfere(req)) {
+    // 200 e nada de processamento: não dá pista de que o segredo existe, e
+    // não gasta trabalho com um POST que já sabemos que não é do ML.
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabase = createClient(

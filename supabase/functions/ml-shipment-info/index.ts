@@ -215,7 +215,11 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (pedidoError) {
-    return json({ error: `Não foi possível carregar o pedido: ${pedidoError.message}` }, 500);
+    // Mensagem genérica de propósito: isto roda ANTES da checagem de dono
+    // logo abaixo, e o erro do Postgres (nome de coluna/tipo) não deveria
+    // vazar pra quem manda um pedido_id mal formado, seja ele o dono ou não.
+    console.error('Falha ao carregar pedido em ml-shipment-info:', pedidoError);
+    return json({ error: 'Não foi possível carregar o pedido.' }, 500);
   }
 
   if (!pedido) {
