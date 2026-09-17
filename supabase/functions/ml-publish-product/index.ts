@@ -65,6 +65,13 @@ function limparParaTextoPuro(texto: string): string {
     // Caracteres de controle passam despercebidos e quebram validação.
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    // Invisiveis (largura zero, BOM) tambem quebram a validacao e tambem
+    // passam despercebidos -- achado em auditoria: a descricao de um produto
+    // real ("Suporte Celular Veicular...") tinha um zero-width space logo
+    // depois do "Peso: 0,17", no meio do texto, sem marcacao por perto. O
+    // Mercado Livre aponta a posicao exata do caractere ruim no erro
+    // (plain_text[132]) -- foi assim que apareceu.
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim()
     .slice(0, 50000);
