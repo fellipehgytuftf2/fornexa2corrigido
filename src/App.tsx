@@ -24,6 +24,7 @@ import AdminImpressao from './pages/dashboard/AdminImpressao';
 import AdminContas from './pages/dashboard/AdminContas';
 import AdminAfiliados from './pages/dashboard/AdminAfiliados';
 import AdminRepasses from './pages/dashboard/AdminRepasses';
+import AdminKanban from './pages/dashboard/AdminKanban';
 import Tickets from './pages/dashboard/Tickets';
 import Suporte from './pages/dashboard/Suporte';
 import Tools from './pages/dashboard/Tools';
@@ -276,6 +277,7 @@ function App() {
           <Route path="admin/contas" element={<AdminContas />} />
           <Route path="admin/afiliados" element={<AdminAfiliados />} />
           <Route path="admin/repasses" element={<AdminRepasses />} />
+          <Route path="admin/kanban" element={<AdminKanban />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="suporte" element={<Suporte />} />
           <Route path="tools" element={<Tools />} />

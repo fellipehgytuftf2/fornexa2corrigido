@@ -101,6 +101,7 @@ const navigationItems: NavigationItem[] = [
       { path: '/dashboard/admin/contas', label: 'Contas e acessos' },
       { path: '/dashboard/admin/afiliados', label: 'Afiliados' },
       { path: '/dashboard/admin/repasses', label: 'Repasses' },
+      { path: '/dashboard/admin/kanban', label: 'Kanban' },
     ],
   },
 ];
