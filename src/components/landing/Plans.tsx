@@ -1,4 +1,4 @@
-import { Check, Shield, Star, Headphones } from 'lucide-react';
+import { Check, Shield, Headphones } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { PLANOS, montarCheckout } from '../../lib/planos';
 
@@ -95,26 +95,7 @@ export default function Plans() {
         </div>
 
         {/* Premium benefit cards */}
-        <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0 }}
-            className="bg-gradient-to-br from-navy-600 to-navy-800 rounded-xl border border-navy-500 p-6 flex gap-5 items-start"
-          >
-            <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-              <Star className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h4 className="text-white font-semibold text-base mb-2">7 dias de garantia</h4>
-              <p className="text-slate-400 text-sm leading-relaxed">
-                Não gostou? Peça o reembolso em até 7 dias e receba tudo de volta,
-                sem precisar justificar.
-              </p>
-            </div>
-          </motion.div>
-
+        <div className="max-w-md mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}

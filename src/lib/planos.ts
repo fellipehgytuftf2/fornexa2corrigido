@@ -59,8 +59,6 @@ export const PLANOS: Plano[] = [
       'Catálogo completo dos fornecedores',
       'Integração com o Mercado Livre',
       'Anúncios sem limite',
-      'Suporte e curso completo',
-      'Cancele quando quiser',
     ],
     checkout: checkoutBasico,
   },
