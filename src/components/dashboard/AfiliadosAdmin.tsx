@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, Loader2, Share2, X } from 'lucide-react';
+import { AlertCircle, Check, Copy, Loader2, Share2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { PLANOS, montarCheckout } from '../../lib/planos';
 import ModalPortal from '../ui/modal-portal';
 
 interface Afiliado {
@@ -25,6 +26,65 @@ interface ClienteDoAfiliado {
   ultimo_acesso: string | null;
 }
 
+function LinhaDeLink({ rotulo, link }: { rotulo: string; link: string }) {
+  const [copiado, setCopiado] = useState(false);
+
+  const copiar = async () => {
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
+
+  return (
+    <div>
+      <p className="text-xs text-gray-500 dark:text-slate-400 mb-1">{rotulo}</p>
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          readOnly
+          value={link || 'Configure VITE_CHECKOUT_* para gerar este link'}
+          onFocus={(event) => event.target.select()}
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-xs font-mono truncate"
+        />
+        <button
+          type="button"
+          onClick={copiar}
+          disabled={!link}
+          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 text-xs font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40"
+        >
+          {copiado ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+          {copiado ? 'Copiado' : 'Copiar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Os três links de um código de afiliado: o que ele divulga, e os dois de
+ * checkout com o código já embutido (pra conferir, ou pra usar direto sem
+ * passar pelo link de divulgação).
+ *
+ * O código do afiliado não vive numa tabela própria — nasce na hora que o
+ * admin digita ele aqui. Só passa a aparecer na lista de cima quando a
+ * primeira venda com esse código chegar da Applyfy.
+ */
+function LinksDoAfiliado({ codigo }: { codigo: string }) {
+  const [basico, premium] = PLANOS;
+  const linkDivulgacao = `${window.location.origin}/${encodeURIComponent(codigo)}`;
+  const linkBasico = montarCheckout(basico, { codigoAfiliado: codigo });
+  const linkPremium = montarCheckout(premium, { codigoAfiliado: codigo });
+
+  return (
+    <div className="space-y-3">
+      <LinhaDeLink rotulo="Link para o afiliado divulgar (o único que ele precisa)" link={linkDivulgacao} />
+      <LinhaDeLink rotulo="Checkout Básico com o código já embutido" link={linkBasico} />
+      <LinhaDeLink rotulo="Checkout Premium com o código já embutido" link={linkPremium} />
+    </div>
+  );
+}
+
 /**
  * Desempenho de quem indica.
  *
@@ -41,6 +101,8 @@ export default function AfiliadosAdmin() {
   const [detalhe, setDetalhe] = useState<Afiliado | null>(null);
   const [clientes, setClientes] = useState<ClienteDoAfiliado[]>([]);
   const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
+
+  const [codigoNovo, setCodigoNovo] = useState('');
 
   useEffect(() => {
     const carregar = async () => {
@@ -108,6 +170,28 @@ export default function AfiliadosAdmin() {
         Quem indicou cada venda, e o que aconteceu com o cliente depois. A
         comissão continua sendo calculada e paga pela Applyfy.
       </p>
+
+      <div className="rounded-xl border border-gray-200 dark:border-navy-600 p-4 mb-6">
+        <p className="text-sm font-medium text-navy-900 dark:text-white mb-1">
+          Gerar link para um afiliado
+        </p>
+
+        <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+          Digite o código combinado com o afiliado (o mesmo que a Applyfy vai
+          registrar quando ele vender). Não precisa cadastrar nada antes —
+          o código só aparece na lista abaixo depois da primeira venda.
+        </p>
+
+        <input
+          type="text"
+          value={codigoNovo}
+          onChange={(event) => setCodigoNovo(event.target.value.toUpperCase())}
+          placeholder="Ex: JOAO10"
+          className="w-full px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white font-mono mb-3"
+        />
+
+        {codigoNovo.trim() && <LinksDoAfiliado codigo={codigoNovo.trim()} />}
+      </div>
 
       {erro && (
         <div className="flex items-start gap-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 mb-5">
@@ -219,6 +303,10 @@ export default function AfiliadosAdmin() {
                 >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+
+              <div className="mb-5 pb-5 border-b border-gray-200 dark:border-navy-700">
+                <LinksDoAfiliado codigo={detalhe.afiliado} />
               </div>
 
               {carregandoDetalhe ? (

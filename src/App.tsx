@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import LandingPage from './pages/LandingPage';
@@ -33,7 +33,7 @@ import Settings from './pages/dashboard/Settings';
 
 import { supabase } from './lib/supabase';
 import { fetchSupplierAccount } from './lib/supplierAuth';
-import { planoEmDia } from './lib/planos';
+import { planoEmDia, capturarCodigoDoAfiliado } from './lib/planos';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -212,11 +212,34 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   return children;
 }
 
+/**
+ * A mesma landing page, só que o endereço já diz de quem é a indicação —
+ * fornexa.site/joao em vez de fornexa.site/?ref=joao. O afiliado divulga um
+ * link com o nome/código dele, não um parâmetro que parece técnico demais.
+ */
+function LandingComCodigoDeAfiliado() {
+  const { codigoAfiliado } = useParams();
+
+  useEffect(() => {
+    if (codigoAfiliado) {
+      capturarCodigoDoAfiliado(codigoAfiliado);
+    }
+  }, [codigoAfiliado]);
+
+  return <LandingPage />;
+}
+
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('fornexa_darkMode');
     return saved ? JSON.parse(saved) : false;
   });
+
+  // Roda uma vez, antes de qualquer rota — quem chega por /planos?ref=X em
+  // vez da home também precisa ter o código guardado.
+  useEffect(() => {
+    capturarCodigoDoAfiliado();
+  }, []);
 
   useEffect(() => {
     if (darkMode) {
@@ -287,6 +310,11 @@ function App() {
             element={<Settings darkMode={darkMode} setDarkMode={setDarkMode} />}
           />
         </Route>
+
+        {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
+            endereço de um pedaço só (sem barra), então nunca esbarra em
+            /dashboard, /fornecedor etc., que são rotas de verdade. */}
+        <Route path=":codigoAfiliado" element={<LandingComCodigoDeAfiliado />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,15 +1,16 @@
 import { Check, Shield, Headphones } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { PLANOS, montarCheckout } from '../../lib/planos';
+import { PLANOS, montarCheckout, pegarCodigoDoAfiliado } from '../../lib/planos';
 
 export default function Plans() {
   const [basico, premium] = PLANOS;
+  const codigoAfiliado = pegarCodigoDoAfiliado();
 
   // Visitante da landing ainda não tem conta, então o checkout vai sem e-mail:
   // quem digita é ele, no formulário da Applyfy. Depois de pagar, a plataforma
   // devolve para /register e o cadastro reencontra a compra por esse e-mail.
-  const linkBasico = montarCheckout(basico);
-  const linkPremium = montarCheckout(premium);
+  const linkBasico = montarCheckout(basico, { codigoAfiliado });
+  const linkPremium = montarCheckout(premium, { codigoAfiliado });
 
   return (
     <section id="planos" className="bg-navy-900 py-24">

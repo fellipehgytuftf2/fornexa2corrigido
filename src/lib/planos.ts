@@ -140,7 +140,7 @@ export function motivoDoBloqueio(perfil: PerfilDePlano | null | undefined): stri
  */
 export function montarCheckout(
   plano: Plano,
-  dados?: { email?: string | null; nome?: string | null }
+  dados?: { email?: string | null; nome?: string | null; codigoAfiliado?: string | null }
 ): string {
   if (!plano.checkout) {
     return '';
@@ -157,10 +157,50 @@ export function montarCheckout(
       url.searchParams.set('name', dados.nome);
     }
 
+    // Mesmo parâmetro que a Applyfy já lê pra saber quem indicou a venda
+    // (ver admin_afiliados() e o comentário da migração que criou isso).
+    if (dados?.codigoAfiliado) {
+      url.searchParams.set('code', dados.codigoAfiliado);
+    }
+
     return url.toString();
   } catch {
     // Endereço mal formado no ambiente: melhor não gerar link do que gerar um
     // link quebrado que o comprador clica e não entende.
     return '';
+  }
+}
+
+const CHAVE_AFILIADO_NO_NAVEGADOR = 'fornexa_afiliado';
+
+/**
+ * Guarda o código de quem indicou, pra sobreviver a navegar entre páginas
+ * (a home tem os links de assinar, mas /planos também tem os dela — o
+ * visitante pode cair em qualquer uma das duas primeiro).
+ *
+ * Chamado uma vez, na raiz do app. `codigoDaRota` vem de um link tipo
+ * fornexa.site/joao (o formato que o afiliado divulga); `?ref=` continua
+ * valendo também, pra quem monta o link na mão. Sem nenhum dos dois, não
+ * grava nada — assim visitar o site sem link de afiliado nunca apaga um
+ * código que já estava guardado de uma visita anterior.
+ */
+export function capturarCodigoDoAfiliado(codigoDaRota?: string): void {
+  try {
+    const codigo = codigoDaRota || new URLSearchParams(window.location.search).get('ref');
+
+    if (codigo && codigo.trim()) {
+      localStorage.setItem(CHAVE_AFILIADO_NO_NAVEGADOR, codigo.trim());
+    }
+  } catch {
+    // localStorage pode falhar (aba anônima, storage bloqueado) — sem
+    // código de afiliado a venda só conta como direta, não quebra nada.
+  }
+}
+
+export function pegarCodigoDoAfiliado(): string | null {
+  try {
+    return localStorage.getItem(CHAVE_AFILIADO_NO_NAVEGADOR);
+  } catch {
+    return null;
   }
 }

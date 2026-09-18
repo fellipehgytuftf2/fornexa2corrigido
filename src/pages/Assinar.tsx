@@ -8,6 +8,7 @@ import {
   montarCheckout,
   motivoDoBloqueio,
   planoEmDia,
+  pegarCodigoDoAfiliado,
   type PerfilDePlano,
 } from '../lib/planos';
 
@@ -179,6 +180,7 @@ export default function Assinar() {
             const link = montarCheckout(plano, {
               email: perfil?.email,
               nome: perfil?.nome,
+              codigoAfiliado: pegarCodigoDoAfiliado(),
             });
 
             const ehPremium = plano.id === 'premium';
