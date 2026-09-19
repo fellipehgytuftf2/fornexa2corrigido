@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import LandingPage from './pages/LandingPage';
@@ -34,6 +34,9 @@ import Settings from './pages/dashboard/Settings';
 import { supabase } from './lib/supabase';
 import { fetchSupplierAccount } from './lib/supplierAuth';
 import { planoEmDia, capturarCodigoDoAfiliado } from './lib/planos';
+import { buscarCheckoutDoAfiliado } from './lib/afiliados';
+import LinkDeAfiliadoInativo from './pages/LinkDeAfiliadoInativo';
+import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -216,19 +219,50 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
  * A mesma landing page, com os botões de comprar trocados pelo checkout do
  * afiliado dono do endereço — fornexa.site/joao vende no checkout do João.
  *
- * O código também fica guardado no navegador: quem não comprar na hora e
- * voltar depois por /planos continua sendo venda dele.
+ * Só abre se o afiliado estiver ativo (aceito e com os dois checkouts).
+ * Endereço inventado, afiliado removido ou ainda sem checkout mostra que o
+ * link não está ativo, e o código NÃO fica guardado no navegador.
+ *
+ * Ativo, o endereço vira só fornexa.site/ — quem compra não vê de quem é o
+ * link. A indicação segue junto no histórico da aba (sobrevive a F5 e a aba
+ * anônima sem armazenamento) e no navegador: quem não comprar na hora e
+ * voltar depois por /planos continua comprando no checkout dele.
  */
 function LandingComCodigoDeAfiliado() {
   const { codigoAfiliado } = useParams();
+  const navigate = useNavigate();
+  const [inativo, setInativo] = useState(false);
 
   useEffect(() => {
-    if (codigoAfiliado) {
-      capturarCodigoDoAfiliado(codigoAfiliado);
-    }
-  }, [codigoAfiliado]);
+    let vivo = true;
+    setInativo(false);
 
-  return <LandingPage codigoAfiliado={codigoAfiliado} />;
+    buscarCheckoutDoAfiliado(codigoAfiliado ?? '').then((checkout) => {
+      if (!vivo) return;
+
+      if (!checkout || !codigoAfiliado) {
+        setInativo(true);
+        return;
+      }
+
+      capturarCodigoDoAfiliado(codigoAfiliado);
+      navigate('/', { replace: true, state: { afiliado: codigoAfiliado } });
+    });
+
+    return () => {
+      vivo = false;
+    };
+  }, [codigoAfiliado, navigate]);
+
+  if (inativo) {
+    return <LinkDeAfiliadoInativo />;
+  }
+
+  return (
+    <div className="min-h-screen bg-navy-950 flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-gold animate-spin" aria-hidden="true" />
+    </div>
+  );
 }
 
 function App() {

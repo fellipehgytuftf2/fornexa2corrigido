@@ -25,8 +25,8 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
   // Visitante da landing ainda não tem conta, então o checkout vai sem e-mail:
   // quem digita é ele, no formulário da Applyfy. Depois de pagar, a plataforma
   // devolve para /register e o cadastro reencontra a compra por esse e-mail.
-  const linkBasico = montarCheckout(basico, { codigoAfiliado: codigo });
-  const linkPremium = montarCheckout(premium, { codigoAfiliado: codigo });
+  const linkBasico = montarCheckout(basico);
+  const linkPremium = montarCheckout(premium);
 
   return (
     <section id="planos" className="bg-navy-900 py-24">

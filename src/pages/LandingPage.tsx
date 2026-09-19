@@ -1,11 +1,15 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Header from '../components/landing/Header';
 import Hero from '../components/landing/Hero';
 import Benefits from '../components/landing/Benefits';
 import Plans from '../components/landing/Plans';
 import FinalCTA from '../components/landing/FinalCTA';
 
-export default function LandingPage({ codigoAfiliado }: { codigoAfiliado?: string }) {
+export default function LandingPage() {
+  // Chegou por fornexa.site/CODIGO: o link já foi conferido e o endereço
+  // limpo; a indicação vem junto no histórico da aba.
+  const codigoAfiliado = (useLocation().state as { afiliado?: string } | null)?.afiliado;
+
   return (
     <div className="min-h-screen bg-navy-900">
       <Header />

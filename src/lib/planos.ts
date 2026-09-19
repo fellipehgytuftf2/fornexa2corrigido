@@ -141,10 +141,14 @@ export function motivoDoBloqueio(perfil: PerfilDePlano | null | undefined): stri
  * Levar o e-mail adiante importa mais do que parece: é por ele que o aviso de
  * pagamento reencontra a conta. Se o comprador digitar outro e-mail no
  * checkout, o pagamento chega órfão e alguém precisa ligar os dois na mão.
+ *
+ * Não leva código de afiliado: a venda do afiliado já é dele por cair no
+ * checkout dele. Um `?code=` a mais só servia para marcar indicação falsa —
+ * por exemplo, de um afiliado já removido que ficou guardado no navegador.
  */
 export function montarCheckout(
   plano: Plano,
-  dados?: { email?: string | null; nome?: string | null; codigoAfiliado?: string | null }
+  dados?: { email?: string | null; nome?: string | null }
 ): string {
   if (!plano.checkout) {
     return '';
@@ -159,12 +163,6 @@ export function montarCheckout(
 
     if (dados?.nome) {
       url.searchParams.set('name', dados.nome);
-    }
-
-    // Mesmo parâmetro que a Applyfy já lê pra saber quem indicou a venda
-    // (ver admin_afiliados() e o comentário da migração que criou isso).
-    if (dados?.codigoAfiliado) {
-      url.searchParams.set('code', dados.codigoAfiliado);
     }
 
     return url.toString();
