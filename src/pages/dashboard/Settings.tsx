@@ -12,6 +12,7 @@ import {
   User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import Afiliado from './Afiliado';
 
 interface SettingsProps {
   darkMode: boolean;
@@ -626,6 +627,8 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           </button>
         </div>
       </div>
+
+      <Afiliado />
     </div>
   );
 }

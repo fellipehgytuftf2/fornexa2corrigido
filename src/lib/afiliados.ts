@@ -65,6 +65,27 @@ export async function pedirParaSerAfiliado(): Promise<SituacaoDoAfiliado> {
   return data as SituacaoDoAfiliado;
 }
 
+/** Vendas de um afiliado, contadas pelos checkouts dele. */
+export interface NumerosDoAfiliado {
+  conta: string;
+  vendas: number;
+  faturamento: number;
+  clientes_ativos: number;
+  clientes_perdidos: number;
+  usando_ainda: number;
+  ultima_venda: string | null;
+}
+
+export async function desempenhoDosAfiliados(): Promise<NumerosDoAfiliado[]> {
+  const { data, error } = await supabase.rpc('admin_desempenho_dos_afiliados');
+
+  if (error) {
+    throw error;
+  }
+
+  return (data as NumerosDoAfiliado[]) || [];
+}
+
 export async function listarAfiliadosDoAdmin(): Promise<AfiliadoDoAdmin[]> {
   const { data, error } = await supabase.rpc('admin_afiliados_cadastrados');
 

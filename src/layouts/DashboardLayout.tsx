@@ -15,7 +15,6 @@ import {
   Moon,
   Package,
   Settings,
-  Share2,
   ShoppingCart,
   Store,
   Sun,
@@ -27,6 +26,8 @@ import { supabase } from '../lib/supabase';
 interface NavigationSubItem {
   path: string;
   label: string;
+  /** Submenu dentro do submenu (ex.: Admin → Afiliados → Desempenho). */
+  children?: NavigationSubItem[];
 }
 
 interface NavigationItem {
@@ -72,11 +73,6 @@ const navigationItems: NavigationItem[] = [
     icon: Link2,
   },
   {
-    path: '/dashboard/afiliado',
-    label: 'Afiliados',
-    icon: Share2,
-  },
-  {
     path: '/dashboard/tickets',
     label: 'Chamados',
     icon: LifeBuoy,
@@ -105,7 +101,14 @@ const navigationItems: NavigationItem[] = [
       { path: '/dashboard/admin/avisos', label: 'Avisos' },
       { path: '/dashboard/admin/impressao', label: 'Impressão' },
       { path: '/dashboard/admin/contas', label: 'Contas e acessos' },
-      { path: '/dashboard/admin/afiliados', label: 'Afiliados' },
+      {
+        path: '/dashboard/admin/afiliados',
+        label: 'Afiliados',
+        children: [
+          { path: '/dashboard/admin/afiliados/pedidos', label: 'Aceitar pedido' },
+          { path: '/dashboard/admin/afiliados/desempenho', label: 'Desempenho' },
+        ],
+      },
       { path: '/dashboard/admin/repasses', label: 'Repasses' },
       { path: '/dashboard/admin/kanban', label: 'Kanban' },
     ],
@@ -153,9 +156,12 @@ export default function DashboardLayout() {
   const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(() => {
     const abertos = new Set<string>();
     navigationItems.forEach((item) => {
-      if (item.children?.some((filho) => location.pathname.startsWith(filho.path))) {
-        abertos.add(item.path);
-      }
+      item.children?.forEach((filho) => {
+        if (location.pathname.startsWith(filho.path)) {
+          abertos.add(item.path);
+          if (filho.children) abertos.add(filho.path);
+        }
+      });
     });
     return abertos;
   });
@@ -447,22 +453,70 @@ export default function DashboardLayout() {
 
                 {grupoAberto && (
                   <div className="mt-1 ml-4 pl-4 border-l border-gray-200 dark:border-navy-700 space-y-1">
-                    {item.children.map((filho) => (
-                      <NavLink
-                        key={filho.path}
-                        to={filho.path}
-                        onClick={() => setSidebarOpen(false)}
-                        className={({ isActive }) =>
-                          `block px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                              : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
-                          }`
-                        }
-                      >
-                        {filho.label}
-                      </NavLink>
-                    ))}
+                    {item.children.map((filho) => {
+                      if (filho.children) {
+                        const subAberto = gruposAbertos.has(filho.path);
+                        const subAtivo = location.pathname.startsWith(filho.path);
+
+                        return (
+                          <div key={filho.path}>
+                            <button
+                              type="button"
+                              onClick={() => alternarGrupo(filho.path)}
+                              aria-expanded={subAberto}
+                              className={`w-full flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                subAtivo
+                                  ? 'text-navy-900 dark:text-white'
+                                  : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                              }`}
+                            >
+                              {filho.label}
+                              <ChevronDown
+                                className={`w-3.5 h-3.5 ml-auto transition-transform ${subAberto ? 'rotate-180' : ''}`}
+                              />
+                            </button>
+
+                            {subAberto && (
+                              <div className="mt-1 ml-3 pl-3 border-l border-gray-200 dark:border-navy-700 space-y-1">
+                                {filho.children.map((neto) => (
+                                  <NavLink
+                                    key={neto.path}
+                                    to={neto.path}
+                                    onClick={() => setSidebarOpen(false)}
+                                    className={({ isActive }) =>
+                                      `block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                        isActive
+                                          ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                                          : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                                      }`
+                                    }
+                                  >
+                                    {neto.label}
+                                  </NavLink>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <NavLink
+                          key={filho.path}
+                          to={filho.path}
+                          onClick={() => setSidebarOpen(false)}
+                          className={({ isActive }) =>
+                            `block px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-black text-white dark:bg-white dark:text-navy-900'
+                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                            }`
+                          }
+                        >
+                          {filho.label}
+                        </NavLink>
+                      );
+                    })}
                   </div>
                 )}
               </div>
