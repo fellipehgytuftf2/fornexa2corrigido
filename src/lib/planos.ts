@@ -5,6 +5,8 @@
  * escrito em dois lugares vira preço errado em um deles.
  */
 
+import { buscarCheckoutDoAfiliado } from './afiliados';
+
 export type StatusPlano =
   | 'inativo'
   | 'ativo'
@@ -32,6 +34,8 @@ export interface Plano {
   checkout: string;
 }
 
+// O checkout da empresa. Fica no ambiente de propósito: muda com deploy, não
+// com clique — o de cada afiliado é que se cadastra por tela.
 const checkoutBasico = import.meta.env.VITE_CHECKOUT_BASICO || '';
 const checkoutPremium = import.meta.env.VITE_CHECKOUT_PREMIUM || '';
 
@@ -203,4 +207,42 @@ export function pegarCodigoDoAfiliado(): string | null {
   } catch {
     return null;
   }
+}
+
+export interface LinksDeCheckout {
+  basico: string;
+  premium: string;
+}
+
+/**
+ * Quais links de checkout usar nos botões de comprar.
+ *
+ * Com código de afiliado, são os DELE: cada afiliado tem conta própria na
+ * plataforma de pagamento, então a venda feita pelo link dele cai na conta
+ * dele.
+ *
+ * Sem código — ou com um código que não está cadastrado — vale o nosso, que
+ * mora no ambiente (`VITE_CHECKOUT_*`) e não se mexe por tela nenhuma: é o
+ * checkout da empresa, não uma preferência.
+ */
+export async function buscarLinksDeCheckout(
+  codigoAfiliado?: string | null
+): Promise<LinksDeCheckout> {
+  if (codigoAfiliado?.trim()) {
+    const doAfiliado = await buscarCheckoutDoAfiliado(codigoAfiliado);
+
+    if (doAfiliado) {
+      return doAfiliado;
+    }
+  }
+
+  return { basico: checkoutBasico, premium: checkoutPremium };
+}
+
+/** PLANOS com o `checkout` de cada um trocado pelo link configurado. */
+export function planosComCheckout(links: LinksDeCheckout): Plano[] {
+  return PLANOS.map((plano) => ({
+    ...plano,
+    checkout: plano.id === 'basico' ? links.basico : links.premium,
+  }));
 }

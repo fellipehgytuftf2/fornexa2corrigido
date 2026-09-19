@@ -9,6 +9,8 @@ import {
   motivoDoBloqueio,
   planoEmDia,
   pegarCodigoDoAfiliado,
+  buscarLinksDeCheckout,
+  planosComCheckout,
   type PerfilDePlano,
 } from '../lib/planos';
 
@@ -28,6 +30,7 @@ export default function Assinar() {
   const [carregando, setCarregando] = useState(true);
   const [verificando, setVerificando] = useState(false);
   const [avisoDeEspera, setAvisoDeEspera] = useState('');
+  const [planos, setPlanos] = useState(PLANOS);
 
   const carregarPerfil = async () => {
     const { data } = await supabase.auth.getSession();
@@ -90,6 +93,13 @@ export default function Assinar() {
 
     abrir();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Veio de um link de afiliado em algum momento: compra no checkout dele.
+    buscarLinksDeCheckout(pegarCodigoDoAfiliado()).then((links) =>
+      setPlanos(planosComCheckout(links))
+    );
   }, []);
 
   /**
@@ -176,7 +186,7 @@ export default function Assinar() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 items-stretch">
-          {PLANOS.map((plano) => {
+          {planos.map((plano) => {
             const link = montarCheckout(plano, {
               email: perfil?.email,
               nome: perfil?.nome,

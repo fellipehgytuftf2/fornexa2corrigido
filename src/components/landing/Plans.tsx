@@ -1,16 +1,32 @@
+import { useEffect, useState } from 'react';
 import { Check, Shield, Headphones } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { PLANOS, montarCheckout, pegarCodigoDoAfiliado } from '../../lib/planos';
+import {
+  PLANOS,
+  montarCheckout,
+  pegarCodigoDoAfiliado,
+  buscarLinksDeCheckout,
+  planosComCheckout,
+} from '../../lib/planos';
 
-export default function Plans() {
-  const [basico, premium] = PLANOS;
-  const codigoAfiliado = pegarCodigoDoAfiliado();
+export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
+  const [planos, setPlanos] = useState(PLANOS);
+
+  // Quem chegou por fornexa.site/CODIGO compra no checkout daquele afiliado.
+  // Sem código na rota, vale o que ficou guardado de uma visita anterior.
+  const codigo = codigoAfiliado || pegarCodigoDoAfiliado();
+
+  useEffect(() => {
+    buscarLinksDeCheckout(codigo).then((links) => setPlanos(planosComCheckout(links)));
+  }, [codigo]);
+
+  const [basico, premium] = planos;
 
   // Visitante da landing ainda não tem conta, então o checkout vai sem e-mail:
   // quem digita é ele, no formulário da Applyfy. Depois de pagar, a plataforma
   // devolve para /register e o cadastro reencontra a compra por esse e-mail.
-  const linkBasico = montarCheckout(basico, { codigoAfiliado });
-  const linkPremium = montarCheckout(premium, { codigoAfiliado });
+  const linkBasico = montarCheckout(basico, { codigoAfiliado: codigo });
+  const linkPremium = montarCheckout(premium, { codigoAfiliado: codigo });
 
   return (
     <section id="planos" className="bg-navy-900 py-24">

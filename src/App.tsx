@@ -18,6 +18,7 @@ import MyProducts from './pages/dashboard/MyProducts';
 import Orders from './pages/dashboard/Orders';
 import Financial from './pages/dashboard/Financial';
 import Integrations from './pages/dashboard/Integrations';
+import Afiliado from './pages/dashboard/Afiliado';
 import AdminCatalogo from './pages/dashboard/AdminCatalogo';
 import AdminAvisos from './pages/dashboard/AdminAvisos';
 import AdminImpressao from './pages/dashboard/AdminImpressao';
@@ -213,9 +214,11 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
 }
 
 /**
- * A mesma landing page, só que o endereço já diz de quem é a indicação —
- * fornexa.site/joao em vez de fornexa.site/?ref=joao. O afiliado divulga um
- * link com o nome/código dele, não um parâmetro que parece técnico demais.
+ * A mesma landing page, com os botões de comprar trocados pelo checkout do
+ * afiliado dono do endereço — fornexa.site/joao vende no checkout do João.
+ *
+ * O código também fica guardado no navegador: quem não comprar na hora e
+ * voltar depois por /planos continua sendo venda dele.
  */
 function LandingComCodigoDeAfiliado() {
   const { codigoAfiliado } = useParams();
@@ -226,7 +229,7 @@ function LandingComCodigoDeAfiliado() {
     }
   }, [codigoAfiliado]);
 
-  return <LandingPage />;
+  return <LandingPage codigoAfiliado={codigoAfiliado} />;
 }
 
 function App() {
@@ -293,6 +296,7 @@ function App() {
           <Route path="orders" element={<Orders />} />
           <Route path="financial" element={<Financial />} />
           <Route path="integrations" element={<Integrations />} />
+          <Route path="afiliado" element={<Afiliado />} />
           <Route path="admin" element={<Navigate to="/dashboard/admin/catalogo" replace />} />
           <Route path="admin/catalogo" element={<AdminCatalogo />} />
           <Route path="admin/avisos" element={<AdminAvisos />} />

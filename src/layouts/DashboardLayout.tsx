@@ -15,6 +15,7 @@ import {
   Moon,
   Package,
   Settings,
+  Share2,
   ShoppingCart,
   Store,
   Sun,
@@ -69,6 +70,11 @@ const navigationItems: NavigationItem[] = [
     path: '/dashboard/integrations',
     label: 'Integrações',
     icon: Link2,
+  },
+  {
+    path: '/dashboard/afiliado',
+    label: 'Afiliados',
+    icon: Share2,
   },
   {
     path: '/dashboard/tickets',

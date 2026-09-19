@@ -5,14 +5,14 @@ import Benefits from '../components/landing/Benefits';
 import Plans from '../components/landing/Plans';
 import FinalCTA from '../components/landing/FinalCTA';
 
-export default function LandingPage() {
+export default function LandingPage({ codigoAfiliado }: { codigoAfiliado?: string }) {
   return (
     <div className="min-h-screen bg-navy-900">
       <Header />
       <main>
         <Hero />
         <Benefits />
-        <Plans />
+        <Plans codigoAfiliado={codigoAfiliado} />
         <FinalCTA />
       </main>
       <footer className="bg-navy-900 py-8">
