@@ -7,6 +7,7 @@ import {
   linkDoAfiliado,
   listarAfiliadosDoAdmin,
   podeDivulgar,
+  removerAfiliado,
   salvarCheckoutDoAfiliado,
   type AfiliadoDoAdmin,
   type NumerosDoAfiliado,
@@ -248,10 +249,12 @@ function AfiliadoAceito({
   afiliado,
   numeros,
   onSalvo,
+  onRemovido,
 }: {
   afiliado: AfiliadoDoAdmin;
   numeros?: NumerosDoAfiliado;
   onSalvo: () => void;
+  onRemovido: () => void;
 }) {
   const pronto = podeDivulgar(afiliado);
 
@@ -260,6 +263,23 @@ function AfiliadoAceito({
   const [premium, setPremium] = useState(afiliado.checkout_premium);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
+  const [removendo, setRemovendo] = useState(false);
+
+  const remover = async () => {
+    setRemovendo(true);
+    setErro('');
+
+    try {
+      await removerAfiliado(afiliado.conta);
+      onRemovido();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível remover.');
+      setRemovendo(false);
+      setConfirmandoRemocao(false);
+    }
+  };
 
   const salvar = async () => {
     if ([basico, premium].some((url) => CHECKOUTS_DA_CASA.includes(idDoCheckout(url)))) {
@@ -338,19 +358,7 @@ function AfiliadoAceito({
         </p>
       )}
 
-      {pronto && !editando && (
-        <>
-          <LinkParaDivulgar link={linkDoAfiliado(afiliado.apelido)} />
-
-          <button
-            type="button"
-            onClick={() => setEditando(true)}
-            className="text-xs text-gray-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white transition-colors mt-3"
-          >
-            Trocar os checkouts dele
-          </button>
-        </>
-      )}
+      {pronto && !editando && <LinkParaDivulgar link={linkDoAfiliado(afiliado.apelido)} />}
 
       {editando && (
         <div className="space-y-2">
@@ -409,6 +417,62 @@ function AfiliadoAceito({
           </div>
         </div>
       )}
+
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-navy-700">
+        {!editando && erro && <p className="text-xs text-red-600 dark:text-red-400 mb-2">{erro}</p>}
+
+        {confirmandoRemocao ? (
+          <div className="space-y-2">
+            <p className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed">
+              Remover {afiliado.nome || afiliado.email} dos afiliados? O link dele para de
+              vender na hora. Ele pode pedir de novo depois.
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={remover}
+                disabled={removendo}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {removendo && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Remover
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConfirmandoRemocao(false)}
+                disabled={removendo}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-xs text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            {pronto && !editando ? (
+              <button
+                type="button"
+                onClick={() => setEditando(true)}
+                className="text-xs text-gray-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white transition-colors"
+              >
+                Trocar os checkouts dele
+              </button>
+            ) : (
+              <span />
+            )}
+
+            <button
+              type="button"
+              onClick={() => setConfirmandoRemocao(true)}
+              className="text-xs text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+            >
+              Remover afiliado
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -512,6 +576,7 @@ export function PedidosDeAfiliado() {
                       setLiberado(afiliado.nome || afiliado.email || afiliado.apelido);
                       recarregar();
                     }}
+                    onRemovido={recarregar}
                   />
                 ))}
               </div>
@@ -629,6 +694,7 @@ export function DesempenhoDosAfiliados() {
                       recarregar();
                       carregarNumeros();
                     }}
+                    onRemovido={recarregar}
                   />
                 ))}
               </div>

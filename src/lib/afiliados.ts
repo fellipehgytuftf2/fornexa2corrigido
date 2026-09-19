@@ -131,6 +131,29 @@ export async function salvarCheckoutDoAfiliado(
   }
 }
 
+/**
+ * Tira a pessoa do programa. O link para de vender na hora — quem abrir cai
+ * no checkout da casa — e ela volta a ver "Quero ser afiliado". As vendas
+ * passadas continuam em `pagamentos`; só deixam de aparecer no Desempenho.
+ */
+export async function removerAfiliado(conta: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('afiliados')
+    .delete()
+    .eq('conta', conta)
+    .select('conta');
+
+  if (error) {
+    throw error;
+  }
+
+  // Sem permissão, o banco não reclama: só não apaga nada. Melhor avisar do
+  // que deixar o botão girando como se tivesse dado certo.
+  if (!data?.length) {
+    throw new Error('Nada foi removido. Confira se sua conta ainda é admin e tente de novo.');
+  }
+}
+
 /** Troca o apelido, e com ele o endereço que o afiliado divulga. */
 export async function trocarApelido(conta: string, apelido: string): Promise<void> {
   const { error } = await supabase
