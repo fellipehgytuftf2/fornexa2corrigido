@@ -377,8 +377,8 @@ export default function Catalog() {
                   {product.name}
                 </h3>
 
-                {/* "Em estoque" só para quem tem estoque conferido.
-                
+                {/* Número só para quem tem estoque conferido.
+
                     Antes valia para todos, porque o catálogo só traz produto
                     ativo — mas produto de fornecedor que não conta estoque
                     entra aqui com zero e a mesma bolinha verde. O vendedor
@@ -387,7 +387,7 @@ export default function Catalog() {
                 {product.estoqueConfirmado ? (
                   <p className="flex items-center gap-1.5 text-xs font-semibold text-green-600 dark:text-green-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true" />
-                    Em estoque
+                    {product.stock} em estoque
                   </p>
                 ) : (
                   <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-slate-400">
