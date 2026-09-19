@@ -5,6 +5,7 @@ import {
   meuCadastroDeAfiliado,
   pedirParaSerAfiliado,
   podeDivulgar,
+  podePedirDeNovoEm,
   type MeuAfiliado,
 } from '../../lib/afiliados';
 
@@ -128,9 +129,31 @@ export default function Afiliado() {
             Pedido não aceito desta vez
           </p>
 
-          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5 leading-relaxed">
-            Fale com o suporte se quiser entender o motivo ou tentar de novo.
-          </p>
+          {podePedirDeNovoEm(cadastro.decidido_em) > new Date() ? (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5 leading-relaxed">
+              Você pode pedir de novo a partir de{' '}
+              <span className="font-medium text-navy-900 dark:text-white">
+                {podePedirDeNovoEm(cadastro.decidido_em).toLocaleDateString('pt-BR')}
+              </span>
+              . Se quiser entender o motivo, fale com o suporte.
+            </p>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5 mb-4 leading-relaxed">
+                Já passou uma semana. Se quiser, pode pedir de novo.
+              </p>
+
+              <button
+                type="button"
+                onClick={pedir}
+                disabled={pedindo}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {pedindo && <Loader2 className="w-4 h-4 animate-spin" />}
+                Pedir de novo
+              </button>
+            </>
+          )}
         </div>
       )}
 

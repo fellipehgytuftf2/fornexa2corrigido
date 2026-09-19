@@ -16,6 +16,16 @@ export interface MeuAfiliado {
   situacao: SituacaoDoAfiliado;
   checkout_basico: string;
   checkout_premium: string;
+  decidido_em?: string | null;
+}
+
+/** Quem foi recusado espera isso antes de poder pedir de novo. */
+export const ESPERA_DEPOIS_DA_RECUSA_EM_DIAS = 7;
+
+/** Quando um recusado pode pedir de novo. Mesma conta que o banco faz. */
+export function podePedirDeNovoEm(decididoEm: string | null | undefined): Date {
+  const base = decididoEm ? new Date(decididoEm) : new Date();
+  return new Date(base.getTime() + ESPERA_DEPOIS_DA_RECUSA_EM_DIAS * 86400000);
 }
 
 /** O que o admin enxerga: a situação mais quem é a pessoa. */
@@ -48,7 +58,7 @@ export function linkDoAfiliado(apelido: string): string {
 export async function meuCadastroDeAfiliado(): Promise<MeuAfiliado | null> {
   const { data } = await supabase
     .from('afiliados')
-    .select('apelido, situacao, checkout_basico, checkout_premium')
+    .select('apelido, situacao, checkout_basico, checkout_premium, decidido_em')
     .maybeSingle();
 
   return (data as MeuAfiliado) || null;
