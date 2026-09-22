@@ -69,7 +69,10 @@ export default function SupplierLogin() {
       JSON.stringify({
         id: supplier.id,
         name: supplier.company_name || supplier.name,
-        email: supplier.email || formattedEmail,
+        // O e-mail com que ele acabou de entrar. Antes vinha do cadastro
+        // em `suppliers`, coluna que saiu do alcance na migração 20260922040000
+        // — e este aqui é mais certo de qualquer forma: é a conta usada agora.
+        email: formattedEmail,
         loggedAt: new Date().toISOString(),
       })
     );

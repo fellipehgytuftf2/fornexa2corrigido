@@ -35,7 +35,7 @@
 
 import { extrairViaLogin } from "./_lib/ms-digital/loginScrape.js";
 import { extrairViaFeedPublico, extrairViaLlmsTxt } from "./_lib/ms-digital/publicScrape.js";
-import { salvarNoSupabase, registrarRodada } from "./_lib/ms-digital/supabase.js";
+import { salvarNoSupabase, registrarRodada, registrarInicio } from "./_lib/ms-digital/supabase.js";
 
 export const config = {
   maxDuration: 60, // maximo permitido no plano Hobby do Vercel
@@ -126,6 +126,12 @@ export default async function handler(req, res) {
   }
 
   const inicio = Date.now();
+
+  // Antes de qualquer coisa: deixa gravado que esta rodada existiu. Se a
+  // função morrer por tempo no meio do caminho, esta linha é a única prova de
+  // que o cron chegou a disparar.
+  const registroId = await registrarInicio();
+
   try {
     const { produtos, etapaUsada, tentativas } = await rodarComFallback(inicio);
 
@@ -149,7 +155,8 @@ export default async function handler(req, res) {
       resultadoSupabase.gravado
         ? `Catálogo da MS Digital sincronizado por ${etapaUsada}`
         : `Sincronização coletou por ${etapaUsada} mas não gravou`,
-      resumo
+      resumo,
+      registroId
     );
 
     res.status(200).json(resumo);
@@ -160,7 +167,7 @@ export default async function handler(req, res) {
       duracaoMs: Date.now() - inicio,
     };
 
-    await registrarRodada("Sincronização do catálogo da MS Digital falhou", resumo);
+    await registrarRodada("Sincronização do catálogo da MS Digital falhou", resumo, registroId);
 
     res.status(500).json(resumo);
   }

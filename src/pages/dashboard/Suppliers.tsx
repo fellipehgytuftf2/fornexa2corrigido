@@ -16,6 +16,10 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import {
+  carregarContatosDosFornecedores,
+  contatoDe,
+} from '../../lib/contatoDoFornecedor';
 
 interface Supplier {
   id: string;
@@ -61,10 +65,19 @@ export default function Suppliers() {
     setLoading(true);
     setErrorMessage('');
 
-    const { data, error } = await supabase
-      .from('suppliers')
-      .select('*')
-      .order('created_at', { ascending: false });
+    // O `select('*')` saiu daqui: desde a migração 20260922040000, `whatsapp`
+    // e `email` não são mais colunas legíveis por usuário logado — nem para o
+    // admin — e pedir tudo passaria a dar erro de permissão. As duas voltam
+    // pela função do banco, ver contatoDoFornecedor.ts.
+    const [{ data, error }, contatos] = await Promise.all([
+      supabase
+        .from('suppliers')
+        .select(
+          'id, user_id, name, company_name, city, state, category, average_shipping_time, status, notes, created_at, updated_at'
+        )
+        .order('created_at', { ascending: false }),
+      carregarContatosDosFornecedores(),
+    ]);
 
     setLoading(false);
 
@@ -74,7 +87,12 @@ export default function Suppliers() {
       return;
     }
 
-    setSuppliers((data || []) as Supplier[]);
+    setSuppliers(
+      (data || []).map((fornecedor) => ({
+        ...fornecedor,
+        ...contatoDe(contatos, fornecedor.id),
+      })) as Supplier[]
+    );
   };
 
   useEffect(() => {

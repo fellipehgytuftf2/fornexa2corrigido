@@ -4,7 +4,6 @@ export interface SupplierAccount {
   id: string;
   name: string;
   company_name: string | null;
-  email: string | null;
 }
 
 /**
@@ -20,7 +19,9 @@ export async function fetchSupplierAccount(
 ): Promise<SupplierAccount | null> {
   const { data, error } = await supabase
     .from('suppliers')
-    .select('id, name, company_name, email')
+    // Sem `email`: ele não era usado em lugar nenhum, e desde a migração
+    // 20260922040000 a coluna não é mais legível por usuário logado.
+    .select('id, name, company_name')
     .eq('auth_user_id', userId)
     .maybeSingle<SupplierAccount>();
 

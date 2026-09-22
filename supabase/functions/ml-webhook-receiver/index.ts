@@ -393,11 +393,25 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (!userProduct) {
+      // 'ignorado', nao 'erro'.
+      //
+      // Venda de anuncio que nao esta em Meus Produtos — criado direto no
+      // Mercado Livre, ou de antes do FORNEXA. Nao e falha nossa: nao ha o que
+      // processar, o pedido nao e daqui.
+      //
+      // Chamar isso de erro custava caro dos dois lados. Em 22/09/2026 eram
+      // 18.367 linhas de 'erro' com esta mesma mensagem, ~1.500 por dia, 83%
+      // de tudo que a tabela guardava — e as falhas de verdade ficavam
+      // enterradas no meio. Do lado do vendedor, a tela de Pedidos mostrava
+      // alarme vermelho pedindo para ele "corrigir" uma venda que nunca foi
+      // do FORNEXA.
+      //
+      // A linha continua gravada, com a mensagem, para quem quiser auditar.
       if (webhookEventId) {
         await supabase
           .from("webhook_events")
           .update({
-            status: "erro",
+            status: "ignorado",
             erro_mensagem: `Nenhum produto encontrado para ml_item_id ${mlItemId}`,
             processado_em: new Date().toISOString(),
           })

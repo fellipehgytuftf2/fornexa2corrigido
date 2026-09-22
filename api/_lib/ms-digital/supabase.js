@@ -190,12 +190,21 @@ async function lerExistentes(url, chave, supplierId) {
  * Nunca derruba a sincronizacao: se o log falhar, o catalogo ja foi gravado e
  * isso e o que importa.
  */
-export async function registrarRodada(mensagem, detalhes) {
+export async function registrarRodada(mensagem, detalhes, registroId = null) {
   const url = urlDoProjeto();
   const chave = chaveSecreta();
   if (!url || !chave) return;
 
   try {
+    if (registroId) {
+      await chamarSupabase(url, chave, `log_integracao_ml?id=eq.${registroId}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ mensagem, detalhes }),
+      });
+      return;
+    }
+
     await chamarSupabase(url, chave, "log_integracao_ml", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
@@ -203,6 +212,42 @@ export async function registrarRodada(mensagem, detalhes) {
     });
   } catch {
     // sem log e ruim, mas nao e motivo para a rodada contar como falha
+  }
+}
+
+/**
+ * Marca que a rodada COMECOU, antes de qualquer trabalho pesado.
+ *
+ * Porque so registrar no fim nao basta: se a funcao estourar os 60s da Vercel,
+ * ela morre antes de chegar la, e o banco fica identico a quem nunca rodou.
+ * Foi exatamente essa duvida que travou o diagnostico em 22/09/2026 — "nao ha
+ * registro" podia significar "o cron nao disparou" ou "disparou e morreu no
+ * meio", e as duas coisas se pareciam.
+ *
+ * Com a linha gravada aqui, fica claro: sem linha nenhuma, o cron nao veio;
+ * linha parada em "comecou", ele veio e nao terminou.
+ *
+ * Devolve o id para o fim da rodada atualizar a mesma linha, em vez de criar
+ * outra.
+ */
+export async function registrarInicio() {
+  const url = urlDoProjeto();
+  const chave = chaveSecreta();
+  if (!url || !chave) return null;
+
+  try {
+    const linhas = await chamarSupabase(url, chave, "log_integracao_ml", {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({
+        contexto: "ms-digital-sync",
+        mensagem: "Sincronização começou",
+        detalhes: { comecou_em: new Date().toISOString() },
+      }),
+    });
+    return linhas?.[0]?.id ?? null;
+  } catch {
+    return null;
   }
 }
 

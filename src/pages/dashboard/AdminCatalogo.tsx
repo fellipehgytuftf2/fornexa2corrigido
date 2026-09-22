@@ -24,6 +24,10 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import {
+  carregarContatosDosFornecedores,
+  contatoDe,
+} from '../../lib/contatoDoFornecedor';
 import ModalPortal from '../../components/ui/modal-portal';
 import {
   CSV_MODELO,
@@ -37,12 +41,13 @@ interface Supplier {
   id: string;
   name: string;
   company_name: string;
-  whatsapp: string;
   city: string;
   state: string;
   status: 'active' | 'inactive';
 
-  // Só vêm na listagem de fornecedores, não no join do catálogo.
+  // Só vêm na listagem de fornecedores, não no join do catálogo. O WhatsApp
+  // agora é um deles: o join do catálogo não pode mais pedir a coluna.
+  whatsapp?: string;
   email?: string | null;
   auth_user_id?: string | null;
 }
@@ -565,7 +570,7 @@ export default function AdminCatalogo() {
     setLoading(true);
     setErrorMessage('');
 
-    const [productsResult, suppliersResult] = await Promise.all([
+    const [productsResult, suppliersResult, contatos] = await Promise.all([
       supabase
         .from('catalog_products')
         .select(`
@@ -583,7 +588,6 @@ export default function AdminCatalogo() {
             id,
             name,
             company_name,
-            whatsapp,
             city,
             state,
             status
@@ -593,8 +597,12 @@ export default function AdminCatalogo() {
 
       supabase
         .from('suppliers')
-        .select('id, name, company_name, whatsapp, city, state, status, email, auth_user_id')
+        .select('id, name, company_name, city, state, status, auth_user_id')
         .order('created_at', { ascending: false }),
+
+      // WhatsApp e e-mail vêm por fora desde a migração 20260922040000 — as
+      // colunas saíram do alcance de usuário logado, inclusive do admin.
+      carregarContatosDosFornecedores(),
     ]);
 
     setLoading(false);
@@ -609,7 +617,12 @@ export default function AdminCatalogo() {
     }
 
     setProducts((productsResult.data || []) as CatalogProduct[]);
-    setSuppliers((suppliersResult.data || []) as Supplier[]);
+    setSuppliers(
+      (suppliersResult.data || []).map((fornecedor) => ({
+        ...fornecedor,
+        ...contatoDe(contatos, fornecedor.id),
+      })) as Supplier[]
+    );
   };
 
   useEffect(() => {
