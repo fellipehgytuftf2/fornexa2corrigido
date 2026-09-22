@@ -130,11 +130,18 @@ export default function Integrations() {
       window.history.replaceState({}, '', window.location.pathname);
     } else if (mlStatus === 'erro') {
       const motivo = params.get('motivo');
-      setErrorMessage(
-        motivo
-          ? `Não foi possível conectar ao Mercado Livre (motivo: ${motivo}).`
-          : 'Não foi possível conectar ao Mercado Livre.'
-      );
+
+      // O único motivo que o vendedor consegue resolver sozinho merece ser
+      // dito em português. Os outros são falha interna e o código crú ajuda
+      // o suporte a achar a causa.
+      const explicacao =
+        motivo === 'conta_ja_ligada'
+          ? 'Esta conta do Mercado Livre já está conectada a outra conta do FORNEXA. Cada conta do Mercado Livre só pode estar ligada a uma. Desconecte-a lá antes, ou fale com o suporte.'
+          : motivo
+            ? `Não foi possível conectar ao Mercado Livre (motivo: ${motivo}).`
+            : 'Não foi possível conectar ao Mercado Livre.';
+
+      setErrorMessage(explicacao);
       window.history.replaceState({}, '', window.location.pathname);
     }
     // Roda uma vez, na entrada da tela. Incluir `loadConnection` nas

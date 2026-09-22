@@ -104,7 +104,38 @@ Deno.serve(async (req: Request) => {
 
     const expiresAt = new Date(Date.now() + expires_in * 1000).toISOString();
 
-    // 3. Salvar ou atualizar em ml_connections
+    // 3. Uma conta do Mercado Livre pertence a UMA conta do FORNEXA.
+    //
+    // Achado em 22/09/2026: a conta 476651130 estava ligada a TRES contas do
+    // FORNEXA ao mesmo tempo, com 143 anuncios publicados entre elas. Isso
+    // quebra o recebimento de venda: o ml-webhook-receiver procura a conexao
+    // por `external_account_id` com `maybeSingle()`, que da erro quando acha
+    // mais de uma linha — e a venda nao entra, com a mensagem enganosa de
+    // "Nenhuma conexao FORNEXA encontrada".
+    //
+    // Nao da para escolher sozinho de quem e a venda, entao a porta fecha
+    // aqui, na hora de conectar.
+    const { data: jaLigadaAOutraConta } = await supabase
+      .from("ml_connections")
+      .select("id")
+      .eq("external_account_id", String(mlUserId))
+      .neq("user_id", vendedorId)
+      .limit(1);
+
+    if (jaLigadaAOutraConta && jaLigadaAOutraConta.length > 0) {
+      await supabase.from("log_integracao_ml").insert({
+        contexto: "ml-oauth-callback",
+        mensagem: "Conta do Mercado Livre já ligada a outra conta do FORNEXA",
+        detalhes: { ml_user_id: String(mlUserId), tentou_ligar_em: vendedorId },
+      });
+
+      return Response.redirect(
+        `${frontendUrl}/dashboard?ml=erro&motivo=conta_ja_ligada`,
+        302
+      );
+    }
+
+    // 4. Salvar ou atualizar em ml_connections
     const { data: existing } = await supabase
       .from("ml_connections")
       .select("id")
