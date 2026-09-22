@@ -29,23 +29,28 @@
 -- quem quiser conferir de quem era o anúncio.
 
 -- ============================================================================
--- PARTE 1 de 2 — rode este arquivo SOZINHO, e só depois o 20260922050001.
+-- PARTE 2 de 2 — só depois que o 20260922050000 tiver rodado.
 -- ============================================================================
 --
--- Por que dois arquivos: o Postgres recusa usar um rótulo de enum na mesma
--- transação em que ele foi criado (erro 55P04, "New enum values must be
--- committed before they can be used"). O SQL Editor do Supabase roda o arquivo
--- inteiro numa transação só — então os dois comandos juntos falham, e a falha
--- desfaz até o `alter type`. Separados, cada um tem a sua transação.
+-- Se este arquivo reclamar de valor inválido do enum, é porque a parte 1 não
+-- passou. Rode ela primeiro, sozinha.
 
-alter type public.webhook_status add value if not exists 'ignorado';
+update public.webhook_events
+   set status = 'ignorado'
+ where status = 'erro'
+   and erro_mensagem like 'Nenhum produto encontrado para ml_item_id %';
 
 
 -- ============================================================================
--- VERIFICAÇÃO — precisa listar os quatro valores antes de seguir para a parte 2
+-- VERIFICAÇÃO — rode depois e confira os resultados
 -- ============================================================================
 
--- select e.enumlabel
--- from pg_type t join pg_enum e on e.enumtypid = t.oid
--- where t.typname = 'webhook_status'
--- order by e.enumsortorder;
+-- (a) Como ficou a distribuição. 'erro' precisa cair para a casa das centenas.
+-- select status, count(*) from public.webhook_events group by 1 order by 2 desc;
+
+-- (b) O que sobrou de erro de verdade, agrupado. É esta lista que merece
+--     atenção de agora em diante.
+-- select left(erro_mensagem, 70) as erro, count(*) as vezes, max(criado_em) as ultima
+-- from public.webhook_events
+-- where status = 'erro'
+-- group by 1 order by 2 desc limit 10;
