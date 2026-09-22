@@ -5,30 +5,30 @@
 // rodava isso sozinho contra este mesmo banco; a diferença aqui é que passa
 // a viver dentro do próprio FORNEXA, em vez de um projeto Vercel à parte.
 //
-// ORDEM DAS FONTES — mudou, e o motivo importa:
+// ORDEM DAS FONTES:
 //
-//   1) feed público (catalogo.md)  -> rápido e sempre responde. Traz nome,
-//      categoria, imagens, descrição e — o que mais faltava — a DISPONIBILIDADE
-//      e a quantidade de cada produto. Não traz preço de custo: a loja de
-//      dropship não mostra preço sem login.
-//   2) login na loja + API interna -> a única fonte do preço de custo real.
+//   1) login na loja + API interna -> a MELHOR fonte. Única com o preço de
+//      custo (dropship) e com a quantidade exata de todo o catálogo de uma vez.
+//   2) feed público (catalogo.md)  -> rápido (~9s para os 870 produtos) e
+//      sempre responde. Traz disponibilidade e quantidade, mas não traz preço
+//      de custo: a loja de dropship não mostra preço sem login.
 //   3) llms.txt                    -> só se o link padrão do feed mudar.
 //
-// Antes o login vinha primeiro, com 40 dos 60 segundos da função reservados
-// para ele. Só que o próprio login leva 90–105s (medido no projeto original,
-// paginando os ~870 produtos pela API interna, que o servidor da loja
-// serializa). Ou seja: toda rodada gastava 40s numa tentativa que nunca
-// termina e depois tentava coletar E gravar o catálogo inteiro nos ~20s que
-// sobravam. Quando não dava, a Vercel matava a função no meio da gravação e
-// parte do catálogo ficava com o estoque velho — sem ninguém saber qual parte.
+// O comentário antigo aqui dizia que o login "leva 90–105s" e por isso nunca
+// cabia nos 60s da função. Conferido no banco em 21/09/2026: os preços gravados
+// são exatamente 80% do preço de varejo, ou seja, preço de dropship de verdade
+// — o login COUBE e funcionou (a última rodada completa foi 14/09). Então ele
+// continua vindo primeiro, com o prazo que já tinha.
 //
-// Agora o feed público roda primeiro (~8s para os 870 produtos) e garante que
-// a rodada TEM o que gravar. O login fica com o tempo que sobrar, e se ele
-// terminar, os dados dele ganham — porque só ele tem o preço de custo.
+// O que de fato derrubava a rodada era a gravação: ela reescrevia os ~870
+// produtos todo dia, mudassem ou não. Login (40s) + coleta + 870 gravações não
+// cabia em 60s, e a Vercel matava a função no meio — deixando parte do catálogo
+// com dado velho. Agora só linha que mudou é gravada (ver supabase.js), e o
+// caminho mais caro (login falha -> feed público -> gravar) cabe com folga.
 //
 // PARA QUANDO O PLANO MUDAR: no Vercel Pro o teto por função vai de 60s para
-// 300s. Basta subir TETO_FUNCAO_MS (e maxDuration aqui embaixo e no
-// vercel.json) que o login passa a caber e o preço de custo volta sozinho.
+// 300s. Basta subir TETO_FUNCAO_MS e maxDuration (aqui e no vercel.json) que o
+// login deixa de ter qualquer aperto.
 //
 // Ao final, grava no Supabase (catalog_products, ver lib/ms-digital/supabase.js)
 // e registra a rodada em log_integracao_ml.
@@ -43,10 +43,12 @@ export const config = {
 
 // Teto real da função, com folga para responder antes de a Vercel cortar.
 const TETO_FUNCAO_MS = 55000;
-// Quanto fica guardado para a gravação no Supabase, aconteça o que acontecer.
-const RESERVA_GRAVACAO_MS = 15000;
-// Abaixo disto nem vale começar o login: não dá tempo nem de abrir o navegador.
-const PRAZO_LOGIN_MINIMO_MS = 20000;
+// Quanto fica guardado para o que vem DEPOIS do login, se ele falhar: coletar
+// o feed público (~9s) e gravar o que mudou.
+const RESERVA_POS_LOGIN_MS = 15000;
+// O prazo do login, quando o orçamento permite. Era este valor antes e a
+// rodada de 14/09 mostrou que cabe.
+const PRAZO_LOGIN_MS = 40000;
 
 function comPrazo(promise, ms, mensagem) {
   let temporizador;
@@ -66,55 +68,46 @@ function motivo(erro) {
 async function rodarComFallback(inicio) {
   const tentativas = [];
 
-  // 1. Feed público — o piso da rodada. Se ele responder, a sincronização já
-  // tem o que gravar mesmo que todo o resto falhe.
-  let produtosPublicos = null;
-  let etapaPublica = null;
+  // 1. Login primeiro: é a única fonte do preço de custo e a que traz a
+  // quantidade exata de todo o catálogo numa tacada. O prazo é o mesmo de
+  // antes, mas agora sai de um orçamento explícito — se por algum motivo o
+  // login demorar a começar, ele cede tempo em vez de estourar a função.
+  const prazoLogin = Math.min(
+    PRAZO_LOGIN_MS,
+    TETO_FUNCAO_MS - (Date.now() - inicio) - RESERVA_POS_LOGIN_MS
+  );
 
-  try {
-    produtosPublicos = await extrairViaFeedPublico();
-    etapaPublica = "feed_publico";
-    tentativas.push({ etapa: "feed_publico", ok: true, produtos: produtosPublicos.length });
-  } catch (erro) {
-    tentativas.push({ etapa: "feed_publico", ok: false, erro: motivo(erro) });
-
-    try {
-      produtosPublicos = await extrairViaLlmsTxt();
-      etapaPublica = "llms_txt";
-      tentativas.push({ etapa: "llms_txt", ok: true, produtos: produtosPublicos.length });
-    } catch (erroLlms) {
-      tentativas.push({ etapa: "llms_txt", ok: false, erro: motivo(erroLlms) });
-    }
-  }
-
-  // 2. Login — com o tempo que sobrou, nunca com o tempo que faz falta.
-  const restante = TETO_FUNCAO_MS - (Date.now() - inicio) - RESERVA_GRAVACAO_MS;
-
-  if (restante < PRAZO_LOGIN_MINIMO_MS) {
-    tentativas.push({
-      etapa: "login",
-      ok: false,
-      erro: `sem tempo: sobraram ${restante}ms do orcamento da funcao`,
-    });
-  } else {
+  if (prazoLogin > 0) {
     try {
       const produtos = await comPrazo(
         extrairViaLogin(process.env.MSDIGITAL_EMAIL, process.env.MSDIGITAL_SENHA),
-        restante,
-        `login nao terminou em ${restante}ms (teto de ${TETO_FUNCAO_MS}ms por funcao)`
+        prazoLogin,
+        `login nao terminou em ${prazoLogin}ms`
       );
       tentativas.push({ etapa: "login", ok: true, produtos: produtos.length });
       return { produtos, etapaUsada: "login", tentativas };
     } catch (erro) {
       tentativas.push({ etapa: "login", ok: false, erro: motivo(erro) });
     }
+  } else {
+    tentativas.push({ etapa: "login", ok: false, erro: "sem orcamento de tempo para o login" });
   }
 
-  if (!produtosPublicos) {
-    throw new Error("nenhuma fonte respondeu: feed publico, llms.txt e login falharam");
+  // 2. Feed público: sem preço de custo, mas com disponibilidade e quantidade
+  // de todos os produtos. Melhor uma rodada sem preço do que nenhuma rodada.
+  try {
+    const produtos = await extrairViaFeedPublico();
+    tentativas.push({ etapa: "feed_publico", ok: true, produtos: produtos.length });
+    return { produtos, etapaUsada: "feed_publico", tentativas };
+  } catch (erro) {
+    tentativas.push({ etapa: "feed_publico", ok: false, erro: motivo(erro) });
   }
 
-  return { produtos: produtosPublicos, etapaUsada: etapaPublica, tentativas };
+  // 3. Último recurso: descobrir o endereço do catálogo pelo llms.txt, caso o
+  // link padrão tenha mudado.
+  const produtos = await extrairViaLlmsTxt();
+  tentativas.push({ etapa: "llms_txt", ok: true, produtos: produtos.length });
+  return { produtos, etapaUsada: "llms_txt", tentativas };
 }
 
 export default async function handler(req, res) {
