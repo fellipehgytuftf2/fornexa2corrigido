@@ -5,29 +5,48 @@
 // rodava isso sozinho contra este mesmo banco; a diferença aqui é que passa
 // a viver dentro do próprio FORNEXA, em vez de um projeto Vercel à parte.
 //
-// Cadeia de fallback:
-//   1) login na loja + API interna  -> traz preco real de dropship
-//   2) feed publico (catalogo.md)   -> sem preco de dropship, mas com preco_varejo
-//   3) llms.txt                     -> ultimo recurso, caso os links padrao mudem
+// ORDEM DAS FONTES — mudou, e o motivo importa:
 //
-// Ao final, grava no Supabase (catalog_products, casado por nome dentro do
-// fornecedor "MS Digital" -- ver lib/ms-digital/supabase.js).
+//   1) feed público (catalogo.md)  -> rápido e sempre responde. Traz nome,
+//      categoria, imagens, descrição e — o que mais faltava — a DISPONIBILIDADE
+//      e a quantidade de cada produto. Não traz preço de custo: a loja de
+//      dropship não mostra preço sem login.
+//   2) login na loja + API interna -> a única fonte do preço de custo real.
+//   3) llms.txt                    -> só se o link padrão do feed mudar.
+//
+// Antes o login vinha primeiro, com 40 dos 60 segundos da função reservados
+// para ele. Só que o próprio login leva 90–105s (medido no projeto original,
+// paginando os ~870 produtos pela API interna, que o servidor da loja
+// serializa). Ou seja: toda rodada gastava 40s numa tentativa que nunca
+// termina e depois tentava coletar E gravar o catálogo inteiro nos ~20s que
+// sobravam. Quando não dava, a Vercel matava a função no meio da gravação e
+// parte do catálogo ficava com o estoque velho — sem ninguém saber qual parte.
+//
+// Agora o feed público roda primeiro (~8s para os 870 produtos) e garante que
+// a rodada TEM o que gravar. O login fica com o tempo que sobrar, e se ele
+// terminar, os dados dele ganham — porque só ele tem o preço de custo.
+//
+// PARA QUANDO O PLANO MUDAR: no Vercel Pro o teto por função vai de 60s para
+// 300s. Basta subir TETO_FUNCAO_MS (e maxDuration aqui embaixo e no
+// vercel.json) que o login passa a caber e o preço de custo volta sozinho.
+//
+// Ao final, grava no Supabase (catalog_products, ver lib/ms-digital/supabase.js)
+// e registra a rodada em log_integracao_ml.
 
 import { extrairViaLogin } from "./_lib/ms-digital/loginScrape.js";
 import { extrairViaFeedPublico, extrairViaLlmsTxt } from "./_lib/ms-digital/publicScrape.js";
-import { salvarNoSupabase } from "./_lib/ms-digital/supabase.js";
+import { salvarNoSupabase, registrarRodada } from "./_lib/ms-digital/supabase.js";
 
 export const config = {
   maxDuration: 60, // maximo permitido no plano Hobby do Vercel
 };
 
-// IMPORTANTE: medido no projeto original, o caminho de login (paginando os
-// ~860 produtos pela API interna, logado) leva 90-105s -- mais do que os 60s
-// que o plano Hobby permite por funcao. Por isso o login roda com um prazo
-// interno -- se nao terminar a tempo, desiste e cai pro feed publico (rapido,
-// ~5-10s) pra garantir que a funcao sempre responde antes do Vercel matar
-// por timeout.
-const PRAZO_LOGIN_MS = 40000;
+// Teto real da função, com folga para responder antes de a Vercel cortar.
+const TETO_FUNCAO_MS = 55000;
+// Quanto fica guardado para a gravação no Supabase, aconteça o que acontecer.
+const RESERVA_GRAVACAO_MS = 15000;
+// Abaixo disto nem vale começar o login: não dá tempo nem de abrir o navegador.
+const PRAZO_LOGIN_MINIMO_MS = 20000;
 
 function comPrazo(promise, ms, mensagem) {
   let temporizador;
@@ -40,32 +59,62 @@ function comPrazo(promise, ms, mensagem) {
   return Promise.race([promise, prazo]).finally(() => clearTimeout(temporizador));
 }
 
-async function rodarComFallback() {
+function motivo(erro) {
+  return String(erro && erro.message ? erro.message : erro);
+}
+
+async function rodarComFallback(inicio) {
   const tentativas = [];
 
-  try {
-    const produtos = await comPrazo(
-      extrairViaLogin(process.env.MSDIGITAL_EMAIL, process.env.MSDIGITAL_SENHA),
-      PRAZO_LOGIN_MS,
-      `login nao terminou em ${PRAZO_LOGIN_MS}ms (plano Hobby tem 60s no total por funcao)`
-    );
-    tentativas.push({ etapa: "login", ok: true });
-    return { produtos, etapaUsada: "login", tentativas };
-  } catch (erro) {
-    tentativas.push({ etapa: "login", ok: false, erro: String(erro.message || erro) });
-  }
+  // 1. Feed público — o piso da rodada. Se ele responder, a sincronização já
+  // tem o que gravar mesmo que todo o resto falhe.
+  let produtosPublicos = null;
+  let etapaPublica = null;
 
   try {
-    const produtos = await extrairViaFeedPublico();
-    tentativas.push({ etapa: "feed_publico", ok: true });
-    return { produtos, etapaUsada: "feed_publico", tentativas };
+    produtosPublicos = await extrairViaFeedPublico();
+    etapaPublica = "feed_publico";
+    tentativas.push({ etapa: "feed_publico", ok: true, produtos: produtosPublicos.length });
   } catch (erro) {
-    tentativas.push({ etapa: "feed_publico", ok: false, erro: String(erro.message || erro) });
+    tentativas.push({ etapa: "feed_publico", ok: false, erro: motivo(erro) });
+
+    try {
+      produtosPublicos = await extrairViaLlmsTxt();
+      etapaPublica = "llms_txt";
+      tentativas.push({ etapa: "llms_txt", ok: true, produtos: produtosPublicos.length });
+    } catch (erroLlms) {
+      tentativas.push({ etapa: "llms_txt", ok: false, erro: motivo(erroLlms) });
+    }
   }
 
-  const produtos = await extrairViaLlmsTxt(); // se essa tambem falhar, deixa o erro subir
-  tentativas.push({ etapa: "llms_txt", ok: true });
-  return { produtos, etapaUsada: "llms_txt", tentativas };
+  // 2. Login — com o tempo que sobrou, nunca com o tempo que faz falta.
+  const restante = TETO_FUNCAO_MS - (Date.now() - inicio) - RESERVA_GRAVACAO_MS;
+
+  if (restante < PRAZO_LOGIN_MINIMO_MS) {
+    tentativas.push({
+      etapa: "login",
+      ok: false,
+      erro: `sem tempo: sobraram ${restante}ms do orcamento da funcao`,
+    });
+  } else {
+    try {
+      const produtos = await comPrazo(
+        extrairViaLogin(process.env.MSDIGITAL_EMAIL, process.env.MSDIGITAL_SENHA),
+        restante,
+        `login nao terminou em ${restante}ms (teto de ${TETO_FUNCAO_MS}ms por funcao)`
+      );
+      tentativas.push({ etapa: "login", ok: true, produtos: produtos.length });
+      return { produtos, etapaUsada: "login", tentativas };
+    } catch (erro) {
+      tentativas.push({ etapa: "login", ok: false, erro: motivo(erro) });
+    }
+  }
+
+  if (!produtosPublicos) {
+    throw new Error("nenhuma fonte respondeu: feed publico, llms.txt e login falharam");
+  }
+
+  return { produtos: produtosPublicos, etapaUsada: etapaPublica, tentativas };
 }
 
 export default async function handler(req, res) {
@@ -85,28 +134,41 @@ export default async function handler(req, res) {
 
   const inicio = Date.now();
   try {
-    const { produtos, etapaUsada, tentativas } = await rodarComFallback();
+    const { produtos, etapaUsada, tentativas } = await rodarComFallback(inicio);
 
     let resultadoSupabase;
     try {
       resultadoSupabase = await salvarNoSupabase(produtos);
     } catch (erro) {
-      resultadoSupabase = { gravado: false, erro: String(erro.message || erro) };
+      resultadoSupabase = { gravado: false, erro: motivo(erro) };
     }
 
-    res.status(200).json({
+    const resumo = {
       sucesso: true,
       etapaUsada,
       totalProdutos: produtos.length,
       tentativas,
       supabase: resultadoSupabase,
       duracaoMs: Date.now() - inicio,
-    });
+    };
+
+    await registrarRodada(
+      resultadoSupabase.gravado
+        ? `Catálogo da MS Digital sincronizado por ${etapaUsada}`
+        : `Sincronização coletou por ${etapaUsada} mas não gravou`,
+      resumo
+    );
+
+    res.status(200).json(resumo);
   } catch (erro) {
-    res.status(500).json({
+    const resumo = {
       sucesso: false,
-      erro: String(erro.message || erro),
+      erro: motivo(erro),
       duracaoMs: Date.now() - inicio,
-    });
+    };
+
+    await registrarRodada("Sincronização do catálogo da MS Digital falhou", resumo);
+
+    res.status(500).json(resumo);
   }
 }

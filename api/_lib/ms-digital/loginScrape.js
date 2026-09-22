@@ -167,6 +167,11 @@ function transformarProdutoLogado(bruto) {
   // que deve deixar o valor que ja estava la, em vez de zerar por engano.
   const estoque = typeof bruto.total_estoque === "number" ? bruto.total_estoque : null;
 
+  // O mesmo par que o feed publico devolve (ver extrairDisponibilidade em
+  // publicScrape.js), para os dois caminhos gravarem do mesmo jeito. Aqui a
+  // conta e direta: zero unidades e produto que o fornecedor nao tem.
+  const disponivel = estoque === null ? null : estoque > 0;
+
   return {
     id: produtoId,
     nome: bruto.nome || null,
@@ -182,6 +187,7 @@ function transformarProdutoLogado(bruto) {
     imagem: imagens[0] || null,
     imagens,
     estoque,
+    disponivel,
     url: produtoId ? `${URL_LOJA}/produto/${produtoId}` : null,
     fonte: "login",
   };

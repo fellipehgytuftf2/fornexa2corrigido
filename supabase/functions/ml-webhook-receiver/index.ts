@@ -67,6 +67,21 @@ function segredoConfere(req: Request): boolean {
   return recebido === esperado;
 }
 
+/**
+ * O que veio na resposta, quando for JSON de verdade.
+ *
+ * Existe para nao precisar anotar `any` a mao: JSON.parse ja devolve `any`, e
+ * devolver null no lugar da excecao e o que permite tratar "nao e JSON" como
+ * uma resposta possivel em vez de um erro que sobe.
+ */
+function comoJson(texto: string) {
+  try {
+    return JSON.parse(texto);
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -314,13 +329,7 @@ Deno.serve(async (req: Request) => {
     // defeito do FORNEXA.
     const corpoDoPedido = await orderDetailResponse.text();
 
-    let mlOrder: Record<string, any> | null = null;
-
-    try {
-      mlOrder = JSON.parse(corpoDoPedido);
-    } catch {
-      mlOrder = null;
-    }
+    const mlOrder = comoJson(corpoDoPedido);
 
     if (!orderDetailResponse.ok || !mlOrder) {
       // Instabilidade do lado deles passa; 404 e 403 não. Só a primeira vale

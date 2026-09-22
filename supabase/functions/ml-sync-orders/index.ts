@@ -38,6 +38,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+/**
+ * O que veio na resposta, quando for JSON de verdade.
+ *
+ * Existe para nao precisar anotar `any` a mao: JSON.parse ja devolve `any`, e
+ * devolver null no lugar da excecao e o que permite tratar "nao e JSON" como
+ * uma resposta possivel em vez de um erro que sobe.
+ */
+function comoJson(texto: string) {
+  try {
+    return JSON.parse(texto);
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -132,13 +147,7 @@ Deno.serve(async (req: Request) => {
     // vendedor que o problema era lá, não aqui.
     const corpoDaBusca = await ordersResponse.text();
 
-    let ordersData: Record<string, any> | null = null;
-
-    try {
-      ordersData = JSON.parse(corpoDaBusca);
-    } catch {
-      ordersData = null;
-    }
+    const ordersData = comoJson(corpoDaBusca);
 
     if (!ordersResponse.ok || !ordersData) {
       console.error("Falha ao buscar pedidos no Mercado Livre:", corpoDaBusca.slice(0, 500));

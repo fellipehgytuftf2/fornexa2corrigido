@@ -48,10 +48,52 @@ function extrairImagens(texto) {
   return Array.from(secao.matchAll(/https?:\/\/\S+/g)).map((m) => m[0]);
 }
 
-function extrairEstoque(texto) {
-  // "**Disponibilidade:** Em estoque (40 unidades)" -- so a pagina individual traz isso
-  const m = texto.match(/\*\*Disponibilidade:\*\*.*?\((\d+)\s*unidades?\)/i);
-  return m ? parseInt(m[1], 10) : null;
+// A linha "**Disponibilidade:**" da pagina do produto, nas tres formas que a MS
+// Digital usa hoje (varredura dos 870 produtos em 21/09/2026):
+//
+//   483x  "Em estoque (40 unidades)"   -> quantidade exata
+//   376x  "Indisponivel no momento"    -> acabou; a loja NAO tira do catalogo
+//    11x  "Disponivel"                 -> tem, mas nao diz quanto
+//
+// Antes, so a primeira forma era lida e as outras duas viravam null. Como quem
+// grava so mexe em 'stock' quando vem numero, os 387 produtos sem numero
+// ficavam com a quantidade da ultima vez que TIVERAM estoque -- e ainda eram
+// marcados como disponiveis, porque apareceram na coleta do dia. Dava no
+// vendedor anunciando o que o fornecedor nao tem.
+//
+// Devolve os dois lados separados de proposito:
+//   estoque    numero, ou null quando a loja nao diz a quantidade
+//   disponivel true/false, ou null quando a loja nao diz nada
+// Null nos dois e "nao perguntei" -- quem grava mantem o que ja estava no banco.
+function extrairDisponibilidade(texto) {
+  const m = texto.match(/\*\*Disponibilidade:\*\*\s*(.*)/i);
+  if (!m) return { estoque: null, disponivel: null };
+
+  const linha = m[1].trim();
+
+  const quantidade = linha.match(/\((\d+)\s*unidades?\)/i);
+  if (quantidade) {
+    const n = parseInt(quantidade[1], 10);
+    return { estoque: n, disponivel: n > 0 };
+  }
+
+  // Sem acento e sem caixa: o site escreve "Indisponivel", mas nao custa
+  // aceitar "indisponível" se um dia arrumarem o texto.
+  const normal = linha
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (/indisponiv|esgotad|sem estoque|fora de estoque/.test(normal)) {
+    return { estoque: 0, disponivel: false };
+  }
+
+  if (/disponiv|em estoque/.test(normal)) {
+    // Diz que tem, mas nao quanto. Nao inventa numero: so afirma que existe.
+    return { estoque: null, disponivel: true };
+  }
+
+  return { estoque: null, disponivel: null };
 }
 
 async function buscarComplemento(produtoId) {
@@ -71,7 +113,7 @@ async function buscarComplemento(produtoId) {
       descricao: secaoDescricao ? extrairDescricaoBreve(secaoDescricao) : null,
       imagem: imagens[0] || null,
       imagens,
-      estoque: extrairEstoque(texto),
+      ...extrairDisponibilidade(texto),
     };
   } catch {
     return {};
@@ -125,6 +167,7 @@ async function rasparCatalogoPublico(catalogoUrl) {
       imagem: null,
       imagens: [],
       estoque: null,
+      disponivel: null,
       url: bruto.url || null,
       fonte: "feed_publico",
     };
@@ -133,12 +176,17 @@ async function rasparCatalogoPublico(catalogoUrl) {
     if (faltaAlgo && produtoId) {
       const complemento = await buscarComplemento(produtoId);
       for (const [chave, valor] of Object.entries(complemento)) {
-        if (chave === "imagens" || chave === "estoque") continue; // tratados abaixo (array/zero sao "falsy" mas validos)
+        // 'estoque' e 'disponivel' ficam de fora: zero e false sao "falsy" mas
+        // sao respostas legitimas, e o teste abaixo as jogaria no lixo.
+        if (chave === "imagens" || chave === "estoque" || chave === "disponivel") continue;
         if (valor && !produto[chave]) produto[chave] = valor;
       }
       if (complemento.imagens && complemento.imagens.length) produto.imagens = complemento.imagens;
       if (!produto.imagem && complemento.imagem) produto.imagem = complemento.imagem;
       if (produto.estoque === null && typeof complemento.estoque === "number") produto.estoque = complemento.estoque;
+      if (produto.disponivel === null && typeof complemento.disponivel === "boolean") {
+        produto.disponivel = complemento.disponivel;
+      }
     }
     return produto;
   });
