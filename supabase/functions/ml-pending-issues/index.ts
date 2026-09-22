@@ -55,6 +55,13 @@ function traduzirMotivo(motivoBruto: string): string {
   if (motivoBruto.includes("Pedido sem item associado")) {
     return "Este pedido veio sem nenhum item identificável — pode ser um caso incomum do Mercado Livre.";
   }
+  // A resposta que não era JSON. Chegava na tela como "SyntaxError:
+  // Unexpected token '<', "<html> <h"... is not valid JSON" — ruído puro para
+  // quem só quer saber se a venda entrou. Fica aqui para traduzir também os
+  // registros antigos, gravados antes do conserto nas funções.
+  if (motivoBruto.includes("is not valid JSON") || motivoBruto.includes("Unexpected token")) {
+    return "O Mercado Livre respondeu com uma página de erro em vez dos dados do pedido — instabilidade do lado deles, não do seu cadastro. Sincronize de novo em alguns minutos.";
+  }
   return motivoBruto;
 }
 
@@ -162,8 +169,36 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Problema resolvido para de aparecer.
+    //
+    // Sem isto, a falha ficava na tela para sempre: o vendedor sincronizava,
+    // o pedido entrava, e o aviso vermelho continuava lá mandando ele
+    // "tentar novamente" uma coisa que já tinha dado certo.
+    const pendentes = Array.from(unicos.values());
+    const idsParaConferir = pendentes
+      .map((issue) => issue.ml_order_id)
+      .filter((id): id is string => Boolean(id));
+
+    if (idsParaConferir.length > 0) {
+      const { data: jaImportados } = await supabase
+        .from("orders")
+        .select("ml_order_id")
+        .eq("user_id", vendedorId)
+        .in("ml_order_id", idsParaConferir);
+
+      const resolvidos = new Set(
+        (jaImportados ?? []).map((pedido) => String(pedido.ml_order_id))
+      );
+
+      for (let i = pendentes.length - 1; i >= 0; i--) {
+        if (pendentes[i].ml_order_id && resolvidos.has(pendentes[i].ml_order_id!)) {
+          pendentes.splice(i, 1);
+        }
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: true, issues: Array.from(unicos.values()) }),
+      JSON.stringify({ success: true, issues: pendentes }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

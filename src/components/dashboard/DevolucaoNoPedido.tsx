@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, Check, Copy, MessageCircle, RotateCcw } from 'lucide-react';
+import { AlertCircle, Check, Copy, RotateCcw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ModalPortal from '../ui/modal-portal';
 
@@ -22,7 +22,6 @@ interface Props {
     tracking_code: string | null;
   };
   devolucao?: Devolucao;
-  supplierWhatsapp?: string | null;
   onMudou: () => void;
 }
 
@@ -90,7 +89,6 @@ function diasUteisAte(data: string): number {
 export default function DevolucaoNoPedido({
   order,
   devolucao,
-  supplierWhatsapp,
   onMudou,
 }: Props) {
   const [aberto, setAberto] = useState(false);
@@ -135,18 +133,6 @@ export default function DevolucaoNoPedido({
     await navigator.clipboard.writeText(texto);
     setCopiado(true);
     window.setTimeout(() => setCopiado(false), 1600);
-  };
-
-  const abrirWhatsApp = (texto: string) => {
-    const numero = (supplierWhatsapp || '').replace(/\D/g, '');
-
-    window.open(
-      numero
-        ? `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`
-        : `https://wa.me/?text=${encodeURIComponent(texto)}`,
-      '_blank',
-      'noopener,noreferrer'
-    );
   };
 
   // Já registrada: mostra onde está e quanto falta.
@@ -221,15 +207,6 @@ export default function DevolucaoNoPedido({
           >
             {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
             {copiado ? 'Copiado' : 'Copiar mensagem'}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => abrirWhatsApp(texto)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-white dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
-          >
-            <MessageCircle className="w-3.5 h-3.5" />
-            Reenviar no WhatsApp
           </button>
         </div>
       </div>
@@ -336,15 +313,6 @@ export default function DevolucaoNoPedido({
                     >
                       {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                       {copiado ? 'Copiado' : 'Copiar'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => abrirWhatsApp(previa)}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 text-xs font-semibold transition-colors"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      Abrir WhatsApp
                     </button>
                   </div>
                 </div>

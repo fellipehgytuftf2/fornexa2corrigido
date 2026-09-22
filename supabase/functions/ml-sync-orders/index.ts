@@ -126,17 +126,33 @@ Deno.serve(async (req: Request) => {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     );
 
-    const ordersData = await ordersResponse.json();
+    // Texto primeiro, JSON depois. Quando o Mercado Livre está fora do ar a
+    // resposta é a página HTML do gateway dele, e `.json()` direto derrubava
+    // a sincronização inteira com "Unexpected token '<'" — sem dizer ao
+    // vendedor que o problema era lá, não aqui.
+    const corpoDaBusca = await ordersResponse.text();
 
-    if (!ordersResponse.ok) {
-      console.error("Falha ao buscar pedidos no Mercado Livre:", ordersData);
+    let ordersData: Record<string, any> | null = null;
+
+    try {
+      ordersData = JSON.parse(corpoDaBusca);
+    } catch {
+      ordersData = null;
+    }
+
+    if (!ordersResponse.ok || !ordersData) {
+      console.error("Falha ao buscar pedidos no Mercado Livre:", corpoDaBusca.slice(0, 500));
       await supabase.from("log_integracao_ml").insert({
         contexto: "ml-sync-orders",
         mensagem: "Falha ao buscar pedidos no Mercado Livre",
-        detalhes: ordersData,
+        detalhes: { status: ordersResponse.status, corpo: corpoDaBusca.slice(0, 500) },
       });
       return new Response(
-        JSON.stringify({ error: "Não foi possível buscar os pedidos no Mercado Livre." }),
+        JSON.stringify({
+          error: ordersData
+            ? "Não foi possível buscar os pedidos no Mercado Livre."
+            : "O Mercado Livre está fora do ar agora. Tente sincronizar de novo em alguns minutos.",
+        }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -389,8 +405,13 @@ Deno.serve(async (req: Request) => {
             customer_address: customerAddress,
             supplier_name: supplier.name ?? "",
             supplier_company_name: supplier.company_name ?? supplier.companyName ?? "",
-            supplier_whatsapp: supplier.whatsapp ?? "",
-            supplier_email: supplier.email ?? "",
+            // Vazios de propósito. As colunas continuam existindo porque o
+            // pedido é lido com `select` de lista em vários lugares, mas o
+            // contato do fornecedor não é mais copiado para dentro do pedido: a
+            // linha de `orders` é do vendedor, e tudo que entra nela ele pode
+            // ler. Contato de fornecedor, só no Admin.
+            supplier_whatsapp: "",
+            supplier_email: "",
             supplier_shipping_time: supplier.average_shipping_time ?? supplier.averageShippingTime ?? "",
             supplier_price: userProduct.supplier_price,
             sale_price: salePrice,

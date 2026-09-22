@@ -18,8 +18,6 @@ interface SupplierFromSupabase {
   id: string;
   name: string;
   company_name: string;
-  whatsapp: string;
-  email: string;
   city: string;
   state: string;
   average_shipping_time: string;
@@ -97,6 +95,9 @@ export default function MyProducts() {
       return;
     }
 
+    // Contato do fornecedor não entra aqui. A tela nunca mostrou WhatsApp nem
+    // e-mail dele, mas vinham na resposta assim mesmo — e o que chega ao
+    // navegador está disponível a quem abrir o inspetor.
     const { data, error } = await supabase
       .from('user_products')
       .select(`
@@ -122,8 +123,6 @@ export default function MyProducts() {
           id,
           name,
           company_name,
-          whatsapp,
-          email,
           city,
           state,
           average_shipping_time

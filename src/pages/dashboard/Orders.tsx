@@ -35,7 +35,6 @@ interface Supplier {
   id: string;
   name: string;
   company_name: string;
-  whatsapp: string;
   city: string;
   state: string;
   status: 'active' | 'inactive';
@@ -58,7 +57,6 @@ interface Order {
   customer_email: string | null;
   customer_phone: string | null;
   supplier_id: string | null;
-  supplier_whatsapp: string | null;
   supplier_price: number;
   sale_price: number;
   profit: number;
@@ -401,6 +399,13 @@ export default function Orders() {
       setEhAdmin(perfil?.role === 'admin');
     }
 
+    // O WhatsApp do fornecedor não é mais buscado — nem a cópia em
+    // `orders.supplier_whatsapp`, nem o campo da tabela `suppliers`. Era por
+    // aqui que ele chegava ao vendedor: bastava a tela de Pedidos carregar.
+    // Vendedor falando direto com a fonte é o FORNEXA saindo do meio, e tirar
+    // só o botão não adiantaria — o número seguia dentro do que o navegador
+    // recebe, a um inspetor de distância. A devolução avisa o fornecedor pelo
+    // Portal dele, que é onde ela sempre foi confirmada.
     const { data, error } = await supabase
       .from('orders')
       .select(`
@@ -413,7 +418,6 @@ export default function Orders() {
         customer_email,
         customer_phone,
         supplier_id,
-        supplier_whatsapp,
         supplier_price,
         sale_price,
         profit,
@@ -436,7 +440,6 @@ export default function Orders() {
           id,
           name,
           company_name,
-          whatsapp,
           city,
           state,
           status,
@@ -794,7 +797,6 @@ export default function Orders() {
         <div className="space-y-5">
           {pedidosDaPagina.map((order) => {
             const supplier = getSupplier(order);
-            const supplierWhatsapp = order.supplier_whatsapp || supplier?.whatsapp;
 
             return (
               <div
@@ -1010,7 +1012,6 @@ export default function Orders() {
                     {order.status === 'delivered' && !devolucoes[order.id] && (
                       <DevolucaoNoPedido
                         order={order}
-                        supplierWhatsapp={supplierWhatsapp}
                         onMudou={loadOrders}
                       />
                     )}
@@ -1096,7 +1097,6 @@ export default function Orders() {
                     <DevolucaoNoPedido
                       order={order}
                       devolucao={devolucoes[order.id]}
-                      supplierWhatsapp={supplierWhatsapp}
                       onMudou={loadOrders}
                     />
                   )}

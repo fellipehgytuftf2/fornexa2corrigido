@@ -22,9 +22,12 @@
 //      de processar qualquer coisa — se o processamento falhar, a
 //      notificação não se perde, fica registrada com status 'erro' e a
 //      mensagem do problema, pra investigar depois.
-//   2. SEMPRE responde 200 pro Mercado Livre (mesmo se o processamento
-//      interno falhar) — isso evita que o ML fique reenviando a mesma
-//      notificação em loop; o controle de falha fica só no nosso banco.
+//   2. Responde 200 pro Mercado Livre mesmo quando o processamento interno
+//      falha — isso evita que o ML fique reenviando a mesma notificação em
+//      loop; o controle de falha fica no nosso banco. A exceção é a falha
+//      PASSAGEIRA, de fora (conexão do vendedor caída, Mercado Livre fora do
+//      ar): aí responde 503 de propósito, porque 200 faria o ML dar a venda
+//      por entregue e ela sumiria para sempre.
 //   3. Reaproveita a MESMA lógica de casamento produto→fornecedor e a MESMA
 //      regra de nunca sobrescrever o status manual do vendedor, que já
 //      existe em ml-sync-orders.
@@ -302,24 +305,51 @@ Deno.serve(async (req: Request) => {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    const mlOrder = await orderDetailResponse.json();
+    // Lê como texto antes de tentar JSON, de propósito.
+    //
+    // Quando o Mercado Livre tropeça, quem responde é o gateway dele, com uma
+    // página HTML. `.json()` direto estourava `SyntaxError: Unexpected token
+    // '<'`, o erro caía no catch geral lá de baixo e ia cru para a tela de
+    // Pedidos do vendedor — uma mensagem que não explica nada e faz parecer
+    // defeito do FORNEXA.
+    const corpoDoPedido = await orderDetailResponse.text();
 
-    if (!orderDetailResponse.ok) {
+    let mlOrder: Record<string, any> | null = null;
+
+    try {
+      mlOrder = JSON.parse(corpoDoPedido);
+    } catch {
+      mlOrder = null;
+    }
+
+    if (!orderDetailResponse.ok || !mlOrder) {
+      // Instabilidade do lado deles passa; 404 e 403 não. Só a primeira vale
+      // pedir reenvio — e vale muito: respondendo 200, o Mercado Livre dá a
+      // notificação por entregue e a venda só entra se alguém lembrar de
+      // clicar em "Sincronizar" dentro dos 30 dias que a busca alcança.
+      const passageiro = !mlOrder || orderDetailResponse.status >= 500;
+
       if (webhookEventId) {
         await supabase
           .from("webhook_events")
           .update({
             status: "erro",
-            erro_mensagem: `Falha ao buscar detalhes do pedido: ${JSON.stringify(mlOrder)}`,
+            erro_mensagem:
+              `Falha ao buscar detalhes do pedido: o Mercado Livre respondeu ` +
+              `${orderDetailResponse.status} com ${mlOrder ? "um erro" : "algo que não é JSON"}` +
+              ` — ${corpoDoPedido.slice(0, 200)}`,
             processado_em: new Date().toISOString(),
           })
           .eq("id", webhookEventId);
       }
 
-      return new Response(JSON.stringify({ received: true }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ received: !passageiro, retry: passageiro }),
+        {
+          status: passageiro ? 503 : 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const mlOrderId = String(mlOrder.id);
@@ -510,8 +540,13 @@ Deno.serve(async (req: Request) => {
         customer_address: customerAddress,
         supplier_name: supplier.name ?? "",
         supplier_company_name: supplier.company_name ?? supplier.companyName ?? "",
-        supplier_whatsapp: supplier.whatsapp ?? "",
-        supplier_email: supplier.email ?? "",
+        // Vazios de propósito. As colunas continuam existindo porque o
+        // pedido é lido com `select` de lista em vários lugares, mas o
+        // contato do fornecedor não é mais copiado para dentro do pedido: a
+        // linha de `orders` é do vendedor, e tudo que entra nela ele pode
+        // ler. Contato de fornecedor, só no Admin.
+        supplier_whatsapp: "",
+        supplier_email: "",
         supplier_shipping_time: supplier.average_shipping_time ?? supplier.averageShippingTime ?? "",
         supplier_price: userProduct.supplier_price,
         sale_price: salePrice,
