@@ -455,7 +455,15 @@ export default function EstoqueFornecedor() {
                     <p className="text-white font-medium truncate">{produto.nome}</p>
 
                     <p className="text-sm text-slate-400 mt-0.5">
-                      {formatarPreco(produto.preco)}
+                      {/* Preço zero não é preço: é produto que entrou pela
+                          sincronização do catálogo e ainda não foi precificado.
+                          Mostrar "R$ 0,00" fazia o fornecedor ler como erro —
+                          e ele reclamou disso em 22/09. */}
+                      {Number(produto.preco) > 0 ? (
+                        formatarPreco(produto.preco)
+                      ) : (
+                        <span className="text-amber-300/90">aguardando preço</span>
+                      )}
 
                       {fora && <span className="ml-2 text-red-400">· fora do catálogo</span>}
 

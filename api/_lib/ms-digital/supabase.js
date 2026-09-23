@@ -28,6 +28,27 @@ import { mapComLimite } from "./concurrency.js";
 import { chaveSecreta, urlDoProjeto } from "../chavesSupabase.js";
 
 const NOME_FORNECEDOR = "MS Digital";
+
+/**
+ * A chave pela qual dois nomes contam como o mesmo produto.
+ *
+ * Em 22/09/2026 a MS Digital limpou espaços duplos de dezenas de nomes
+ * ("6 Pilhas Baterias  Para" virou "6 Pilhas Baterias Para"). O casamento era
+ * pelo nome cru, entao nome diferente virou produto novo: 34 duplicatas numa
+ * rodada so, cada uma sem preco de custo e ao lado do original.
+ *
+ * Normalizar nao substitui o casamento por id — esse continua sendo o certo.
+ * Mas o nome ainda e a unica saida quando o produto aparece pela primeira vez,
+ * e ai vale ignorar o que nao muda o produto: caixa, acento e espaco sobrando.
+ */
+function chaveDoNome(nome) {
+  return String(nome || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
 const CONCORRENCIA_GRAVACAO = 15;
 
 // O que comparamos para decidir se vale gravar. 'updated_at' fica de fora de
@@ -280,7 +301,7 @@ export async function salvarNoSupabase(produtos, opcoes = {}) {
   const mapaPorNome = new Map();
   for (const linha of existentes) {
     if (linha.fornecedor_produto_id) mapaPorId.set(String(linha.fornecedor_produto_id), linha);
-    mapaPorNome.set(linha.name, linha);
+    mapaPorNome.set(chaveDoNome(linha.name), linha);
   }
 
   const idsEncontradosHoje = new Set();
@@ -296,9 +317,10 @@ export async function salvarNoSupabase(produtos, opcoes = {}) {
 
     const produtoId = produto.id != null ? String(produto.id) : null;
     if (produtoId) idsEncontradosHoje.add(produtoId);
-    nomesEncontradosHoje.add(produto.nome);
+    nomesEncontradosHoje.add(chaveDoNome(produto.nome));
 
-    const existente = (produtoId && mapaPorId.get(produtoId)) || mapaPorNome.get(produto.nome);
+    const existente =
+      (produtoId && mapaPorId.get(produtoId)) || mapaPorNome.get(chaveDoNome(produto.nome));
     const campos = montarCamposAtuais(produto);
 
     if (existente) {
@@ -375,7 +397,7 @@ export async function salvarNoSupabase(produtos, opcoes = {}) {
     sumiram = existentes.filter((p) => {
       if (p.indisponivel_no_fornecedor) return false;
       if (p.fornecedor_produto_id && idsEncontradosHoje.has(String(p.fornecedor_produto_id))) return false;
-      return !nomesEncontradosHoje.has(p.name);
+      return !nomesEncontradosHoje.has(chaveDoNome(p.name));
     });
     await mapComLimite(sumiram, CONCORRENCIA_GRAVACAO, async (p) => {
       try {
