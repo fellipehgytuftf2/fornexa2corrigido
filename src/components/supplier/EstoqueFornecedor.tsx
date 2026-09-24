@@ -57,6 +57,16 @@ export default function EstoqueFornecedor() {
   const [rascunho, setRascunho] = useState<Record<string, string>>({});
 
   /**
+   * O preço em edição.
+   *
+   * Fica fechado até alguém clicar: a tela é de contagem de estoque, e um
+   * campo de preço sempre aberto em toda linha convida ao erro de digitação
+   * no produto errado.
+   */
+  const [editandoPreco, setEditandoPreco] = useState<string | null>(null);
+  const [precoRascunho, setPrecoRascunho] = useState<Record<string, string>>({});
+
+  /**
    * Busca por nome.
    *
    * Catálogo de fornecedor passa de cem itens rápido, e contar estoque é ir
@@ -194,6 +204,55 @@ export default function EstoqueFornecedor() {
       )
     );
     setRascunho((atual) => ({ ...atual, [produto.id]: String(gravado) }));
+
+    setSalvoId(produto.id);
+    window.setTimeout(() => setSalvoId((atual) => (atual === produto.id ? null : atual)), 1600);
+  };
+
+  /**
+   * O fornecedor corrige o próprio preço de custo.
+   *
+   * O preço vinha só da sincronização do catálogo, que depende de login na
+   * loja da MS Digital — e esse login não sobe na Vercel. Resultado: produto
+   * novo ficava "aguardando preço" e reajuste de produto antigo nunca chegava.
+   * Quem sabe o preço é ele.
+   */
+  const gravarPreco = async (produto: ProdutoDoFornecedor, valor: string) => {
+    const preco = Number(String(valor).replace(',', '.'));
+
+    setEditandoPreco(null);
+
+    if (!Number.isFinite(preco) || preco <= 0 || preco === Number(produto.preco)) {
+      // Campo vazio, lixo digitado, ou o mesmo preço de antes.
+      return;
+    }
+
+    setSalvandoId(produto.id);
+    setErro('');
+
+    const { data, error } = await supabase.rpc('fornecedor_define_preco', {
+      p_produto_id: produto.id,
+      p_preco: preco,
+    });
+
+    setSalvandoId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      setErro(error?.message ?? resposta?.erro ?? 'Não foi possível salvar o preço.');
+      return;
+    }
+
+    // `voltou_ao_catalogo` só vem true quando o produto estava fora por não
+    // ter preço. Produto que o admin desativou por outro motivo continua fora.
+    const voltou = Boolean((resposta as { voltou_ao_catalogo?: boolean }).voltou_ao_catalogo);
+
+    setProdutos((atuais) =>
+      atuais.map((item) =>
+        item.id === produto.id ? { ...item, preco, ativo: item.ativo || voltou } : item
+      )
+    );
 
     setSalvoId(produto.id);
     window.setTimeout(() => setSalvoId((atual) => (atual === produto.id ? null : atual)), 1600);
@@ -458,11 +517,60 @@ export default function EstoqueFornecedor() {
                       {/* Preço zero não é preço: é produto que entrou pela
                           sincronização do catálogo e ainda não foi precificado.
                           Mostrar "R$ 0,00" fazia o fornecedor ler como erro —
-                          e ele reclamou disso em 22/09. */}
-                      {Number(produto.preco) > 0 ? (
-                        formatarPreco(produto.preco)
+                          e ele reclamou disso em 22/09.
+
+                          Clicar no preço abre o campo: é assim que ele corrige
+                          um reajuste sem esperar a sincronização, que hoje não
+                          traz preço nenhum. */}
+                      {editandoPreco === produto.id ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-slate-500">R$</span>
+
+                          <label className="sr-only" htmlFor={`preco-${produto.id}`}>
+                            Preço de custo de {produto.nome}
+                          </label>
+
+                          <input
+                            id={`preco-${produto.id}`}
+                            type="text"
+                            inputMode="decimal"
+                            autoFocus
+                            value={precoRascunho[produto.id] ?? ''}
+                            onChange={(evento) =>
+                              setPrecoRascunho((atual) => ({
+                                ...atual,
+                                [produto.id]: evento.target.value,
+                              }))
+                            }
+                            onBlur={(evento) => gravarPreco(produto, evento.target.value)}
+                            onKeyDown={(evento) => {
+                              if (evento.key === 'Enter') evento.currentTarget.blur();
+                              if (evento.key === 'Escape') setEditandoPreco(null);
+                            }}
+                            className="w-24 rounded-lg border border-white/10 bg-navy-900/60 px-2.5 py-1 text-white font-mono tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+                          />
+                        </span>
                       ) : (
-                        <span className="text-amber-300/90">aguardando preço</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditandoPreco(produto.id);
+                            setPrecoRascunho((atual) => ({
+                              ...atual,
+                              [produto.id]:
+                                Number(produto.preco) > 0
+                                  ? String(produto.preco).replace('.', ',')
+                                  : '',
+                            }));
+                          }}
+                          className="underline decoration-dotted underline-offset-4 transition-colors hover:text-white"
+                        >
+                          {Number(produto.preco) > 0 ? (
+                            formatarPreco(produto.preco)
+                          ) : (
+                            <span className="text-amber-300/90">aguardando preço · informar</span>
+                          )}
+                        </button>
                       )}
 
                       {fora && <span className="ml-2 text-red-400">· fora do catálogo</span>}
