@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ClipboardEvent,
+  type ReactNode,
+} from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +26,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { AlertCircle, GripVertical, Plus, Trash2, X } from 'lucide-react';
+import { AlertCircle, GripVertical, ImagePlus, Paperclip, Plus, Trash2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ModalPortal from '../../components/ui/modal-portal';
 
@@ -34,7 +40,11 @@ interface Tarefa {
   coluna: Coluna;
   posicao: number;
   prioridade: Prioridade;
+  /** Caminhos no balde `kanban`. Print da tela que originou a tarefa. */
+  imagens: string[];
 }
+
+const COLUNAS_DA_TAREFA = 'id, titulo, descricao, coluna, posicao, prioridade, imagens';
 
 const COLUNAS: { id: Coluna; titulo: string; corPonto: string }[] = [
   { id: 'a_fazer', titulo: 'A fazer', corPonto: 'bg-gray-400' },
@@ -64,6 +74,80 @@ function localizar(board: Board, id: string): { coluna: Coluna; indice: number }
     if (indice !== -1) return { coluna: coluna.id, indice };
   }
   return null;
+}
+
+/**
+ * Os prints de um card.
+ *
+ * Miniatura que abre a imagem inteira em outra aba: o print de tela chega em
+ * 1900px de largura e não se lê dentro de um modal de 448px.
+ */
+function Anexos({
+  caminhos,
+  urls,
+  subindo,
+  onEscolher,
+  onRemover,
+}: {
+  caminhos: string[];
+  urls: Record<string, string>;
+  subindo: boolean;
+  onEscolher: (arquivo: File) => void;
+  onRemover: (caminho: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-navy-900 dark:text-white mb-2">
+        Imagens
+      </label>
+
+      {caminhos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {caminhos.map((caminho) => (
+            <div key={caminho} className="relative">
+              <a href={urls[caminho]} target="_blank" rel="noreferrer">
+                <img
+                  src={urls[caminho]}
+                  alt="Print anexado"
+                  className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-700"
+                />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => onRemover(caminho)}
+                aria-label="Remover imagem"
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black text-white flex items-center justify-center hover:bg-gray-800"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-gray-300 dark:border-navy-600 text-sm font-medium text-gray-600 dark:text-slate-300 cursor-pointer hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors">
+        <ImagePlus className="w-4 h-4" aria-hidden="true" />
+        {subindo ? 'Enviando...' : 'Anexar print'}
+
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          disabled={subindo}
+          onChange={(evento) => {
+            const arquivo = evento.target.files?.[0];
+            if (arquivo) onEscolher(arquivo);
+            evento.target.value = '';
+          }}
+        />
+      </label>
+
+      <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+        Ou dê Ctrl+V com o print copiado, em qualquer lugar desta janela.
+      </p>
+    </div>
+  );
 }
 
 function Cartao({
@@ -109,6 +193,13 @@ function Cartao({
         {tarefa.descricao && (
           <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2 break-words">
             {tarefa.descricao}
+          </p>
+        )}
+
+        {tarefa.imagens?.length > 0 && (
+          <p className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-slate-500 mt-1.5">
+            <Paperclip className="w-3 h-3" aria-hidden="true" />
+            {tarefa.imagens.length}
           </p>
         )}
       </button>
@@ -208,10 +299,158 @@ export default function AdminKanban() {
   const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null);
   const [excluindo, setExcluindo] = useState(false);
 
+  /**
+   * Imagens.
+   *
+   * O balde é privado — print do FORNEXA carrega endereço de cliente e valor
+   * de pedido —, então nada aqui é URL direta: cada caminho vira uma URL
+   * assinada de uma hora, guardada enquanto a tela está aberta.
+   */
+  const [urlsDeImagem, setUrlsDeImagem] = useState<Record<string, string>>({});
+  const [subindoImagem, setSubindoImagem] = useState(false);
+  /** Imagens já enviadas para um card que ainda não foi criado. */
+  const [novasImagens, setNovasImagens] = useState<string[]>([]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Assina só o que está na tela e ainda não tem URL. Assinar o quadro
+  // inteiro gastaria uma chamada por print de card que ninguém abriu.
+  useEffect(() => {
+    const caminhos = [...(tarefaEditando?.imagens ?? []), ...novasImagens].filter(
+      (caminho) => !urlsDeImagem[caminho]
+    );
+
+    if (caminhos.length === 0) return;
+
+    let vivo = true;
+
+    (async () => {
+      const novas: Record<string, string> = {};
+
+      for (const caminho of caminhos) {
+        const { data } = await supabase.storage
+          .from('kanban')
+          .createSignedUrl(caminho, 3600);
+
+        if (data?.signedUrl) novas[caminho] = data.signedUrl;
+      }
+
+      if (vivo && Object.keys(novas).length > 0) {
+        setUrlsDeImagem((atuais) => ({ ...atuais, ...novas }));
+      }
+    })();
+
+    return () => {
+      vivo = false;
+    };
+  }, [tarefaEditando, novasImagens, urlsDeImagem]);
+
+  const subirImagem = async (arquivo: File): Promise<string | null> => {
+    setSubindoImagem(true);
+    setErrorMessage('');
+
+    const extensao = arquivo.name.split('.').pop()?.toLowerCase() || 'png';
+    const caminho = `${crypto.randomUUID()}.${extensao}`;
+
+    const { error } = await supabase.storage.from('kanban').upload(caminho, arquivo, {
+      contentType: arquivo.type || 'image/png',
+    });
+
+    setSubindoImagem(false);
+
+    if (error) {
+      setErrorMessage(`Não foi possível enviar a imagem: ${error.message}`);
+      return null;
+    }
+
+    return caminho;
+  };
+
+  /** Troca um card pelo mesmo card atualizado, onde quer que ele esteja. */
+  const trocarNoBoard = (tarefa: Tarefa) => {
+    setBoard((atual) => {
+      const posicao = localizar(atual, tarefa.id);
+      if (!posicao) return atual;
+      const coluna = [...atual[posicao.coluna]];
+      coluna[posicao.indice] = tarefa;
+      return { ...atual, [posicao.coluna]: coluna };
+    });
+  };
+
+  /**
+   * No card já criado a imagem grava na hora, sem esperar o botão Salvar:
+   * quem anexa um print e fecha o modal espera que ele tenha ficado lá.
+   */
+  const anexarNaTarefa = async (arquivo: File) => {
+    if (!tarefaEditando) return;
+
+    const caminho = await subirImagem(arquivo);
+    if (!caminho) return;
+
+    const imagens = [...(tarefaEditando.imagens ?? []), caminho];
+
+    const { error } = await supabase
+      .from('admin_tarefas')
+      .update({ imagens, atualizado_em: new Date().toISOString() })
+      .eq('id', tarefaEditando.id);
+
+    if (error) {
+      setErrorMessage(`Não foi possível salvar a imagem: ${error.message}`);
+      return;
+    }
+
+    const atualizada = { ...tarefaEditando, imagens };
+    setTarefaEditando(atualizada);
+    trocarNoBoard(atualizada);
+  };
+
+  const removerImagemDaTarefa = async (caminho: string) => {
+    if (!tarefaEditando) return;
+
+    const imagens = (tarefaEditando.imagens ?? []).filter((atual) => atual !== caminho);
+
+    const { error } = await supabase
+      .from('admin_tarefas')
+      .update({ imagens, atualizado_em: new Date().toISOString() })
+      .eq('id', tarefaEditando.id);
+
+    if (error) {
+      setErrorMessage(`Não foi possível remover a imagem: ${error.message}`);
+      return;
+    }
+
+    await supabase.storage.from('kanban').remove([caminho]);
+
+    const atualizada = { ...tarefaEditando, imagens };
+    setTarefaEditando(atualizada);
+    trocarNoBoard(atualizada);
+  };
+
+  const anexarNoCardNovo = async (arquivo: File) => {
+    const caminho = await subirImagem(arquivo);
+    if (caminho) setNovasImagens((atuais) => [...atuais, caminho]);
+  };
+
+  const removerImagemNova = async (caminho: string) => {
+    setNovasImagens((atuais) => atuais.filter((outro) => outro !== caminho));
+    await supabase.storage.from('kanban').remove([caminho]);
+  };
+
+  /** Ctrl+V com print na área de transferência anexa direto. */
+  const colar =
+    (anexar: (arquivo: File) => void) => (evento: ClipboardEvent<HTMLDivElement>) => {
+      const arquivo = Array.from(evento.clipboardData?.files ?? []).find((item) =>
+        item.type.startsWith('image/')
+      );
+
+      if (!arquivo) return;
+
+      evento.preventDefault();
+      anexar(arquivo);
+    };
 
   const carregar = async () => {
     setLoading(true);
@@ -219,7 +458,7 @@ export default function AdminKanban() {
 
     const { data, error } = await supabase
       .from('admin_tarefas')
-      .select('id, titulo, descricao, coluna, posicao, prioridade')
+      .select(COLUNAS_DA_TAREFA)
       .order('posicao', { ascending: true });
 
     setLoading(false);
@@ -371,9 +610,10 @@ export default function AdminKanban() {
         coluna: 'a_fazer',
         posicao,
         prioridade: novaPrioridade,
+        imagens: novasImagens,
         criado_por: user?.id ?? null,
       })
-      .select('id, titulo, descricao, coluna, posicao, prioridade')
+      .select(COLUNAS_DA_TAREFA)
       .single();
 
     setSalvando(false);
@@ -387,6 +627,7 @@ export default function AdminKanban() {
     setNovoTitulo('');
     setNovaDescricao('');
     setNovaPrioridade('normal');
+    setNovasImagens([]);
     setNovaTarefaAberta(false);
   };
 
@@ -539,7 +780,10 @@ export default function AdminKanban() {
       {novaTarefaAberta && (
         <ModalPortal>
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-md shadow-2xl">
+            <div
+              onPaste={colar(anexarNoCardNovo)}
+              className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-md shadow-2xl"
+            >
               <div className="p-5 border-b border-gray-200 dark:border-navy-700 flex items-start justify-between gap-4">
                 <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
                   Nova tarefa
@@ -582,11 +826,22 @@ export default function AdminKanban() {
                 </div>
 
                 <SeletorDePrioridade valor={novaPrioridade} onChange={setNovaPrioridade} />
+
+                <Anexos
+                  caminhos={novasImagens}
+                  urls={urlsDeImagem}
+                  subindo={subindoImagem}
+                  onEscolher={anexarNoCardNovo}
+                  onRemover={removerImagemNova}
+                />
               </div>
 
               <div className="p-5 border-t border-gray-200 dark:border-navy-700 flex justify-end gap-3">
                 <button
-                  onClick={() => setNovaTarefaAberta(false)}
+                  onClick={() => {
+                    setNovasImagens([]);
+                    setNovaTarefaAberta(false);
+                  }}
                   className="px-4 py-3 rounded-xl border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors"
                 >
                   Cancelar
@@ -608,7 +863,10 @@ export default function AdminKanban() {
       {tarefaEditando && (
         <ModalPortal>
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-md shadow-2xl">
+            <div
+              onPaste={colar(anexarNaTarefa)}
+              className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-md shadow-2xl"
+            >
               <div className="p-5 border-b border-gray-200 dark:border-navy-700 flex items-start justify-between gap-4">
                 <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
                   Editar tarefa
@@ -657,6 +915,14 @@ export default function AdminKanban() {
                   onChange={(prioridade) =>
                     setTarefaEditando({ ...tarefaEditando, prioridade })
                   }
+                />
+
+                <Anexos
+                  caminhos={tarefaEditando.imagens ?? []}
+                  urls={urlsDeImagem}
+                  subindo={subindoImagem}
+                  onEscolher={anexarNaTarefa}
+                  onRemover={removerImagemDaTarefa}
                 />
               </div>
 
