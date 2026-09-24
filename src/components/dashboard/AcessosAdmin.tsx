@@ -198,7 +198,11 @@ export default function AcessosAdmin() {
     setCarregando(true);
     setErro('');
 
-    const { data, error } = await supabase.rpc('admin_mapa_de_acesso');
+    // Versão json da mesma função. A que devolve tabela vinha cortada nas
+    // primeiras 1000 contas pelo teto do PostgREST, e a busca desta tela é
+    // feita aqui dentro — conta que não chegou não podia ser encontrada.
+    // Ver migração 20260923210000_contas_somem_do_admin.sql.
+    const { data, error } = await supabase.rpc('admin_mapa_de_acesso_completo');
 
     if (error) {
       setErro(`Não foi possível carregar os acessos: ${error.message}`);
