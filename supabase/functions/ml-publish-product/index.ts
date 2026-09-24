@@ -377,6 +377,35 @@ interface PublishBody {
   announcement_image_urls?: string[];
   /** Unidades declaradas no anúncio. Ausente = 10, o padrão da tela. */
   announcement_quantity?: number;
+  /**
+   * O tipo de anúncio, quando o vendedor escolheu um.
+   *
+   * Ausente é o caminho normal: a função prefere o grátis sozinha. Vem
+   * preenchido só na segunda tentativa, depois de o Mercado Livre recusar o
+   * grátis e o vendedor aceitar publicar como pago — ver
+   * `precisa_escolher_tipo_de_anuncio` mais abaixo.
+   */
+  listing_type_id?: string;
+}
+
+/**
+ * O nome que o vendedor entende para cada tipo de anúncio.
+ *
+ * O Mercado Livre devolve `name` junto do id, mas nem sempre — e quando
+ * devolve, vem em espanhol em parte das contas. Com id conhecido, o nome sai
+ * daqui; com id novo, cai no próprio id, que é melhor do que nada.
+ */
+const NOME_DO_TIPO: Record<string, string> = {
+  free: "Grátis",
+  bronze: "Bronze",
+  silver: "Prata",
+  gold: "Ouro",
+  gold_special: "Clássico",
+  gold_pro: "Premium",
+};
+
+function nomeDoTipoDeAnuncio(tipo: { id: string; name?: string }): string {
+  return NOME_DO_TIPO[tipo.id] ?? tipo.name ?? tipo.id;
 }
 
 // Traduz erros conhecidos e recorrentes da API do Mercado Livre em mensagens
@@ -869,9 +898,23 @@ Deno.serve(async (req: Request) => {
     // (não "listing_type_options" como eu tinha assumido inicialmente).
     // Preferimos "free" se estiver disponível (sem custo pro vendedor);
     // senão usamos o primeiro tipo pago da lista.
-    const availableTypes = listingTypesData?.available ?? [];
-    const freeType = availableTypes.find((t: { id: string }) => t.id === "free");
-    const listingTypeId = freeType?.id ?? availableTypes?.[0]?.id;
+    const availableTypes: { id: string; name?: string }[] =
+      listingTypesData?.available ?? [];
+
+    // O tipo que o vendedor escolheu, quando ele escolheu — e só se a conta
+    // dele realmente tem esse tipo nesta categoria. Aceitar qualquer string
+    // vinda do front deixaria a publicação morrer na API do Mercado Livre.
+    const tipoEscolhido = body.listing_type_id
+      ? availableTypes.find((t) => t.id === body.listing_type_id)?.id
+      : undefined;
+
+    const freeType = availableTypes.find((t) => t.id === "free");
+    const listingTypeId = tipoEscolhido ?? freeType?.id ?? availableTypes?.[0]?.id;
+
+    // Os pagos, para oferecer ao vendedor quando o grátis for recusado.
+    const tiposPagos = availableTypes
+      .filter((t) => t.id !== "free")
+      .map((t) => ({ id: t.id, nome: nomeDoTipoDeAnuncio(t) }));
 
     if (!listingTypesResponse.ok || !listingTypeId) {
       console.error("Falha ao identificar tipo de anúncio disponível:", listingTypesData);
@@ -1139,6 +1182,39 @@ Deno.serve(async (req: Request) => {
         detalhes: itemData,
       });
       const mensagemAmigavel = traduzirErroMercadoLivre(itemData);
+
+      /**
+       * O anúncio grátis recusado não é mais fim de linha.
+       *
+       * O Mercado Livre lista "free" como disponível PARA A CATEGORIA mesmo
+       * quando a cota de anúncios grátis DAQUELA CONTA já acabou. A criação
+       * então falha com `listing_type.temporarily_unavailable` — foram 759
+       * das últimas 1000 recusas, todo dia, e o vendedor só via um pedido
+       * para "tentar de novo" que nunca ia dar certo.
+       *
+       * Aqui ele passa a receber a saída junto com o problema: os tipos pagos
+       * que a conta dele tem nesta categoria. Quem escolhe é ele, porque
+       * anúncio pago cobra comissão por venda — o FORNEXA não troca sozinho.
+       */
+      const erroDoTipo = String(itemData?.error ?? "");
+      const gratisIndisponivel =
+        listingTypeId === "free" &&
+        (erroDoTipo.includes("listing_type.temporarily_unavailable") ||
+          String(itemData?.message ?? "")
+            .toLowerCase()
+            .includes("listing type is temporarily unavailable"));
+
+      if (gratisIndisponivel && tiposPagos.length > 0) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "Sua cota de anúncios grátis acabou nesta categoria. Dá para publicar como anúncio pago, que tem comissão por venda.",
+            precisa_escolher_tipo_de_anuncio: true,
+            tipos_pagos: tiposPagos,
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       // Corrigido: itemData.cause pode vir como array VAZIO ([]), que não é
       // null/undefined — então "??" não pulava para itemData.message como
       // deveria, escondendo a mensagem de erro real. Agora checamos se o

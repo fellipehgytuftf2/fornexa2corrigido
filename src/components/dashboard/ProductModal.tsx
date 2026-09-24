@@ -162,6 +162,18 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [publishErrorDetalhe, setPublishErrorDetalhe] = useState('');
 
   /**
+   * Os tipos de anúncio pagos, quando o grátis é recusado.
+   *
+   * O Mercado Livre anuncia "free" como disponível para a categoria mesmo
+   * depois de a cota grátis da conta acabar, e só recusa na hora de criar.
+   * Era aí que o vendedor ficava sem saída: a mensagem mandava tentar de
+   * novo, e tentar de novo dava o mesmo erro. Agora a recusa vem com as
+   * opções pagas da conta dele, e quem escolhe é ele — anúncio pago tem
+   * comissão por venda.
+   */
+  const [tiposPagos, setTiposPagos] = useState<{ id: string; nome: string }[]>([]);
+
+  /**
    * O passo do remetente, quando a publicação para por causa dele.
    *
    * Não é um erro que se lê e se fecha: é uma coisa a fazer. Por isso vira uma
@@ -326,7 +338,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
   const canSaveProduct =
     mercadoLivreConnected && hasLinkedSupplier && !loadingMercadoLivre;
 
-  const handlePublish = async () => {
+  const handlePublish = async (listingTypeId?: string) => {
     if (!canSaveProduct || !product.supplierId) {
       return;
     }
@@ -334,6 +346,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
     setPublishing(true);
     setPublishError('');
     setPublishErrorDetalhe('');
+    setTiposPagos([]);
 
     const {
       data: { user },
@@ -371,6 +384,9 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         announcement_price: precoDeVenda,
         announcement_image_url: fotos[0] || product.image,
         announcement_image_urls: fotos.slice(1),
+        // Só vai preenchido na segunda tentativa, depois de o vendedor
+        // escolher publicar como pago.
+        listing_type_id: listingTypeId,
       },
     });
 
@@ -417,6 +433,15 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           origemNoEnvio: (corpoDoErro.origem_no_envio as string) ?? null,
         });
         return;
+      }
+
+      // A cota de anúncio grátis acabou. Não é erro para ler e fechar: é uma
+      // escolha, e as opções vêm junto na resposta.
+      if (corpoDoErro?.precisa_escolher_tipo_de_anuncio) {
+        setFlowStage('idle');
+        setTiposPagos(
+          (corpoDoErro.tipos_pagos as { id: string; nome: string }[] | undefined) ?? []
+        );
       }
 
       setPublishError(
@@ -539,6 +564,32 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                   <p className="text-red-700 dark:text-red-400 text-sm font-medium">
                     {publishError}
                   </p>
+
+                  {tiposPagos.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-red-700/80 dark:text-red-400/80 text-xs mb-2">
+                        Publicar como anúncio pago (a comissão só é cobrada
+                        quando vender):
+                      </p>
+
+                      <div className="flex flex-wrap gap-2">
+                        {tiposPagos.map((tipo) => (
+                          <button
+                            key={tipo.id}
+                            type="button"
+                            onClick={() => {
+                              setFlowStage('publishing');
+                              handlePublish(tipo.id);
+                            }}
+                            disabled={publishing}
+                            className="px-4 py-2 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+                          >
+                            {tipo.nome}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {publishErrorDetalhe && (
                     <div className="mt-3">
