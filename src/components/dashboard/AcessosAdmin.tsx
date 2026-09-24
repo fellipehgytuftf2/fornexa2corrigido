@@ -51,6 +51,13 @@ interface Conta {
   total_produtos: number;
   criado_em: string | null;
   ultimo_acesso: string | null;
+  /**
+   * Nenhum pagamento pago, nem pelo id nem pelo e-mail.
+   *
+   * Nem toda conta assim é irregular: parte é liberação feita na mão pelo
+   * suporte. Serve para olhar o grupo, não para tratar o grupo inteiro igual.
+   */
+  nunca_pagou?: boolean;
 }
 
 interface FornecedorDaConta {
@@ -108,6 +115,14 @@ const FILTROS: { id: string; rotulo: string; aplica: (conta: Conta) => boolean }
     id: 'ml_caiu',
     rotulo: 'Conexão caiu',
     aplica: (conta) => conta.entra_no_painel && conta.ml_situacao === 'caiu',
+  },
+
+  // Entrou, não pagou e não usou. É daqui que sai a limpeza da base.
+  {
+    id: 'nunca_pagou',
+    rotulo: 'Nunca pagaram',
+    aplica: (conta) =>
+      Boolean(conta.nunca_pagou) && conta.total_pedidos === 0 && conta.total_produtos === 0,
   },
 
   { id: 'premium', rotulo: 'Premium', aplica: (conta) => conta.plano === 'premium' },
@@ -193,6 +208,41 @@ export default function AcessosAdmin() {
   const [novoStatus, setNovoStatus] = useState('ativo');
   const [dias, setDias] = useState('');
   const [salvando, setSalvando] = useState(false);
+
+  /** Conta esperando a confirmação para sair da base. */
+  const [confirmarExclusao, setConfirmarExclusao] = useState<Conta | null>(null);
+  const [removendo, setRemovendo] = useState(false);
+
+  /**
+   * Tira da base uma conta por vez.
+   *
+   * A trava de verdade está no banco: `admin_excluir_conta` recusa qualquer
+   * conta com pedido, anúncio ou pagamento pago. Aqui fica só a confirmação —
+   * não tem volta, e a lista tem milhares de linhas parecidas entre si.
+   */
+  const removerConta = async () => {
+    if (!confirmarExclusao) return;
+
+    setRemovendo(true);
+    setErro('');
+
+    const { data, error } = await supabase.rpc('admin_excluir_conta', {
+      p_user_id: confirmarExclusao.user_id,
+    });
+
+    setRemovendo(false);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      setErro(error?.message ?? resposta?.erro ?? 'Não foi possível excluir a conta.');
+      setConfirmarExclusao(null);
+      return;
+    }
+
+    setContas((atuais) => atuais.filter((c) => c.user_id !== confirmarExclusao.user_id));
+    setConfirmarExclusao(null);
+  };
 
   const carregar = async () => {
     setCarregando(true);
@@ -678,6 +728,24 @@ export default function AcessosAdmin() {
                         >
                           Entrar
                         </button>
+
+                        {/* Só aparece onde a exclusão passaria: nunca pagou,
+                            nunca vendeu, nunca publicou. Oferecer o botão numa
+                            conta com histórico seria prometer o que o banco vai
+                            recusar. */}
+                        {conta.nunca_pagou &&
+                          conta.total_pedidos === 0 &&
+                          conta.total_produtos === 0 && (
+                            <button
+                              onClick={(evento) => {
+                                evento.stopPropagation();
+                                setConfirmarExclusao(conta);
+                              }}
+                              className="ml-3 text-xs font-semibold text-red-600 dark:text-red-400 underline underline-offset-2 hover:opacity-70 whitespace-nowrap"
+                            >
+                              Excluir
+                            </button>
+                          )}
                       </td>
                     </tr>
                   );
@@ -817,6 +885,51 @@ export default function AcessosAdmin() {
                   className="px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-semibold disabled:opacity-50"
                 >
                   {entrando ? 'Entrando...' : 'Entrar na conta'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {confirmarExclusao && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 w-full max-w-md max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-navy-900 dark:text-white">
+                Tirar {confirmarExclusao.nome || confirmarExclusao.email} da base?
+              </h3>
+
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+                Esta conta nunca pagou, nunca vendeu e nunca publicou anúncio. Ela
+                sai da base junto com o login — e isso não tem desfazer.
+              </p>
+
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-3 leading-relaxed">
+                Se ela tiver qualquer histórico, o banco recusa e explica o motivo.
+                Para tirar o acesso sem apagar nada,{' '}
+                <strong className="text-navy-900 dark:text-white">
+                  use Ajustar e mude o plano para sem acesso.
+                </strong>
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2 mt-6 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmarExclusao(null)}
+                  disabled={removendo}
+                  className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={removerConta}
+                  disabled={removendo}
+                  className="px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  {removendo ? 'Excluindo...' : 'Excluir conta'}
                 </button>
               </div>
             </div>
