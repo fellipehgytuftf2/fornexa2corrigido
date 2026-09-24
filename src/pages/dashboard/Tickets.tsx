@@ -221,6 +221,20 @@ export default function Tickets() {
 
     const porChamado: Record<string, number> = {};
 
+    // A abertura do chamado conta como aviso: ela mora em `tickets.message`,
+    // não em `ticket_messages`, e sem isto o número do menu (que já a conta,
+    // ver a migração 20260923020000) não batia com o da linha — chamado de
+    // fornecedor nunca respondido aparecia sem marcador nenhum.
+    carregados.forEach((chamado) => {
+      if (!chamado.supplier_id) return;
+
+      const lidoEm = chamado.lido_vendedor_em ? new Date(chamado.lido_vendedor_em) : null;
+
+      if (!lidoEm || new Date(chamado.created_at) > lidoEm) {
+        porChamado[chamado.id] = (porChamado[chamado.id] || 0) + 1;
+      }
+    });
+
     (mensagensData || []).forEach((mensagem) => {
       const chamado = carregados.find((t) => t.id === mensagem.ticket_id);
 
@@ -425,11 +439,9 @@ export default function Tickets() {
                     Data
                   </th>
 
-                  {isAdmin && (
-                    <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
-                      Ações
-                    </th>
-                  )}
+                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wider">
+                    Ações
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-navy-700">
@@ -505,22 +517,29 @@ export default function Tickets() {
                       {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
                     </td>
 
-                    {isAdmin && (
-                      <td className="px-5 py-4">
-                        <div className="flex flex-nowrap gap-2">
-                          <button
-                            onClick={() => abrirConversa(ticket)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors"
-                          >
-                            Conversa
-                            {(naoLidas[ticket.id] || 0) > 0 && (
-                              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold">
-                                {naoLidas[ticket.id]}
-                              </span>
-                            )}
-                          </button>
+                    {/* "Conversa" vale para todo mundo. Enquanto o botão era
+                        só do admin, o fornecedor relatava o problema, o
+                        vendedor via o número vermelho no menu, abria Chamados
+                        — e não tinha por onde ler nem responder. Do outro
+                        lado parecia que a mensagem tinha sumido. Mudar
+                        status continua sendo do admin: é o que a policy
+                        "Admins can manage all tickets" permite. */}
+                    <td className="px-5 py-4">
+                      <div className="flex flex-nowrap gap-2">
+                        <button
+                          onClick={() => abrirConversa(ticket)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black hover:bg-gray-900 text-white text-xs font-semibold transition-colors"
+                        >
+                          {ticket.supplier_id ? 'Responder' : 'Conversa'}
+                          {(naoLidas[ticket.id] || 0) > 0 && (
+                            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold">
+                              {naoLidas[ticket.id]}
+                            </span>
+                          )}
+                        </button>
 
-                          {(
+                        {isAdmin &&
+                          (
                             [
                               ['in_progress', 'Em andamento'],
                               ['resolved', 'Resolver'],
@@ -538,9 +557,8 @@ export default function Tickets() {
                                 {rotulo}
                               </button>
                             ))}
-                        </div>
-                      </td>
-                    )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -841,6 +841,25 @@ export default function SupplierPortal() {
     return counts;
   }, [orders]);
 
+  /**
+   * Resposta do vendedor que o fornecedor ainda não leu, por aba.
+   *
+   * O número já existia no cartão do pedido, mas quem tem 40 pedidos só o
+   * encontra rolando a lista — e só se estiver na aba certa. O ponto vermelho
+   * na aba diz onde procurar sem precisar abrir nenhuma.
+   */
+  const naoLidasPorAba = useMemo(() => {
+    const contas: Record<string, number> = {};
+
+    tabs.forEach((tab) => {
+      contas[tab.id] = orders
+        .filter(tab.match)
+        .reduce((total, order) => total + (order.respostas_nao_lidas || 0), 0);
+    });
+
+    return contas;
+  }, [orders]);
+
   // Trocar de aba recomeça em "Todos": com o filtro preso, a aba nova abriria
   // vazia e pareceria não ter pedido nenhum.
   useEffect(() => {
@@ -1021,6 +1040,15 @@ export default function SupplierPortal() {
                 >
                   {countByTab[tab.id] ?? 0}
                 </span>
+
+                {(naoLidasPorAba[tab.id] ?? 0) > 0 && (
+                  <span
+                    title="Resposta do vendedor que você ainda não leu"
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white font-mono text-[11px] font-semibold tabular-nums"
+                  >
+                    {naoLidasPorAba[tab.id]}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -1148,6 +1176,15 @@ export default function SupplierPortal() {
                       >
                         {countByTab[tab.id] ?? 0}
                       </span>
+
+                      {(naoLidasPorAba[tab.id] ?? 0) > 0 && (
+                        <span
+                          title="Resposta do vendedor que você ainda não leu"
+                          className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white font-mono text-[11px] font-semibold tabular-nums"
+                        >
+                          {naoLidasPorAba[tab.id]}
+                        </span>
+                      )}
                     </button>
                   ))}
               </div>
