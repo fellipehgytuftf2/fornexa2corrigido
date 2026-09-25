@@ -172,6 +172,19 @@ export default function Orders() {
    * quem sou eu, a tela oferecia botões que respondiam "pedido não encontrado".
    */
   const [usuarioId, setUsuarioId] = useState('');
+
+  /**
+   * A conta está com o remetente pendente.
+   *
+   * Enquanto estiver, o pagamento ao fornecedor fica travado — no banco, não
+   * só aqui. A etiqueta desses pedidos não sai, e pagar antes de corrigir só
+   * faz o fornecedor separar mercadoria para uma prateleira: foi ele quem
+   * descreveu isso, com seis pedidos pagos e presos.
+   */
+  const [remetentePendente, setRemetentePendente] = useState<{
+    tem?: boolean;
+    origem_no_envio?: string | null;
+  } | null>(null);
   const [dcePedidoId, setDcePedidoId] = useState<string | null>(null);
   const [dceResultado, setDceResultado] = useState<{
     pedidoId: string;
@@ -388,6 +401,15 @@ export default function Orders() {
     } = await supabase.auth.getUser();
 
     setUsuarioId(usuarioAtual?.id ?? '');
+
+    // Uma consulta para a tela inteira: a pendência é da conta, não do
+    // pedido, e perguntar dentro de cada cartão seria a mesma resposta oito
+    // vezes por página.
+    const { data: pendencia } = await supabase.rpc('minha_pendencia_de_remetente');
+
+    setRemetentePendente(
+      (pendencia as { tem?: boolean; origem_no_envio?: string | null } | null) ?? null
+    );
 
     if (usuarioAtual) {
       const { data: perfil } = await supabase
@@ -993,6 +1015,11 @@ export default function Orders() {
                       olhando um pedido, não a primeira. */}
                   <RepasseNoPedido
                     order={order}
+                    remetentePendente={
+                      remetentePendente?.tem
+                        ? { origem: remetentePendente.origem_no_envio ?? null }
+                        : null
+                    }
                     souODono={order.user_id === usuarioId}
                     fornecedor={
                       supplier

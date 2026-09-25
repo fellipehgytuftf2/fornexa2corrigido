@@ -27,6 +27,14 @@ interface Props {
    * respondiam "pedido não encontrado" — que soa defeito e é regra.
    */
   souODono: boolean;
+  /**
+   * A conta está com o remetente pendente, e por isso não paga ninguém.
+   *
+   * Nulo quando está tudo certo. A trava de verdade está no banco — aqui é só
+   * para o vendedor entender antes de clicar, em vez de levar um erro seco
+   * depois de copiar o PIX.
+   */
+  remetentePendente?: { origem: string | null } | null;
   onMudou: () => void;
 }
 
@@ -49,7 +57,13 @@ interface Props {
  * fácil seria marcar como pago sem ter pago nada — e é justamente essa marca
  * que o fornecedor usa para liberar mercadoria.
  */
-export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }: Props) {
+export default function RepasseNoPedido({
+  order,
+  fornecedor,
+  souODono,
+  remetentePendente,
+  onMudou,
+}: Props) {
   const [copiado, setCopiado] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
@@ -113,6 +127,14 @@ export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }
   // desmarcar um pagamento não é o que se espera de quem abriu o pedido.
   const desfazer =
     'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-sm font-semibold transition-colors disabled:opacity-40';
+
+  /**
+   * A conta está travada, e este pedido ainda não foi pago.
+   *
+   * Pedido já pago não volta a travar: o dinheiro saiu, e esconder o botão de
+   * desfazer só prenderia o vendedor num estado que ele não escolheu.
+   */
+  const travadoPorPendencia = Boolean(remetentePendente) && !pago;
 
   const copiarPix = async () => {
     setErro('');
@@ -284,6 +306,31 @@ export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }
 
       {erro && <p className="text-sm text-red-600 dark:text-red-400 mt-2">{erro}</p>}
 
+      {/* A trava está no banco; isto aqui é a explicação. Sem ela o vendedor
+          copiava o PIX e levava um erro seco, sem saber o que corrigir. */}
+      {travadoPorPendencia && (
+        <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3">
+          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+            Pagamento travado: o remetente da sua conta está pendente
+          </p>
+
+          <p className="text-sm text-amber-800/90 dark:text-amber-300/90 mt-1.5 leading-relaxed">
+            A etiqueta destes pedidos não sai enquanto o endereço de remetente do
+            Mercado Livre não for o do fornecedor
+            {remetentePendente?.origem
+              ? ` — o último envio saiu de ${remetentePendente.origem}`
+              : ''}
+            . Pagar agora só faria o fornecedor separar mercadoria para ficar
+            parada na prateleira.
+          </p>
+
+          <p className="text-sm text-amber-800/90 dark:text-amber-300/90 mt-1.5 leading-relaxed">
+            Corrija o remetente no Mercado Livre e baixe a etiqueta de novo. O
+            envio seguinte confirma o endereço e o pagamento destrava sozinho.
+          </p>
+        </div>
+      )}
+
       {!fornecedor?.chave_pix && (
         <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
           Este fornecedor ainda não cadastrou a chave PIX no Portal dele. Combine
@@ -296,7 +343,7 @@ export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }
           <button
             type="button"
             onClick={copiarPix}
-            disabled={ocupado || pago || fechado}
+            disabled={ocupado || pago || fechado || travadoPorPendencia}
             className={
               copiado
                 ? 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-semibold transition-colors disabled:opacity-50'
@@ -314,7 +361,7 @@ export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }
         <button
           type="button"
           onClick={() => seletorDeArquivo.current?.click()}
-          disabled={ocupado || !cobrancaAberta}
+          disabled={ocupado || !cobrancaAberta || travadoPorPendencia}
           title={
             cobrancaAberta ? undefined : 'Copie o PIX primeiro — é ele que gera a cobrança.'
           }
@@ -335,7 +382,7 @@ export default function RepasseNoPedido({ order, fornecedor, souODono, onMudou }
         <button
           type="button"
           onClick={alternarPago}
-          disabled={ocupado || (!temComprovante && !pago)}
+          disabled={ocupado || (!temComprovante && !pago) || travadoPorPendencia}
           title={
             temComprovante || pago
               ? 'Avisa o fornecedor. Só a partir daqui ele vê o comprovante e confirma.'
