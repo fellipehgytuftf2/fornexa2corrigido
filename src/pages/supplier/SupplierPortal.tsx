@@ -52,6 +52,10 @@ interface SupplierOrder {
   etiqueta_disponivel: boolean;
   /** A trava de remetente barrou a última tentativa de baixar a etiqueta. */
   etiqueta_barrada?: boolean;
+  /** Quando o fornecedor pôs este pedido na prateleira, por decisão dele. */
+  reservado_em?: string | null;
+  /** Quando ele devolveu ao vendedor o valor de um cancelado já pago. */
+  reembolsado_em?: string | null;
   /**
    * Entrega no mesmo dia, pelo Flex do Mercado Livre.
    *
@@ -792,6 +796,67 @@ export default function SupplierPortal() {
     showSuccess('Problema enviado. O vendedor foi avisado e vai responder por aqui.');
   };
 
+  /**
+   * A prateleira, decidida por ele.
+   *
+   * A aba Reservados já mostrava sozinha o que está pago e sem etiqueta. Mas
+   * quem olha a bancada é ele: "em confirmados o fornecedor imprime as
+   * etiquetas liberadas e separa o produto das reservadas". Esta marca é essa
+   * decisão, e convive com a automática.
+   */
+  const reservar = async (order: SupplierOrder, reservado: boolean) => {
+    setActionId(order.id);
+    setErroNoPedido(null);
+
+    const { data, error } = await supabase.rpc('fornecedor_reserva_pedido', {
+      p_order_id: order.id,
+      p_reservado: reservado,
+    });
+
+    setActionId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      avisarNoPedido(
+        order.id,
+        error?.message ?? resposta?.erro ?? 'Não foi possível reservar o pedido.'
+      );
+      return;
+    }
+
+    await loadOrders();
+
+    showSuccess(reservado ? 'Pedido reservado.' : 'Pedido tirado dos reservados.');
+  };
+
+  /** O dinheiro de um cancelado que já estava pago, devolvido ao vendedor. */
+  const marcarReembolso = async (order: SupplierOrder, reembolsado: boolean) => {
+    setActionId(order.id);
+    setErroNoPedido(null);
+
+    const { data, error } = await supabase.rpc('fornecedor_marca_reembolso', {
+      p_order_id: order.id,
+      p_reembolsado: reembolsado,
+    });
+
+    setActionId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      avisarNoPedido(
+        order.id,
+        error?.message ?? resposta?.erro ?? 'Não foi possível marcar o reembolso.'
+      );
+      return;
+    }
+
+    await loadOrders();
+
+    showSuccess(reembolsado ? 'Reembolso marcado.' : 'Marca de reembolso desfeita.');
+  };
+
   const updateStatus = async (order: SupplierOrder, nextStatus: OrderStatus) => {
     setActionId(order.id);
     setErroNoPedido(null);
@@ -929,6 +994,23 @@ export default function SupplierPortal() {
    * encontra rolando a lista — e só se estiver na aba certa. O ponto vermelho
    * na aba diz onde procurar sem precisar abrir nenhuma.
    */
+  /**
+   * Cancelados que já estavam pagos e ainda não foram devolvidos.
+   *
+   * "Quando cancela mistura tudo aí tem q ficar procurando." O número na aba
+   * diz quantos ainda devem dinheiro ao vendedor, sem precisar abrir a lista.
+   */
+  const reembolsosPendentes = useMemo(
+    () =>
+      orders.filter(
+        (order) =>
+          (order.cancelado_no_marketplace || order.status === 'cancelled') &&
+          order.pago_em &&
+          !order.reembolsado_em
+      ).length,
+    [orders]
+  );
+
   const naoLidasPorAba = useMemo(() => {
     const contas: Record<string, number> = {};
 
@@ -1128,6 +1210,15 @@ export default function SupplierPortal() {
                     className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white font-mono text-[11px] font-semibold tabular-nums"
                   >
                     {naoLidasPorAba[tab.id]}
+                  </span>
+                )}
+
+                {tab.id === 'cancelados' && reembolsosPendentes > 0 && (
+                  <span
+                    title="Cancelados que você recebeu e ainda não devolveu"
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-navy-900 font-mono text-[11px] font-semibold tabular-nums"
+                  >
+                    {reembolsosPendentes}
                   </span>
                 )}
               </button>
@@ -1700,10 +1791,54 @@ export default function SupplierPortal() {
                             className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5"
                             aria-hidden="true"
                           />
-                          <p className="text-sm text-red-200">
-                            Este pedido foi cancelado no {order.marketplace}. Não envie.
-                            Se já tiver separado, pode devolver ao estoque.
-                          </p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-red-200">
+                              Este pedido foi cancelado no {order.marketplace}. Não envie.
+                              Se já tiver separado, pode devolver ao estoque.
+                            </p>
+
+                            {/* "Quando cancela mistura tudo aí tem q ficar
+                                procurando": com 48 cancelados na lista, o que
+                                falta não é o aviso, é separar o que já foi
+                                devolvido do que ainda deve dinheiro. */}
+                            {order.pago_em && (
+                              <div className="mt-3 flex flex-wrap items-center gap-3">
+                                {order.reembolsado_em ? (
+                                  <>
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                                      <CheckCircle className="w-3 h-3" aria-hidden="true" />
+                                      Reembolsado em{' '}
+                                      {new Date(order.reembolsado_em).toLocaleDateString(
+                                        'pt-BR'
+                                      )}
+                                    </span>
+
+                                    <button
+                                      onClick={() => marcarReembolso(order, false)}
+                                      disabled={actionId === order.id}
+                                      className="text-xs font-semibold text-slate-400 underline underline-offset-2 hover:text-white disabled:opacity-50"
+                                    >
+                                      desfazer
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => marcarReembolso(order, true)}
+                                    disabled={actionId === order.id}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/30 px-4 py-2.5 text-sm font-semibold text-red-200 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                                  >
+                                    {actionId === order.id ? (
+                                      <Loader2
+                                        className="w-4 h-4 animate-spin"
+                                        aria-hidden="true"
+                                      />
+                                    ) : null}
+                                    Marcar reembolso
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                       <div className="mt-5 flex flex-col sm:flex-row gap-3">
@@ -1747,6 +1882,27 @@ export default function SupplierPortal() {
                           >
                             <FileText className="w-4 h-4" aria-hidden="true" />
                             Baixar DACE
+                          </button>
+                        )}
+
+                        {/* Jogar para Reservados na mão. Ao lado de "Estou
+                            separando" porque as duas respondem a mesma
+                            pergunta de quem está na bancada: para onde vai
+                            este pedido agora. */}
+                        {order.status !== 'shipped' && order.status !== 'delivered' && (
+                          <button
+                            onClick={() => reservar(order, !order.reservado_em)}
+                            disabled={isBusy}
+                            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50 ${
+                              order.reservado_em
+                                ? 'border border-gold/40 bg-gold/10 text-gold'
+                                : 'border border-white/15 text-white hover:bg-white/5'
+                            }`}
+                          >
+                            {isBusy ? (
+                              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                            ) : null}
+                            {order.reservado_em ? 'Tirar dos reservados' : 'Reservar'}
                           </button>
                         )}
 
