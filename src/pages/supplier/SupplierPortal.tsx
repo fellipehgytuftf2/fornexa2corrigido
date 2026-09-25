@@ -137,6 +137,17 @@ const emAndamento = (order: SupplierOrder, ...statuses: OrderStatus[]) =>
   !order.cancelado_no_marketplace && statuses.includes(order.status);
 
 /**
+ * Pedido cancelado, pelas duas origens.
+ *
+ * No cartão de um cancelado os botões dão lugar ao aviso de cancelamento —
+ * inclusive o "Ver conversa". O contador de mensagem não lida continuava
+ * somando esses pedidos, e o número ficava aceso para sempre: chamava o
+ * fornecedor para uma conversa que ele não tem como abrir.
+ */
+const foiCancelado = (order: SupplierOrder) =>
+  order.cancelado_no_marketplace || order.status === 'cancelled';
+
+/**
  * As abas que ficam na fileira de baixo, no fim da sequência.
  *
  * A fileira de baixo conta a vida do pedido em ordem: aguardando o vendedor,
@@ -546,7 +557,11 @@ export default function SupplierPortal() {
   // Pedido novo e resposta não lida somam no mesmo contador: os dois pedem a
   // mesma coisa do fornecedor, que é voltar ao portal.
   const respostasNaoLidas = useMemo(
-    () => orders.reduce((total, order) => total + (order.respostas_nao_lidas || 0), 0),
+    () =>
+      orders.reduce(
+        (total, order) => total + (foiCancelado(order) ? 0 : order.respostas_nao_lidas || 0),
+        0
+      ),
     [orders]
   );
 
@@ -971,7 +986,9 @@ export default function SupplierPortal() {
 
     const tab = tabs.find((item) => item.id === tabId);
     const comResposta = tab
-      ? orders.filter(tab.match).find((order) => (order.respostas_nao_lidas || 0) > 0)
+      ? orders
+          .filter(tab.match)
+          .find((order) => !foiCancelado(order) && (order.respostas_nao_lidas || 0) > 0)
       : undefined;
 
     setPedidoParaFocar(comResposta?.id ?? null);
@@ -1017,7 +1034,10 @@ export default function SupplierPortal() {
     tabs.forEach((tab) => {
       contas[tab.id] = orders
         .filter(tab.match)
-        .reduce((total, order) => total + (order.respostas_nao_lidas || 0), 0);
+        .reduce(
+          (total, order) => total + (foiCancelado(order) ? 0 : order.respostas_nao_lidas || 0),
+          0
+        );
     });
 
     return contas;
