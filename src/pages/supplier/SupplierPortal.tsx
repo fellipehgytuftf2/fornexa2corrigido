@@ -49,6 +49,16 @@ interface SupplierOrder {
   etiqueta_url: string | null;
   /** A view calcula isto a partir de ml_shipment_id — sem expor o id em si. */
   etiqueta_disponivel: boolean;
+  /** A trava de remetente barrou a última tentativa de baixar a etiqueta. */
+  etiqueta_barrada?: boolean;
+  /**
+   * Pago, separado e esperando uma etiqueta que não sai.
+   *
+   * Pedido nesse estado ficava em "Novos", junto com o que acabou de chegar:
+   * o fornecedor separava, descobria que a etiqueta não saía, e o pacote
+   * voltava para a fila no dia seguinte.
+   */
+  reservado?: boolean;
   /** Comprador cancelou no marketplace. Independe do andamento interno. */
   cancelado_no_marketplace: boolean;
   /** Já existe chamado aberto deste fornecedor para este pedido. */
@@ -124,7 +134,7 @@ const emAndamento = (order: SupplierOrder, ...statuses: OrderStatus[]) =>
  * Em cima ficam os recortes que não são etapa — cancelados, histórico,
  * estoque, devoluções.
  */
-const ABAS_DE_ANDAMENTO = ['separacao', 'enviados'];
+const ABAS_DE_ANDAMENTO = ['reservados', 'separacao', 'enviados'];
 
 const tabs: Tab[] = [
   {
@@ -133,13 +143,24 @@ const tabs: Tab[] = [
     // `pending` entra aqui porque é o status com que a venda nasce ao vir do
     // Mercado Livre. Sem isso o pedido só apareceria depois de o vendedor
     // liberar um por um, que é justamente o passo manual a ser eliminado.
-    match: (order) => emAndamento(order, 'pending', 'sent_to_supplier'),
+    // Reservado sai daqui de propósito: é pedido que já foi separado e está
+    // esperando etiqueta. Misturado com o que acabou de chegar, ele era
+    // separado de novo todo dia.
+    match: (order) =>
+      emAndamento(order, 'pending', 'sent_to_supplier') && !order.reservado,
     emptyMessage: 'Nenhum pedido novo agora. Assim que uma venda chegar, ela aparece aqui.',
+  },
+  {
+    id: 'reservados',
+    label: 'Reservados',
+    match: (order) => Boolean(order.reservado),
+    emptyMessage:
+      'Nenhum pedido reservado. Aqui ficam os que já foram pagos e estão esperando a etiqueta sair.',
   },
   {
     id: 'separacao',
     label: 'Em separação',
-    match: (order) => emAndamento(order, 'separating'),
+    match: (order) => emAndamento(order, 'separating') && !order.reservado,
     emptyMessage: 'Nenhum pedido em separação.',
   },
   {
@@ -1269,11 +1290,16 @@ export default function SupplierPortal() {
                   ? null
                   : order.aguardando_pagamento
                     ? 'Aguardando pagamento'
-                    : order.sem_mercado_envios
-                      ? 'Sem Mercado Envios'
-                      : !order.etiqueta_disponivel
-                        ? 'Sem etiqueta ainda'
-                        : pendenciaNoMl;
+                    : // Vem antes de "Sem etiqueta ainda" porque não é espera:
+                      // é o endereço de remetente do vendedor que está errado,
+                      // e sem ele corrigir a etiqueta não sai nunca.
+                      order.etiqueta_barrada
+                      ? 'Etiqueta barrada: remetente do vendedor'
+                      : order.sem_mercado_envios
+                        ? 'Sem Mercado Envios'
+                        : !order.etiqueta_disponivel
+                          ? 'Sem etiqueta ainda'
+                          : pendenciaNoMl;
 
                 return (
                   <li
