@@ -288,6 +288,16 @@ Deno.serve(async (req: Request) => {
               ml_shipment_id: String(envio.id ?? resource.split("/").pop()),
               ml_shipment_substatus: envio?.substatus ? String(envio.substatus) : null,
               ml_shipment_visto_em: new Date().toISOString(),
+              // `self_service` é o Flex, que exige cadastro prévio do vendedor
+              // na transportadora do fornecedor. O campo já vinha no envio e
+              // era descartado; sem ele ninguém sabia qual pedido era Flex até
+              // o pacote empacar na bancada.
+              ml_logistic_type:
+                (envio?.logistic_type as string | undefined) ??
+                ((envio?.logistic as Record<string, unknown> | undefined)?.type as
+                  | string
+                  | undefined) ??
+                null,
               ml_liberacao_em:
                 typeof buffering?.date === "string" ? buffering.date : null,
               tracking_code: envio?.tracking_number ?? null,
@@ -470,6 +480,8 @@ Deno.serve(async (req: Request) => {
     let trackingCode = "";
     let mlShipmentId: string | null = null;
     let mlShipmentSubstatus: string | null = null;
+    // Ver o comentário no caminho do aviso de envio: `self_service` é o Flex.
+    let mlLogisticType: string | null = null;
     let customerAddress = "Endereço não disponível via sincronização automática";
     let customerPhone = "Não informado";
 
@@ -486,6 +498,8 @@ Deno.serve(async (req: Request) => {
         const shipmentData = await shipmentResponse.json();
         trackingCode = shipmentData?.tracking_number ?? "";
         mlShipmentSubstatus = shipmentData?.substatus ?? null;
+        mlLogisticType =
+          shipmentData?.logistic_type ?? shipmentData?.logistic?.type ?? null;
 
         const receiverAddress = shipmentData?.receiver_address;
         if (receiverAddress) {
@@ -539,6 +553,7 @@ Deno.serve(async (req: Request) => {
         .update({
           ml_shipment_id: mlShipmentId,
           ml_shipment_substatus: mlShipmentSubstatus,
+          ml_logistic_type: mlLogisticType,
           ml_shipment_visto_em: mlShipmentSubstatus ? new Date().toISOString() : null,
           ml_order_status: mlOrderStatus,
           ml_order_status_detail: mlOrderStatusDetail,
@@ -580,6 +595,7 @@ Deno.serve(async (req: Request) => {
         ml_order_id: mlOrderId,
         ml_shipment_id: mlShipmentId,
         ml_shipment_substatus: mlShipmentSubstatus,
+        ml_logistic_type: mlLogisticType,
         ml_shipment_visto_em: mlShipmentSubstatus ? new Date().toISOString() : null,
         ml_order_status: mlOrderStatus,
         ml_order_status_detail: mlOrderStatusDetail,
