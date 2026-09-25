@@ -12,6 +12,7 @@ import {
   Phone,
   RefreshCw,
   Settings,
+  Truck,
   User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -51,6 +52,13 @@ interface SupplierOrder {
   etiqueta_disponivel: boolean;
   /** A trava de remetente barrou a última tentativa de baixar a etiqueta. */
   etiqueta_barrada?: boolean;
+  /**
+   * Entrega no mesmo dia, pelo Flex do Mercado Livre.
+   *
+   * Exige cadastro prévio do vendedor na transportadora, e tem corte mais
+   * cedo. Sem o selo, o pedido Flex só era descoberto na hora do despacho.
+   */
+  flex?: boolean;
   /**
    * Pago, separado e esperando uma etiqueta que não sai.
    *
@@ -284,6 +292,41 @@ export default function SupplierPortal() {
   const [carregandoConversa, setCarregandoConversa] = useState(false);
   const [resposta, setResposta] = useState('');
   const [enviandoResposta, setEnviandoResposta] = useState(false);
+
+  /**
+   * O fim da conversa, para onde a tela rola sozinha.
+   *
+   * Sem isto ela abria no topo: ele mandava a mensagem, a lista recarregava, e
+   * a tela voltava para a mensagem mais antiga — tendo que rolar tudo de novo
+   * para ver o que acabou de escrever. Foi a reclamação dele.
+   */
+  const fimDaConversa = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!conversaPedido || carregandoConversa) return;
+
+    fimDaConversa.current?.scrollIntoView({ block: 'end' });
+  }, [mensagens, conversaPedido, carregandoConversa]);
+
+  /**
+   * Pedido para onde a tela deve rolar assim que a aba abrir.
+   *
+   * O número vermelho na aba dizia que existe resposta nova, e não onde —
+   * "tem q ficar correndo as venda para ver onde foi notificado". Clicar nele
+   * agora leva ao pedido.
+   */
+  const [pedidoParaFocar, setPedidoParaFocar] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!pedidoParaFocar) return;
+
+    const alvo = document.getElementById(`pedido-${pedidoParaFocar}`);
+
+    if (alvo) {
+      alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPedidoParaFocar(null);
+    }
+  }, [pedidoParaFocar, orders, activeTab]);
 
   const abrirConversa = async (order: SupplierOrder) => {
     if (!order.chamado_id) {
@@ -852,6 +895,23 @@ export default function SupplierPortal() {
 
   const currentTab = tabs.find((tab) => tab.id === activeTab) || tabs[0];
 
+  /**
+   * Trocar de aba, e cair em cima do pedido que pediu atenção.
+   *
+   * Clicar numa aba com número vermelho é sempre a mesma pergunta: qual das
+   * quarenta vendas foi respondida? Agora a resposta vem junto com a aba.
+   */
+  const irParaAba = (tabId: string) => {
+    setActiveTab(tabId);
+
+    const tab = tabs.find((item) => item.id === tabId);
+    const comResposta = tab
+      ? orders.filter(tab.match).find((order) => (order.respostas_nao_lidas || 0) > 0)
+      : undefined;
+
+    setPedidoParaFocar(comResposta?.id ?? null);
+  };
+
   const countByTab = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -1044,7 +1104,7 @@ export default function SupplierPortal() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => irParaAba(tab.id)}
                 aria-current={isActive ? 'page' : undefined}
                 className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 ${
                   isActive
@@ -1179,7 +1239,7 @@ export default function SupplierPortal() {
                     <button
                       key={tab.id}
                       type="button"
-                      onClick={() => setActiveTab(tab.id)}
+                      onClick={() => irParaAba(tab.id)}
                       aria-current={activeTab === tab.id ? 'page' : undefined}
                       className={
                         activeTab === tab.id
@@ -1304,6 +1364,7 @@ export default function SupplierPortal() {
                 return (
                   <li
                     key={order.id}
+                    id={`pedido-${order.id}`}
                     className={
                       pronto
                         ? 'rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.04] overflow-hidden'
@@ -1348,6 +1409,19 @@ export default function SupplierPortal() {
                               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-300">
                                 <AlertCircle className="w-3 h-3" aria-hidden="true" />
                                 {pendencia}
+                              </span>
+                            )}
+
+                            {/* Flex tem corte mais cedo e exige cadastro do
+                                vendedor na transportadora. Sem o selo, isso só
+                                era descoberto na hora de despachar. */}
+                            {order.flex && (
+                              <span
+                                title="Entrega no mesmo dia. O vendedor precisa ter cadastro na transportadora."
+                                className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 px-2.5 py-1 text-[11px] font-semibold text-sky-300"
+                              >
+                                <Truck className="w-3 h-3" aria-hidden="true" />
+                                Flex
                               </span>
                             )}
                           </div>
@@ -1916,8 +1990,7 @@ export default function SupplierPortal() {
                 <p className="text-slate-400">Carregando conversa...</p>
               ) : mensagens.length === 0 ? (
                 <p className="text-slate-400 leading-relaxed">
-                  Você relatou o problema e o vendedor ainda não respondeu. Assim que
-                  ele escrever, a resposta aparece aqui.
+                  Nenhuma mensagem ainda.
                 </p>
               ) : (
                 mensagens.map((mensagem) => {
@@ -1946,6 +2019,8 @@ export default function SupplierPortal() {
                   );
                 })
               )}
+
+              <div ref={fimDaConversa} />
             </div>
 
             <div className="p-5 border-t border-white/10">
