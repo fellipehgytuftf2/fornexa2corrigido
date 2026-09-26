@@ -734,6 +734,19 @@ Deno.serve(async (req: Request) => {
         const dados = await preferencias.json();
         const termica = Boolean(dados?.thermal_printer);
 
+        // Sonda temporária: a documentação do Mercado Livre não lista o que
+        // esta resposta traz — `thermal_printer` foi achado assim. A pergunta
+        // agora é se ela diz que a conta tem Flex ligado, o que hoje só se
+        // descobre quando a venda já chegou marcada como `self_service`.
+        await supabase.from("log_integracao_ml").insert({
+          contexto: "sonda-preferencias-de-envio",
+          mensagem: `Campos: ${Object.keys(dados ?? {}).join(", ")}`,
+          detalhes: {
+            user_id: vendedorId,
+            resposta: JSON.stringify(dados ?? {}).slice(0, 4000),
+          },
+        });
+
         // Aproveita a leitura para manter o painel do admin em dia — é a mesma
         // pergunta, e assim ela se responde sozinha a cada publicação.
         await supabase

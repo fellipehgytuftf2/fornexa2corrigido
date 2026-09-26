@@ -494,6 +494,27 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // 2a. Flex sem cadastro na transportadora.
+  //     Entrega no mesmo dia exige cadastro prévio do vendedor na
+  //     transportadora do fornecedor. Sem isso a etiqueta sai e o pacote empaca
+  //     na bancada — o fornecedor não tem como despachar. A view já esconde o
+  //     botão; aqui é a outra porta.
+  const { data: esperandoCadastro } = await admin.rpc('flex_esperando_cadastro', {
+    p_order_id: pedido.id,
+  });
+
+  if (esperandoCadastro === true) {
+    return json(
+      {
+        error:
+          'Esta venda é Flex e o vendedor ainda não confirmou o cadastro na sua ' +
+          'transportadora. A etiqueta libera assim que ele confirmar no FORNEXA — ' +
+          'ele já está vendo o aviso com o contato dela.',
+      },
+      409
+    );
+  }
+
   // 2b. O pagamento foi confirmado?
   //     A view já esconde a etiqueta nesse caso, mas esta função é outra porta:
   //     quem souber chamá-la direto contornaria a trava sem esforço nenhum.

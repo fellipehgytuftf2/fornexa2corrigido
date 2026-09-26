@@ -94,6 +94,15 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
   const [avisos, setAvisos] = useState('');
 
   /**
+   * A transportadora que faz o Flex.
+   *
+   * Preenchida, passa a exigir que o vendedor confirme cadastro nela antes de
+   * a etiqueta Flex liberar. Vazia, o Flex segue sem trava.
+   */
+  const [transportadora, setTransportadora] = useState('');
+  const [transportadoraContato, setTransportadoraContato] = useState('');
+
+  /**
    * Quanto este fornecedor cobra por pedido pela embalagem.
    *
    * Guardado como texto porque é o que o campo devolve, e porque vírgula é
@@ -129,7 +138,7 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
       const { data, error } = await supabase
         .from('suppliers')
         .select(
-          'chave_pix, horario_corte, horario_corte_flex, avisos, cep, logradouro, numero, bairro, complemento, city, state, taxa_embalagem'
+          'chave_pix, horario_corte, horario_corte_flex, avisos, cep, logradouro, numero, bairro, complemento, city, state, taxa_embalagem, transportadora_nome, transportadora_contato'
         )
         .eq('auth_user_id', user?.id ?? '')
         .maybeSingle<{
@@ -145,6 +154,8 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
           city: string | null;
           state: string | null;
           taxa_embalagem: number | null;
+          transportadora_nome: string | null;
+          transportadora_contato: string | null;
         }>();
 
       setCarregando(false);
@@ -163,6 +174,8 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
       setCorte((data?.horario_corte ?? '').slice(0, 5));
       setCorteFlex((data?.horario_corte_flex ?? '').slice(0, 5));
       setAvisos(data?.avisos ?? '');
+      setTransportadora(data?.transportadora_nome ?? '');
+      setTransportadoraContato(data?.transportadora_contato ?? '');
 
       // Zero vira campo vazio: "0,00" escrito ali parece cobrança de zero
       // real, quando na verdade é fornecedor que não cobra embalagem.
@@ -191,7 +204,8 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
     setErro('');
     setSalvo(false);
 
-    const [recebimento, operacao, taxaSalva, enderecoSalvo] = await Promise.all([
+    const [recebimento, operacao, taxaSalva, enderecoSalvo, transportadoraSalva] =
+      await Promise.all([
       supabase.rpc('fornecedor_define_recebimento', {
         p_chave_pix: chaveFinal || null,
       }),
@@ -212,10 +226,18 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
         p_cidade: endereco.cidade || null,
         p_estado: endereco.estado || null,
       }),
+      supabase.rpc('fornecedor_define_transportadora', {
+        p_nome: transportadora || null,
+        p_contato: transportadoraContato || null,
+      }),
     ]);
 
     const error =
-      recebimento.error ?? operacao.error ?? taxaSalva.error ?? enderecoSalvo.error;
+      recebimento.error ??
+      operacao.error ??
+      taxaSalva.error ??
+      enderecoSalvo.error ??
+      transportadoraSalva.error;
 
     // As RPCs de valor recusam sem erro de banco: devolvem { ok: false }. Sem
     // ler isso, taxa recusada some sem ninguém saber.
@@ -396,6 +418,52 @@ export default function RecebimentoFornecedor({ onTrocarSenha }: Props) {
           placeholder="Ex: envio Flex é feito pela transportadora J3 — o vendedor precisa ter cadastro com eles antes de despachar."
           className="w-full mt-4 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 resize-y"
         />
+      </div>
+
+      {/* Preencher isto liga uma trava. Fica dito aqui, e não numa tela de
+          ajuda: quem preenche precisa saber o que acontece depois. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <p className="font-semibold text-white">Transportadora do Flex</p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          Entrega no mesmo dia exige cadastro prévio do vendedor na sua
+          transportadora. Preenchendo aqui, a etiqueta de pedido Flex só libera
+          depois que ele confirmar que se cadastrou — e ele vê este contato para
+          resolver. Deixando vazio, o Flex segue sem trava.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div>
+            <label htmlFor="transportadora" className="block text-sm text-slate-300 mb-2">
+              Nome da transportadora
+            </label>
+
+            <input
+              id="transportadora"
+              value={transportadora}
+              onChange={(evento) => setTransportadora(evento.target.value)}
+              placeholder="J3 Transportes"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="transportadora-contato"
+              className="block text-sm text-slate-300 mb-2"
+            >
+              Contato dela
+            </label>
+
+            <input
+              id="transportadora-contato"
+              value={transportadoraContato}
+              onChange={(evento) => setTransportadoraContato(evento.target.value)}
+              placeholder="(11) 90000-0000 ou site de cadastro"
+              className="w-full rounded-xl border border-white/10 bg-navy-900/60 px-4 py-3 text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Entra no PIX que o vendedor gera. Enquanto isto não existia, ele

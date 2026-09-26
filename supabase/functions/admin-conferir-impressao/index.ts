@@ -98,6 +98,9 @@ Deno.serve(async (req: Request) => {
   let conferidas = 0;
   let emA4 = 0;
 
+  /** Quantas respostas inteiras já foram guardadas para leitura. */
+  let sondadas = 0;
+
   for (const conexao of conexoes) {
     const token = await obterAccessToken(admin, conexao);
 
@@ -114,6 +117,24 @@ Deno.serve(async (req: Request) => {
       if (!resposta.ok) continue;
 
       const preferencias = (await resposta.json()) as Record<string, unknown>;
+
+      // Sonda: a documentação do Mercado Livre não lista o que esta resposta
+      // traz — `thermal_printer` foi achado assim. A pergunta agora é se ela
+      // também diz que a conta tem Flex ligado, o que hoje só se descobre
+      // quando a venda já chegou marcada como `self_service`.
+      if (sondadas < 3) {
+        sondadas += 1;
+
+        await admin.from('log_integracao_ml').insert({
+          contexto: 'sonda-preferencias-de-envio',
+          mensagem: `Campos: ${Object.keys(preferencias).join(', ')}`,
+          detalhes: {
+            user_id: conexao.user_id,
+            resposta: JSON.stringify(preferencias).slice(0, 4000),
+          },
+        });
+      }
+
       const bruto = preferencias?.thermal_printer;
 
       // Conta em térmica traz texto, como "ZPL2" — não `true`. Comparar com

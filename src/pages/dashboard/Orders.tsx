@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
+import FlexTransportadora from '../../components/dashboard/FlexTransportadora';
 import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
 import RepasseNoPedido from '../../components/dashboard/RepasseNoPedido';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
@@ -632,6 +633,9 @@ export default function Orders() {
 
   return (
     <div className="space-y-6">
+      {/* Antes da lista: é pedido que não anda enquanto não for resolvido. */}
+      <FlexTransportadora />
+
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-navy-900 dark:text-white">

@@ -63,6 +63,9 @@ interface SupplierOrder {
    * cedo. Sem o selo, o pedido Flex só era descoberto na hora do despacho.
    */
   flex?: boolean;
+  /** Flex esperando o vendedor confirmar cadastro na transportadora. */
+  flex_sem_cadastro?: boolean;
+  transportadora_nome?: string | null;
   /**
    * Pago, separado e esperando uma etiqueta que não sai.
    *
@@ -1461,7 +1464,11 @@ export default function SupplierPortal() {
                   ? null
                   : order.aguardando_pagamento
                     ? 'Aguardando pagamento'
-                    : // Vem antes de "Sem etiqueta ainda" porque não é espera:
+                    : // Flex sem cadastro na transportadora: a etiqueta sairia
+                      // para quem não tem como despachar.
+                      order.flex_sem_cadastro
+                      ? `Flex: vendedor sem cadastro na ${order.transportadora_nome || 'transportadora'}`
+                      : // Vem antes de "Sem etiqueta ainda" porque não é espera:
                       // é o endereço de remetente do vendedor que está errado,
                       // e sem ele corrigir a etiqueta não sai nunca.
                       order.etiqueta_barrada
