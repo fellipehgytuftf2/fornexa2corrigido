@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Headset, Loader2, Trash2, UserCog } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Headset, Loader2, Search, Trash2, UserCog } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ConversaDeSuporte, { type MensagemDeSuporte } from './ConversaDeSuporte';
 import PerfilDoCliente from './PerfilDoCliente';
@@ -40,6 +40,36 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
    * podia pedir para a pessoa arrumar, e ela some no meio do caminho.
    */
   const [perfilAberto, setPerfilAberto] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+
+  /**
+   * A lista filtrada pelo que se digita.
+   *
+   * Procura em nome, empresa, e-mail e WhatsApp porque cada um lembra o
+   * cliente por um deles — e quem atende suporte costuma ter só um pedaço:
+   * "aquele do 65 9..." ou "o da loja tal".
+   */
+  const conversasFiltradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+
+    if (!termo) return conversas;
+
+    // Só os dígitos, para "(65) 99675-2197" achar quem digitou "65996752197".
+    const digitos = termo.replace(/\D/g, '');
+
+    return conversas.filter((conversa) => {
+      const campos = [conversa.nome, conversa.empresa, conversa.email]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      if (campos.includes(termo)) return true;
+
+      return Boolean(
+        digitos && conversa.whatsapp?.replace(/\D/g, '').includes(digitos)
+      );
+    });
+  }, [conversas, busca]);
 
   const carregarConversas = async () => {
     const { data, error } = await supabase.rpc('suporte_conversas_abertas');
@@ -188,20 +218,49 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
               : 'grid gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] mt-5'
           }
         >
-          <ul
-            className={
-              semMoldura
-                ? 'space-y-2 overflow-y-auto pr-1 min-h-0'
-                : 'space-y-2 max-h-[60vh] overflow-y-auto pr-1'
-            }
-          >
-            {conversas.length === 0 && (
-              <li className="text-sm text-gray-500 dark:text-slate-400">
-                Nenhuma conversa ainda.
-              </li>
-            )}
+          <div className="flex flex-col min-h-0 gap-2">
+            {/* Com dezenas de conversas, rolar procurando um nome custa mais
+                que a própria resposta. A busca olha nome, empresa, e-mail e
+                WhatsApp: cada pessoa lembra o cliente por um deles. */}
+            <div className="relative shrink-0">
+              <Search
+                className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
+                aria-hidden="true"
+              />
 
-            {conversas.map((conversa) => (
+              <label htmlFor="buscar-conversa" className="sr-only">
+                Buscar pessoa
+              </label>
+
+              <input
+                id="buscar-conversa"
+                value={busca}
+                onChange={(evento) => setBusca(evento.target.value)}
+                placeholder="Buscar por nome, e-mail ou WhatsApp"
+                className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-sm text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+              />
+            </div>
+
+            <ul
+              className={
+                semMoldura
+                  ? 'space-y-2 overflow-y-auto pr-1 min-h-0'
+                  : 'space-y-2 max-h-[60vh] overflow-y-auto pr-1'
+              }
+            >
+              {conversas.length === 0 && (
+                <li className="text-sm text-gray-500 dark:text-slate-400">
+                  Nenhuma conversa ainda.
+                </li>
+              )}
+
+              {conversas.length > 0 && conversasFiltradas.length === 0 && (
+                <li className="text-sm text-gray-500 dark:text-slate-400">
+                  Ninguém com "{busca}" nas conversas.
+                </li>
+              )}
+
+              {conversasFiltradas.map((conversa) => (
               <li key={conversa.id} className="relative group">
                 <button
                   type="button"
@@ -243,8 +302,9 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
                   </p>
                 </button>
               </li>
-            ))}
-          </ul>
+              ))}
+            </ul>
+          </div>
 
           <div
             className={
