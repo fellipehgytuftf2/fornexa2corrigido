@@ -65,8 +65,13 @@ interface SupplierOrder {
   flex?: boolean;
   /** Flex esperando o vendedor confirmar cadastro na transportadora. */
   flex_sem_cadastro?: boolean;
-  /** Quando o vendedor declarou o cadastro. Nulo quando não declarou. */
+  /** Quando o fornecedor aprovou o cadastro. É isto que libera a etiqueta. */
   flex_confirmado_em?: string | null;
+  /** Declaração do vendedor esperando conferência. */
+  flex_declarado_em?: string | null;
+  /** Protocolo que o vendedor informou, quando informou. */
+  flex_codigo?: string | null;
+  vendedor_user_id?: string | null;
   transportadora_nome?: string | null;
   /**
    * Pago, separado e esperando uma etiqueta que não sai.
@@ -851,6 +856,39 @@ export default function SupplierPortal() {
   };
 
   /** O dinheiro de um cancelado que já estava pago, devolvido ao vendedor. */
+  /**
+   * O fornecedor confere a declaração do vendedor com a transportadora.
+   *
+   * Vale para todos os pedidos Flex daquele vendedor, não só para este: o
+   * cadastro é um só. Por isso a lista recarrega inteira depois.
+   */
+  const avaliarCadastro = async (order: SupplierOrder, aprovado: boolean) => {
+    if (!order.vendedor_user_id) return;
+
+    setActionId(order.id);
+    setErroNoPedido(null);
+
+    const { data, error } = await supabase.rpc('fornecedor_avalia_cadastro', {
+      p_user_id: order.vendedor_user_id,
+      p_aprovado: aprovado,
+      p_observacao: null,
+    });
+
+    setActionId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      avisarNoPedido(
+        order.id,
+        error?.message ?? resposta?.erro ?? 'Não foi possível responder.'
+      );
+      return;
+    }
+
+    await loadOrders();
+  };
+
   const marcarReembolso = async (order: SupplierOrder, reembolsado: boolean) => {
     setActionId(order.id);
     setErroNoPedido(null);
@@ -1826,6 +1864,54 @@ export default function SupplierPortal() {
                           </div>
                         )}
                       </div>
+
+                      {/* A declaração do vendedor não libera nada sozinha:
+                          quem consegue perguntar à transportadora é o
+                          fornecedor. Marcar "estou cadastrado" sem estar é
+                          fácil, e o pacote volta recusado da bancada dele. */}
+                      {order.flex_declarado_em && !order.cancelado_no_marketplace && (
+                        <div className="mt-5 rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3.5">
+                          <p className="text-sm text-sky-100">
+                            <strong>{order.vendedor_nome}</strong> declarou ter
+                            cadastro na {order.transportadora_nome || 'transportadora'} em{' '}
+                            {new Date(order.flex_declarado_em).toLocaleDateString('pt-BR')}.
+                          </p>
+
+                          {order.flex_codigo && (
+                            <p className="font-mono text-sm text-sky-200 mt-1">
+                              Protocolo informado: {order.flex_codigo}
+                            </p>
+                          )}
+
+                          <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                            Confirme com a transportadora antes de liberar. A
+                            resposta vale para todos os pedidos Flex deste vendedor.
+                          </p>
+
+                          <div className="flex flex-wrap gap-3 mt-3">
+                            <button
+                              onClick={() => avaliarCadastro(order, true)}
+                              disabled={actionId === order.id}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover disabled:opacity-60"
+                            >
+                              {actionId === order.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                              )}
+                              Cadastro confere, liberar
+                            </button>
+
+                            <button
+                              onClick={() => avaliarCadastro(order, false)}
+                              disabled={actionId === order.id}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:opacity-60"
+                            >
+                              Não encontrei o cadastro
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Cancelado no marketplace: nada a fazer, e é preciso
                           dizer isso com todas as letras. O fornecedor pode já

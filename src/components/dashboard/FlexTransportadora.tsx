@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, Loader2, MessageCircle, Truck, X } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, MessageCircle, Truck, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ModalPortal from '../ui/modal-portal';
 
@@ -9,7 +9,13 @@ interface Parado {
   transportadora: string | null;
   contato: string | null;
   pedidos: number;
+  /** O fornecedor conferiu com a transportadora e aprovou. */
   confirmado: boolean;
+  /** Declarado pelo vendedor, esperando o fornecedor conferir. */
+  declarado: boolean;
+  /** O fornecedor consultou e não achou o cadastro. */
+  recusado: boolean;
+  observacao: string | null;
 }
 
 /**
@@ -40,22 +46,19 @@ function linkDoContato(contato: string): string | null {
 /**
  * Pedido Flex parado porque falta cadastro na transportadora do fornecedor.
  *
- * POR QUE EXISTE
+ * POR QUE O BOTÃO NÃO LIBERA SOZINHO
  *
- * Flex é entrega no mesmo dia, e quem despacha é a transportadora do
- * fornecedor — que só aceita quem tem cadastro prévio com ela. O vendedor liga
- * o Flex na conta do Mercado Livre sem saber disso, a venda chega, e o pacote
- * empaca na bancada do fornecedor.
+ * Marcar "estou cadastrado" sem estar é fácil, e quem paga é o fornecedor: o
+ * pacote sai da bancada e volta recusado. O FORNEXA não tem como conferir —
+ * a transportadora não abre consulta de cadastro para terceiros.
  *
- * POR QUE UMA JANELA, E NÃO SÓ A FAIXA
- *
- * A faixa no topo da lista some do olho de quem rola a página atrás do pedido
- * de ontem. A janela para o trabalho uma vez, com o contato da transportadora
- * a um clique, e sai do caminho no primeiro "entendi".
+ * Quem consegue conferir é o fornecedor, dono da relação com ela. Então a
+ * declaração do vendedor pede liberação, e não libera.
  */
 export default function FlexTransportadora() {
   const [parados, setParados] = useState<Parado[]>([]);
-  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [codigos, setCodigos] = useState<Record<string, string>>({});
+  const [enviando, setEnviando] = useState<string | null>(null);
   const [erro, setErro] = useState('');
   const [janelaFechada, setJanelaFechada] = useState(false);
 
@@ -75,19 +78,20 @@ export default function FlexTransportadora() {
     carregar();
   }, []);
 
-  const confirmar = async (parado: Parado) => {
-    setConfirmando(parado.supplier_id);
+  const declarar = async (parado: Parado) => {
+    setEnviando(parado.supplier_id);
     setErro('');
 
     const { error } = await supabase.rpc('vendedor_confirma_transportadora', {
       p_supplier_id: parado.supplier_id,
       p_confirmado: true,
+      p_codigo: codigos[parado.supplier_id] || null,
     });
 
-    setConfirmando(null);
+    setEnviando(null);
 
     if (error) {
-      setErro(`Não foi possível confirmar: ${error.message}`);
+      setErro(`Não foi possível enviar: ${error.message}`);
       return;
     }
 
@@ -98,15 +102,18 @@ export default function FlexTransportadora() {
 
   if (pendentes.length === 0) return null;
 
+  // Esperando o fornecedor não pede ação nenhuma do vendedor: a janela só
+  // aparece para quem ainda tem o que fazer.
+  const pedemAcao = pendentes.filter((parado) => !parado.declarado);
+  const total = pendentes.reduce((soma, parado) => soma + Number(parado.pedidos || 0), 0);
+
   const contato = (parado: Parado) => {
     if (!parado.contato) return null;
 
     const link = linkDoContato(parado.contato);
 
     if (!link) {
-      return (
-        <span className="font-semibold break-words">{parado.contato}</span>
-      );
+      return <span className="font-semibold break-words">{parado.contato}</span>;
     }
 
     return (
@@ -122,12 +129,71 @@ export default function FlexTransportadora() {
     );
   };
 
+  /** O bloco de ação, igual na janela e na faixa. */
+  const acao = (parado: Parado) => {
+    if (parado.declarado) {
+      return (
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-300">
+          <Clock className="w-4 h-4 shrink-0" aria-hidden="true" />
+          Esperando {parado.fornecedor} confirmar com a transportadora
+        </p>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {parado.recusado && (
+          <p className="text-sm text-red-600 dark:text-red-400 leading-relaxed">
+            {parado.fornecedor} consultou a transportadora e não encontrou seu
+            cadastro.
+            {parado.observacao ? ` Observação: ${parado.observacao}` : ''} Depois
+            de se cadastrar, envie de novo.
+          </p>
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            id={`protocolo-${parado.supplier_id}`}
+            value={codigos[parado.supplier_id] ?? ''}
+            onChange={(evento) =>
+              setCodigos((atuais) => ({
+                ...atuais,
+                [parado.supplier_id]: evento.target.value,
+              }))
+            }
+            placeholder="Protocolo ou CNPJ do cadastro (opcional)"
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-lg bg-white dark:bg-navy-900 border border-gray-200 dark:border-navy-600 text-sm text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+          />
+
+          <button
+            type="button"
+            onClick={() => declarar(parado)}
+            disabled={enviando === parado.supplier_id}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50 shrink-0"
+          >
+            {enviando === parado.supplier_id ? (
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <CheckCircle className="w-4 h-4" aria-hidden="true" />
+            )}
+            Já estou cadastrado
+          </button>
+        </div>
+
+        <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
+          {parado.fornecedor} confere com a transportadora antes de liberar. O
+          protocolo agiliza essa conferência.
+        </p>
+      </div>
+    );
+  };
+
   const texto = (parado: Parado) => (
     <>
       O envio Flex de {parado.fornecedor} é feito pela{' '}
       <strong>{parado.transportadora}</strong>, e ela só despacha para quem tem
-      cadastro. Enquanto você não se cadastrar, a etiqueta destes pedidos não
-      libera.
+      cadastro. Enquanto o cadastro não for confirmado, a etiqueta destes
+      pedidos não libera.
     </>
   );
 
@@ -135,7 +201,7 @@ export default function FlexTransportadora() {
     <>
       {/* A janela aparece uma vez por visita e sai no primeiro fechar: quem já
           sabe não quer ser parado de novo a cada pedido que vem conferir. */}
-      {!janelaFechada && (
+      {!janelaFechada && pedemAcao.length > 0 && (
         <ModalPortal>
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4 py-6">
             <div className="w-full max-w-lg max-h-full overflow-y-auto rounded-2xl bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 shadow-2xl">
@@ -149,12 +215,9 @@ export default function FlexTransportadora() {
                   </span>
 
                   <h2 className="text-lg font-bold text-navy-900 dark:text-white">
-                    {pendentes.reduce((total, p) => total + Number(p.pedidos || 0), 0) === 1
+                    {total === 1
                       ? 'Você tem 1 pedido Flex parado'
-                      : `Você tem ${pendentes.reduce(
-                          (total, p) => total + Number(p.pedidos || 0),
-                          0
-                        )} pedidos Flex parados`}
+                      : `Você tem ${total} pedidos Flex parados`}
                   </h2>
                 </div>
 
@@ -169,7 +232,7 @@ export default function FlexTransportadora() {
               </div>
 
               <div className="p-6 pt-4 space-y-5">
-                {pendentes.map((parado) => (
+                {pedemAcao.map((parado) => (
                   <div key={parado.supplier_id} className="space-y-3">
                     <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
                       {texto(parado)}
@@ -181,30 +244,11 @@ export default function FlexTransportadora() {
                       </p>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => confirmar(parado)}
-                      disabled={confirmando === parado.supplier_id}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                    >
-                      {confirmando === parado.supplier_id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                      )}
-                      Já estou cadastrado na {parado.transportadora}
-                    </button>
+                    {acao(parado)}
                   </div>
                 ))}
 
-                {erro && (
-                  <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>
-                )}
-
-                <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-                  Confirmando, a etiqueta libera para todos os pedidos Flex desse
-                  fornecedor — agora e nas próximas vendas.
-                </p>
+                {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
               </div>
             </div>
           </div>
@@ -240,19 +284,7 @@ export default function FlexTransportadora() {
                   </p>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => confirmar(parado)}
-                  disabled={confirmando === parado.supplier_id}
-                  className="inline-flex items-center gap-2 mt-4 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-                >
-                  {confirmando === parado.supplier_id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                  ) : (
-                    <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                  )}
-                  Já estou cadastrado
-                </button>
+                <div className="mt-4">{acao(parado)}</div>
 
                 {erro && (
                   <p className="text-sm text-red-600 dark:text-red-400 mt-3">{erro}</p>
