@@ -147,7 +147,7 @@ export default function FlexTransportadora() {
           </span>
 
           <span className="block text-xs font-normal text-white/85 tabular-nums break-words">
-            {parado.contato} · mensagem já escrita
+            {parado.contato}
           </span>
         </span>
       </a>
