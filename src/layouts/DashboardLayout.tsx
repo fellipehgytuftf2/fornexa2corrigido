@@ -176,12 +176,28 @@ export default function DashboardLayout() {
    */
   const [chamadosNaoLidos, setChamadosNaoLidos] = useState(0);
 
+  /**
+   * Pedido Flex parado por falta de cadastro na transportadora.
+   *
+   * Aqui é ponto, e não número: o quanto está parado se lê dentro da tela, e
+   * dois contadores no mesmo menu viram dois números para ignorar. O ponto
+   * responde a única pergunta que o menu precisa responder — tem algo aí.
+   */
+  const [temFlexParado, setTemFlexParado] = useState(false);
+
   useEffect(() => {
     let vivo = true;
 
     const contar = async () => {
-      const { data } = await supabase.rpc('chamados_nao_lidos');
-      if (vivo) setChamadosNaoLidos(Number(data ?? 0));
+      const [chamados, flex] = await Promise.all([
+        supabase.rpc('chamados_nao_lidos'),
+        supabase.rpc('meus_pedidos_flex_parados_total'),
+      ]);
+
+      if (!vivo) return;
+
+      setChamadosNaoLidos(Number(chamados.data ?? 0));
+      setTemFlexParado(Number(flex.data ?? 0) > 0);
     };
 
     contar();
@@ -547,6 +563,14 @@ export default function DashboardLayout() {
                 <span className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center tabular-nums">
                   {chamadosNaoLidos}
                 </span>
+              )}
+
+              {item.path === '/dashboard/orders' && temFlexParado && (
+                <span
+                  title="Pedido Flex parado por falta de cadastro na transportadora"
+                  aria-label="Há pedidos parados"
+                  className="ml-auto w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"
+                />
               )}
 
             </NavLink>
