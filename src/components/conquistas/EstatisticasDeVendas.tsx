@@ -8,6 +8,15 @@ interface Faixa {
   vendedores: number;
 }
 
+interface LinhaDoRanking {
+  posicao: number;
+  user_id: string;
+  nome: string | null;
+  email: string | null;
+  faturamento: number;
+  pedidos: number;
+}
+
 interface Estatisticas {
   vendedores_com_venda: number;
   contas: number;
@@ -32,6 +41,15 @@ const dinheiro = (valor: number) =>
  */
 export default function EstatisticasDeVendas() {
   const [dados, setDados] = useState<Estatisticas | null>(null);
+
+  /**
+   * A lista inteira do mês, que saiu da tela dos vendedores.
+   *
+   * Lá ela mostrava nome e faturamento de todo mundo para todo mundo — dado de
+   * negócio de um vendedor exposto aos concorrentes dele. Aqui é informação
+   * administrativa, e só o admin abre esta página.
+   */
+  const [ranking, setRanking] = useState<LinhaDoRanking[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -39,16 +57,20 @@ export default function EstatisticasDeVendas() {
     setCarregando(true);
     setErro('');
 
-    const { data, error } = await supabase.rpc('admin_estatisticas_de_vendas');
+    const [estatisticas, lista] = await Promise.all([
+      supabase.rpc('admin_estatisticas_de_vendas'),
+      supabase.rpc('admin_ranking_completo', { p_periodo: 'mes', p_limite: 50 }),
+    ]);
 
     setCarregando(false);
 
-    if (error) {
-      setErro(`Não foi possível carregar: ${error.message}`);
+    if (estatisticas.error) {
+      setErro(`Não foi possível carregar: ${estatisticas.error.message}`);
       return;
     }
 
-    setDados(data as Estatisticas);
+    setDados(estatisticas.data as Estatisticas);
+    setRanking((lista.data as LinhaDoRanking[]) || []);
   };
 
   useEffect(() => {
@@ -145,6 +167,58 @@ export default function EstatisticasDeVendas() {
                 );
               })}
             </ul>
+          )}
+
+          {ranking.length > 0 && (
+            <>
+              <p className="text-sm font-medium text-navy-900 dark:text-white mt-6">
+                Ranking completo do mês
+              </p>
+
+              <div className="overflow-x-auto mt-2">
+                <table className="w-full text-sm min-w-[32rem]">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-navy-700">
+                      <th className="py-2 pr-4 w-12">#</th>
+                      <th className="py-2 pr-4">Vendedor</th>
+                      <th className="py-2 pr-4">Faturamento</th>
+                      <th className="py-2">Pedidos</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {ranking.map((linha) => (
+                      <tr
+                        key={linha.user_id}
+                        className="border-b border-gray-100 dark:border-navy-700/60 last:border-0"
+                      >
+                        <td className="py-2 pr-4 font-mono tabular-nums text-gray-500 dark:text-slate-400">
+                          {linha.posicao}
+                        </td>
+
+                        <td className="py-2 pr-4">
+                          <span className="block text-navy-900 dark:text-white truncate">
+                            {linha.nome}
+                          </span>
+
+                          <span className="block text-xs text-gray-500 dark:text-slate-400 truncate">
+                            {linha.email}
+                          </span>
+                        </td>
+
+                        <td className="py-2 pr-4 font-semibold tabular-nums text-navy-900 dark:text-white">
+                          {dinheiro(linha.faturamento)}
+                        </td>
+
+                        <td className="py-2 tabular-nums text-gray-600 dark:text-slate-300">
+                          {linha.pedidos}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       ) : null}

@@ -19,6 +19,8 @@ interface MinhaPosicao {
   posicao: number;
   faturamento: number;
   total_de_vendedores: number;
+  /** Zero para quem já está no pódio. */
+  falta_para_o_podio: number;
 }
 
 interface Conquista {
@@ -72,7 +74,7 @@ export default function TopVendedores() {
       setErro('');
 
       const [ranking, posicao] = await Promise.all([
-        supabase.rpc('ranking_vendedores', { p_periodo: periodo, p_limite: 20 }),
+        supabase.rpc('ranking_vendedores', { p_periodo: periodo }),
         supabase.rpc('minha_posicao_no_ranking', { p_periodo: periodo }),
       ]);
 
@@ -127,11 +129,11 @@ export default function TopVendedores() {
   const legenda = PERIODOS.find((p) => p.id === periodo)?.legenda ?? 'Faturamento';
 
   const podio = useMemo(() => linhas.slice(0, 3), [linhas]);
-  const resto = useMemo(() => linhas.slice(3), [linhas]);
 
-  // Quem está fora do top aparece no rodapé: era a única pergunta que a
-  // pessoa tinha ao abrir esta tela.
-  const estouNaLista = linhas.some((linha) => linha.sou_eu);
+  // "este mês", "esta semana", "no geral": a frase da posição muda com a aba,
+  // senão ela diz uma coisa e a aba diz outra.
+  const quando =
+    periodo === 'semana' ? 'esta semana' : periodo === 'geral' ? 'no geral' : 'este mês';
 
 
   /**
@@ -286,74 +288,23 @@ export default function TopVendedores() {
             <div className="order-3">{cardDoPodio(podio[2], 3)}</div>
           </div>
 
-          {resto.length > 0 && (
-            <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400 border-b border-gray-200 dark:border-navy-700">
-                      <th className="px-5 py-3 w-14">#</th>
-                      <th className="px-5 py-3">Vendedor</th>
-                      <th className="px-5 py-3">Faturamento</th>
-                      <th className="px-5 py-3">Conquista</th>
-                    </tr>
-                  </thead>
+          {/* Uma linha, e nenhum nome além dos três do pódio. Faturamento de
+              outro vendedor é dado de negócio dele. */}
+          <div className="text-center">
+            <p className="text-sm font-medium text-navy-900 dark:text-white">
+              {minha
+                ? minha.posicao <= 3
+                  ? `Parabéns! Você está em ${minha.posicao}º lugar ${quando}`
+                  : `Você está em ${minha.posicao}º lugar ${quando}`
+                : 'Faça sua primeira venda para entrar no ranking'}
+            </p>
 
-                  <tbody>
-                    {resto.map((linha) => (
-                      <tr
-                        key={linha.user_id}
-                        className={`border-b border-gray-100 dark:border-navy-700/60 last:border-0 ${
-                          linha.sou_eu ? 'bg-gold/10' : ''
-                        }`}
-                      >
-                        <td className="px-5 py-3 font-mono tabular-nums text-gray-500 dark:text-slate-400">
-                          {linha.posicao}
-                        </td>
-
-                        <td className="px-5 py-3">
-                          <span className="flex items-center gap-3 min-w-0">
-                            <Avatar foto={linha.foto_path} nome={linha.nome} tamanho="p" />
-
-                            <span className="font-medium text-navy-900 dark:text-white truncate">
-                              {linha.sou_eu ? 'Você' : linha.nome}
-                            </span>
-                          </span>
-                        </td>
-
-                        <td className="px-5 py-3 font-semibold tabular-nums text-navy-900 dark:text-white">
-                          {linha.mostra_valor ? dinheiro(linha.faturamento) : '—'}
-                        </td>
-
-                        <td className="px-5 py-3">{conquistaComNome(linha.conquista)}</td>
-                      </tr>
-                    ))}
-
-                    {/* Fora do top: a linha da pessoa no rodapé da lista. */}
-                    {!estouNaLista && minha && (
-                      <tr className="bg-gold/10 border-t-2 border-gold/40">
-                        <td className="px-5 py-3 font-mono tabular-nums text-navy-900 dark:text-white">
-                          {minha.posicao}
-                        </td>
-
-                        <td className="px-5 py-3 font-medium text-navy-900 dark:text-white">
-                          Você
-                        </td>
-
-                        <td className="px-5 py-3 font-semibold tabular-nums text-navy-900 dark:text-white">
-                          {dinheiro(minha.faturamento)}
-                        </td>
-
-                        <td className="px-5 py-3 text-xs text-gray-500 dark:text-slate-400">
-                          de {minha.total_de_vendedores} vendedores
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+            {minha && Number(minha.falta_para_o_podio) > 0 && (
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                Faltam {dinheiro(minha.falta_para_o_podio)} para entrar no top 3
+              </p>
+            )}
+          </div>
         </>
       )}
 
