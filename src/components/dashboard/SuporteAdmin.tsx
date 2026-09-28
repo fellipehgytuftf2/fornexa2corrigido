@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Headset, Loader2, Search, Trash2, UserCog } from 'lucide-react';
+import { ChevronLeft, Headset, Loader2, Search, Trash2, UserCog } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ConversaDeSuporte, { type MensagemDeSuporte } from './ConversaDeSuporte';
 import PerfilDoCliente from './PerfilDoCliente';
@@ -218,7 +218,11 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
               : 'grid gap-4 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] mt-5'
           }
         >
-          <div className="flex flex-col min-h-0 gap-2">
+          {/* No celular é uma tela de cada vez: a lista, ou a conversa. As
+              duas juntas num visor estreito não davam para usar. */}
+          <div
+            className={`flex-col min-h-0 gap-2 ${aberta ? 'hidden lg:flex' : 'flex'}`}
+          >
             {/* Com dezenas de conversas, rolar procurando um nome custa mais
                 que a própria resposta. A busca olha nome, empresa, e-mail e
                 WhatsApp: cada pessoa lembra o cliente por um deles. */}
@@ -307,11 +311,11 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
           </div>
 
           <div
-            className={
+            className={`${
               semMoldura
-                ? 'rounded-xl border border-gray-200 dark:border-navy-600 p-4 min-h-0 flex flex-col'
-                : 'rounded-xl border border-gray-200 dark:border-navy-600 p-4 h-[60vh] min-h-[380px] flex flex-col'
-            }
+                ? 'rounded-xl border border-gray-200 dark:border-navy-600 p-4 min-h-0 flex-col'
+                : 'rounded-xl border border-gray-200 dark:border-navy-600 p-4 h-[60vh] min-h-[380px] flex-col'
+            } ${aberta ? 'flex' : 'hidden lg:flex'}`}
           >
             {!aberta ? (
               <div className="flex-1 flex items-center justify-center">
@@ -322,6 +326,17 @@ export default function SuporteAdmin({ semMoldura = false }: { semMoldura?: bool
             ) : (
               <>
                 <div className="pb-3 mb-1 border-b border-gray-200 dark:border-navy-700">
+                  {/* Sem isto, no celular a conversa abre e não há como sair
+                      dela para escolher outra pessoa. */}
+                  <button
+                    type="button"
+                    onClick={() => setAberta(null)}
+                    className="lg:hidden inline-flex items-center gap-1.5 mb-2 text-sm font-semibold text-gray-600 dark:text-slate-300 hover:text-navy-900 dark:hover:text-white"
+                  >
+                    <ChevronLeft className="w-4 h-4" aria-hidden="true" />
+                    Todas as conversas
+                  </button>
+
                   <p className="font-semibold text-navy-900 dark:text-white">
                     {aberta.empresa || aberta.nome || aberta.email}
                   </p>

@@ -140,10 +140,13 @@ export default function SuporteFlutuante() {
       {aberto && (
         <div
           ref={painel}
-          className={`fixed bottom-24 right-4 sm:right-6 z-[120] flex flex-col rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-2xl overflow-hidden ${
+          // No celular o painel toma a tela. Espremido no canto, a lista de
+          // conversas e a conversa aberta dividiam um quadrado de 300px e não
+          // dava para usar nenhuma das duas.
+          className={`fixed z-[120] flex flex-col rounded-2xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 shadow-2xl overflow-hidden inset-x-3 top-4 bottom-24 sm:inset-x-auto sm:top-auto sm:right-6 sm:bottom-24 ${
             ehAdmin
-              ? 'w-[min(940px,calc(100vw-2rem))] h-[min(640px,calc(100vh-10rem))]'
-              : 'w-[min(400px,calc(100vw-2rem))] h-[min(560px,calc(100vh-10rem))]'
+              ? 'sm:w-[min(940px,calc(100vw-3rem))] sm:h-[min(640px,calc(100vh-10rem))]'
+              : 'sm:w-[min(400px,calc(100vw-3rem))] sm:h-[min(560px,calc(100vh-10rem))]'
           }`}
         >
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-gray-200 dark:border-navy-700 shrink-0">
