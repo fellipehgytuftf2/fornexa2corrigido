@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Crown, Loader2 } from 'lucide-react';
+import { BarChart3, Crown, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Avatar from '../../components/conquistas/Avatar';
 import Selo from '../../components/conquistas/Selo';
@@ -133,17 +133,26 @@ export default function TopVendedores() {
   // pessoa tinha ao abrir esta tela.
   const estouNaLista = linhas.some((linha) => linha.sou_eu);
 
-  const selo = (chave: string | null, tamanho: 'p' | 'm' | 'g') => {
+
+  /**
+   * O selo com o nome da conquista ao lado.
+   *
+   * Só o desenho não diz o que a pessoa conquistou — e é o nome que faz quem
+   * está em quinto querer o selo de quem está em primeiro.
+   */
+  const conquistaComNome = (chave: string | null) => {
     if (!chave) return null;
 
     const conquista = conquistas[chave];
 
     return (
-      <Selo
-        icone={conquista?.icone ?? 'estrela'}
-        tamanho={tamanho}
-        titulo={conquista?.nome ?? 'Conquista'}
-      />
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/15 px-2.5 py-1">
+        <Selo icone={conquista?.icone ?? 'estrela'} tamanho="p" />
+
+        <span className="text-[11px] font-semibold text-navy-900 dark:text-gold">
+          {conquista?.nome ?? 'Conquista'}
+        </span>
+      </span>
     );
   };
 
@@ -155,64 +164,70 @@ export default function TopVendedores() {
       1: {
         borda: 'border-amber-300 dark:border-amber-500/60',
         fundo: 'bg-gradient-to-b from-amber-50 to-white dark:from-amber-500/15 dark:to-navy-800',
-        anel: 'ring-4 ring-amber-300 dark:ring-amber-500/70',
-        texto: 'text-amber-700 dark:text-amber-300',
+        anel: 'ring-2 ring-amber-300 dark:ring-amber-500/70',
+        circulo: 'bg-amber-400 text-navy-900',
       },
       2: {
         borda: 'border-gray-300 dark:border-slate-500/60',
         fundo: 'bg-gradient-to-b from-gray-50 to-white dark:from-slate-500/10 dark:to-navy-800',
-        anel: 'ring-4 ring-gray-300 dark:ring-slate-400/60',
-        texto: 'text-gray-600 dark:text-slate-300',
+        anel: 'ring-2 ring-gray-300 dark:ring-slate-400/60',
+        circulo: 'bg-gray-300 text-navy-900 dark:bg-slate-400',
       },
       3: {
         borda: 'border-orange-300 dark:border-orange-500/50',
         fundo: 'bg-gradient-to-b from-orange-50 to-white dark:from-orange-500/10 dark:to-navy-800',
-        anel: 'ring-4 ring-orange-300 dark:ring-orange-500/60',
-        texto: 'text-orange-700 dark:text-orange-300',
+        anel: 'ring-2 ring-orange-300 dark:ring-orange-500/60',
+        circulo: 'bg-orange-300 text-navy-900 dark:bg-orange-400',
       },
     }[lugar];
 
     return (
       <div
-        className={`relative rounded-2xl border ${cores.borda} ${cores.fundo} shadow-sm px-5 text-center ${
-          lugar === 1 ? 'pt-9 pb-7 sm:-mt-6' : 'pt-7 pb-6'
+        className={`relative rounded-2xl border ${cores.borda} ${cores.fundo} shadow-sm px-5 ${
+          lugar === 1 ? 'pt-6 pb-5 sm:-mt-4' : 'pt-5 pb-5'
         } ${linha.sou_eu ? 'ring-2 ring-gold' : ''}`}
       >
         {lugar === 1 && (
           <Crown
-            className="w-7 h-7 text-amber-500 mx-auto -mt-3 mb-1"
+            className="w-6 h-6 text-amber-500 absolute -top-3 left-1/2 -translate-x-1/2"
             aria-hidden="true"
           />
         )}
 
-        <div className="flex justify-center">
+        {/* Número e foto lado a lado: a posição é a primeira coisa que se
+            procura, e o rosto é o que identifica. */}
+        <div className="flex items-center gap-3">
+          <span
+            className={`w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold ${cores.circulo}`}
+          >
+            {lugar}
+          </span>
+
           <Avatar
             foto={linha.foto_path}
             nome={linha.nome}
-            tamanho={lugar === 1 ? 'gg' : 'g'}
+            tamanho={lugar === 1 ? 'g' : 'm'}
             anel={cores.anel}
           />
+
+          <div className="min-w-0">
+            <p className="font-semibold text-navy-900 dark:text-white truncate">
+              {linha.sou_eu ? 'Você' : linha.nome}
+            </p>
+
+            <div className="mt-1">{conquistaComNome(linha.conquista)}</div>
+          </div>
         </div>
 
-        <p className={`font-mono text-xs font-semibold mt-3 ${cores.texto}`}>
-          {lugar}º lugar
-        </p>
-
-        <p className="font-semibold text-navy-900 dark:text-white mt-1 truncate">
-          {linha.sou_eu ? 'Você' : linha.nome}
-        </p>
-
-        <div className="flex justify-center mt-2">{selo(linha.conquista, lugar === 1 ? 'm' : 'p')}</div>
-
         <p
-          className={`font-bold tabular-nums mt-3 ${
+          className={`font-bold tabular-nums mt-4 ${
             lugar === 1 ? 'text-2xl' : 'text-xl'
           } text-navy-900 dark:text-white`}
         >
           {linha.mostra_valor ? dinheiro(linha.faturamento) : '—'}
         </p>
 
-        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{legenda}</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{legenda}</p>
       </div>
     );
   };
@@ -220,7 +235,10 @@ export default function TopVendedores() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-navy-900 dark:text-white">Top Vendedores</h1>
+        <h1 className="text-2xl font-bold text-navy-900 dark:text-white flex items-center gap-2">
+          <BarChart3 className="w-6 h-6 text-gold" aria-hidden="true" />
+          Top Vendedores
+        </h1>
 
         <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
           Ranking atualizado em tempo real
@@ -307,7 +325,7 @@ export default function TopVendedores() {
                           {linha.mostra_valor ? dinheiro(linha.faturamento) : '—'}
                         </td>
 
-                        <td className="px-5 py-3">{selo(linha.conquista, 'p')}</td>
+                        <td className="px-5 py-3">{conquistaComNome(linha.conquista)}</td>
                       </tr>
                     ))}
 

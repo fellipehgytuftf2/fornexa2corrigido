@@ -12,6 +12,8 @@ import {
   User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useFuncionalidade } from '../../lib/funcionalidades';
+import FotoEPrivacidade from '../../components/conquistas/FotoEPrivacidade';
 import Afiliado from './Afiliado';
 
 interface SettingsProps {
@@ -58,6 +60,7 @@ const statusLabels: Record<string, { texto: string; cor: string }> = {
 };
 
 export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
+  const { liberada: vendoORanking } = useFuncionalidade('top-vendedores');
   const [carregando, setCarregando] = useState(true);
   const [nome, setNome] = useState('');
   const [empresa, setEmpresa] = useState('');
@@ -340,6 +343,10 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* Novidade em teste: quem não estiver liberado não vê a foto nem as
+          escolhas de ranking. Ver src/lib/funcionalidades. */}
+      {vendoORanking && <FotoEPrivacidade />}
+
       <div>
         <h1 className="text-2xl font-bold text-navy-900 dark:text-white">Configurações</h1>
         <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
