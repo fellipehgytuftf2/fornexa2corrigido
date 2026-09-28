@@ -26,7 +26,7 @@ interface Parado {
  * escrita levaria a lugar nenhum, e um link que não leva a nada é pior que
  * texto que a pessoa copia.
  */
-function linkDoContato(contato: string): string | null {
+function linkDoContato(contato: string, mensagem: string): string | null {
   const limpo = contato.trim();
 
   if (/^https?:\/\//i.test(limpo)) {
@@ -37,7 +37,11 @@ function linkDoContato(contato: string): string | null {
 
   // 10 ou 11 dígitos é número brasileiro sem o país; 12 ou 13 já vem com ele.
   if (digitos.length >= 10 && digitos.length <= 13) {
-    return `https://wa.me/${digitos.length <= 11 ? `55${digitos}` : digitos}`;
+    const numero = digitos.length <= 11 ? `55${digitos}` : digitos;
+
+    // A conversa já abre escrita: quem não sabe o que pedir acaba não pedindo,
+    // e o pedido segue parado enquanto a janela some da cabeça.
+    return `https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`;
   }
 
   return null;
@@ -110,21 +114,42 @@ export default function FlexTransportadora() {
   const contato = (parado: Parado) => {
     if (!parado.contato) return null;
 
-    const link = linkDoContato(parado.contato);
+    const mensagem =
+      `Olá! Vendo pelo Mercado Livre com o fornecedor ${parado.fornecedor} e ` +
+      'preciso me cadastrar para despachar pedidos com o Mercado Envios Flex. ' +
+      'O que precisa para fazer o cadastro?';
+
+    const link = linkDoContato(parado.contato, mensagem);
 
     if (!link) {
-      return <span className="font-semibold break-words">{parado.contato}</span>;
+      return (
+        <p className="text-sm text-gray-600 dark:text-slate-300">
+          Contato da transportadora:{' '}
+          <strong className="break-words">{parado.contato}</strong>
+        </p>
+      );
     }
 
+    // Verde do WhatsApp, e não a cor do sistema: aqui a cor é informação —
+    // diz para onde o clique leva antes de a pessoa ler o rótulo.
     return (
       <a
         href={link}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 font-semibold underline underline-offset-2 hover:opacity-80 break-words"
+        className="flex items-center gap-3 rounded-xl bg-[#25D366] px-4 py-3 text-white font-semibold hover:brightness-95 transition-[filter] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/60"
       >
-        <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-        {parado.contato}
+        <MessageCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
+
+        <span className="min-w-0">
+          <span className="block text-sm leading-tight">
+            Falar com a {parado.transportadora} no WhatsApp
+          </span>
+
+          <span className="block text-xs font-normal text-white/85 tabular-nums break-words">
+            {parado.contato} · mensagem já escrita
+          </span>
+        </span>
       </a>
     );
   };
@@ -238,11 +263,7 @@ export default function FlexTransportadora() {
                       {texto(parado)}
                     </p>
 
-                    {parado.contato && (
-                      <p className="text-sm text-gray-600 dark:text-slate-300">
-                        Fale com a transportadora: {contato(parado)}
-                      </p>
-                    )}
+                    {contato(parado)}
 
                     {acao(parado)}
                   </div>
@@ -278,11 +299,7 @@ export default function FlexTransportadora() {
                   {texto(parado)}
                 </p>
 
-                {parado.contato && (
-                  <p className="text-sm text-amber-800 dark:text-amber-200 mt-2">
-                    Contato da transportadora: {contato(parado)}
-                  </p>
-                )}
+                <div className="mt-3">{contato(parado)}</div>
 
                 <div className="mt-4">{acao(parado)}</div>
 
