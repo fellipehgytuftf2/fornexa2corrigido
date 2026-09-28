@@ -18,10 +18,12 @@ import {
   ShoppingCart,
   Store,
   Sun,
+  Trophy,
   Truck,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useFuncionalidades } from '../lib/funcionalidades';
 
 interface NavigationSubItem {
   path: string;
@@ -35,6 +37,8 @@ interface NavigationItem {
   label: string;
   icon: typeof LayoutDashboard;
   adminOnly?: boolean;
+  /** Chave da novidade em teste. Sem liberação, o item não aparece. */
+  funcionalidade?: string;
   /** Item vira um grupo expansível na barra lateral em vez de um link direto. */
   children?: NavigationSubItem[];
 }
@@ -61,6 +65,14 @@ const navigationItems: NavigationItem[] = [
     path: '/dashboard/orders',
     label: 'Pedidos',
     icon: ShoppingCart,
+  },
+  {
+    path: '/dashboard/top-vendedores',
+    label: 'Top Vendedores',
+    icon: Trophy,
+    // Novidade em teste: só quem estiver liberado no Admin vê. O admin
+    // enxerga sempre, e o lançamento é um clique lá — sem deploy.
+    funcionalidade: 'top-vendedores',
   },
   {
     path: '/dashboard/financial',
@@ -147,6 +159,9 @@ export default function DashboardLayout() {
   const [savedUser, setSavedUser] = useState<SavedUser | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [userRole, setUserRole] = useState<string>('user');
+
+  /** Novidades em teste liberadas para esta conta. Ver src/lib/funcionalidades. */
+  const { liberadas } = useFuncionalidades();
 
   /**
    * Grupos da barra lateral abertos (ex: "Admin", com os seis submenus).
@@ -431,6 +446,10 @@ export default function DashboardLayout() {
   const renderNavigation = () => {
     const visibleItems = navigationItems.filter((item) => {
       if (item.adminOnly && userRole !== 'admin') {
+        return false;
+      }
+
+      if (item.funcionalidade && !liberadas.has(item.funcionalidade)) {
         return false;
       }
 

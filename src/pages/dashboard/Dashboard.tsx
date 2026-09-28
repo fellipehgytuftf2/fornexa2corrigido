@@ -21,6 +21,9 @@ import {
   YAxis,
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
+import { useFuncionalidade } from '../../lib/funcionalidades';
+import BarraDeFaturamento from '../../components/conquistas/BarraDeFaturamento';
+import ComemoracaoDeConquista from '../../components/conquistas/ComemoracaoDeConquista';
 
 interface UserProduct {
   id: string;
@@ -118,6 +121,7 @@ const buildWeeklyBuckets = (orders: Order[]) => {
 };
 
 export default function Dashboard({ darkMode }: DashboardProps) {
+  const { liberada: vendoOTopo } = useFuncionalidade('top-vendedores');
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -339,6 +343,15 @@ export default function Dashboard({ darkMode }: DashboardProps) {
 
   return (
     <div className="space-y-6">
+      {/* Novidade em teste: quem não estiver liberado no Admin não vê nem a
+          barra nem a comemoração. Ver src/lib/funcionalidades. */}
+      {vendoOTopo && (
+        <>
+          <ComemoracaoDeConquista />
+          <BarraDeFaturamento />
+        </>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 px-5 py-4 shadow-sm">
         <div>
           <h2 className="text-navy-900 dark:text-white font-semibold">Ações rápidas</h2>

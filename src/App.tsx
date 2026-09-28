@@ -16,6 +16,7 @@ import Catalog from './pages/dashboard/Catalog';
 import Suppliers from './pages/dashboard/Suppliers';
 import MyProducts from './pages/dashboard/MyProducts';
 import Orders from './pages/dashboard/Orders';
+import TopVendedores from './pages/dashboard/TopVendedores';
 import Financial from './pages/dashboard/Financial';
 import Integrations from './pages/dashboard/Integrations';
 import AdminCatalogo from './pages/dashboard/AdminCatalogo';
@@ -327,6 +328,7 @@ function App() {
           <Route path="suppliers" element={<Suppliers />} />
           <Route path="my-products" element={<MyProducts />} />
           <Route path="orders" element={<Orders />} />
+          <Route path="top-vendedores" element={<TopVendedores />} />
           <Route path="financial" element={<Financial />} />
           <Route path="integrations" element={<Integrations />} />
           <Route path="admin" element={<Navigate to="/dashboard/admin/catalogo" replace />} />

@@ -44,6 +44,27 @@ export function esquecerFuncionalidades() {
   respostaEmAndamento = null;
 }
 
+/** Todas as novidades liberadas para esta conta, para quem precisa filtrar lista. */
+export function useFuncionalidades() {
+  const [liberadas, setLiberadas] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let vivo = true;
+
+    respostaEmAndamento = respostaEmAndamento ?? carregar();
+
+    respostaEmAndamento.then((chaves) => {
+      if (vivo) setLiberadas(chaves);
+    });
+
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  return { liberadas };
+}
+
 export function useFuncionalidade(chave: string) {
   const [liberada, setLiberada] = useState(false);
   const [carregando, setCarregando] = useState(true);
