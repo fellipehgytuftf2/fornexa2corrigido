@@ -1894,7 +1894,13 @@ export default function SupplierPortal() {
                               ? 'Etiqueta libera após o pagamento'
                               : order.sem_mercado_envios
                                 ? 'Venda sem Mercado Envios — não haverá etiqueta'
-                                : 'Envio ainda não criado pelo Mercado Livre'}
+                                : // O envio existe; o que falta é o cadastro do
+                                  // vendedor. Dizer "envio não criado" aqui
+                                  // mandava o fornecedor esperar o Mercado Livre
+                                  // resolver algo que depende do vendedor.
+                                  order.flex_sem_cadastro
+                                  ? 'Etiqueta libera quando o vendedor confirmar o cadastro na transportadora'
+                                  : 'Envio ainda não criado pelo Mercado Livre'}
                           </span>
                         )}
 
