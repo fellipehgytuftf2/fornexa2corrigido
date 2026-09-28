@@ -176,12 +176,28 @@ export default function DashboardLayout() {
    */
   const [chamadosNaoLidos, setChamadosNaoLidos] = useState(0);
 
+  /**
+   * Pedidos Flex parados por falta de cadastro na transportadora.
+   *
+   * O aviso morava dentro da tela de Pedidos, e quem não abre a tela é
+   * justamente quem deixa o pedido parado — enquanto o fornecedor espera uma
+   * confirmação que o vendedor não sabe que precisa dar.
+   */
+  const [flexParados, setFlexParados] = useState(0);
+
   useEffect(() => {
     let vivo = true;
 
     const contar = async () => {
-      const { data } = await supabase.rpc('chamados_nao_lidos');
-      if (vivo) setChamadosNaoLidos(Number(data ?? 0));
+      const [chamados, flex] = await Promise.all([
+        supabase.rpc('chamados_nao_lidos'),
+        supabase.rpc('meus_pedidos_flex_parados_total'),
+      ]);
+
+      if (!vivo) return;
+
+      setChamadosNaoLidos(Number(chamados.data ?? 0));
+      setFlexParados(Number(flex.data ?? 0));
     };
 
     contar();
@@ -546,6 +562,17 @@ export default function DashboardLayout() {
               {item.path === '/dashboard/tickets' && chamadosNaoLidos > 0 && (
                 <span className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center tabular-nums">
                   {chamadosNaoLidos}
+                </span>
+              )}
+
+              {/* Mesma ideia dos chamados: pedido parado por causa do vendedor,
+                  que só descobre entrando na tela. */}
+              {item.path === '/dashboard/orders' && flexParados > 0 && (
+                <span
+                  title="Pedidos Flex parados por falta de cadastro na transportadora"
+                  className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center tabular-nums"
+                >
+                  {flexParados}
                 </span>
               )}
             </NavLink>

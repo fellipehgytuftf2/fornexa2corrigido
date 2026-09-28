@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, Loader2, Truck } from 'lucide-react';
+import { CheckCircle, Loader2, MessageCircle, Truck, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import ModalPortal from '../ui/modal-portal';
 
 interface Parado {
   supplier_id: string;
@@ -9,6 +10,31 @@ interface Parado {
   contato: string | null;
   pedidos: number;
   confirmado: boolean;
+}
+
+/**
+ * O contato da transportadora, clicável quando dá.
+ *
+ * Telefone vira conversa no WhatsApp; endereço de site vira link. O resto sai
+ * como texto — inventar um link a partir de um e-mail ou de uma instrução
+ * escrita levaria a lugar nenhum, e um link que não leva a nada é pior que
+ * texto que a pessoa copia.
+ */
+function linkDoContato(contato: string): string | null {
+  const limpo = contato.trim();
+
+  if (/^https?:\/\//i.test(limpo)) {
+    return limpo;
+  }
+
+  const digitos = limpo.replace(/\D/g, '');
+
+  // 10 ou 11 dígitos é número brasileiro sem o país; 12 ou 13 já vem com ele.
+  if (digitos.length >= 10 && digitos.length <= 13) {
+    return `https://wa.me/${digitos.length <= 11 ? `55${digitos}` : digitos}`;
+  }
+
+  return null;
 }
 
 /**
@@ -21,13 +47,17 @@ interface Parado {
  * o Flex na conta do Mercado Livre sem saber disso, a venda chega, e o pacote
  * empaca na bancada do fornecedor.
  *
- * O aviso vem com o contato da transportadora porque avisar sem dizer para
- * quem ligar empurra o problema de volta para quem não sabe resolvê-lo.
+ * POR QUE UMA JANELA, E NÃO SÓ A FAIXA
+ *
+ * A faixa no topo da lista some do olho de quem rola a página atrás do pedido
+ * de ontem. A janela para o trabalho uma vez, com o contato da transportadora
+ * a um clique, e sai do caminho no primeiro "entendi".
  */
 export default function FlexTransportadora() {
   const [parados, setParados] = useState<Parado[]>([]);
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [erro, setErro] = useState('');
+  const [janelaFechada, setJanelaFechada] = useState(false);
 
   const carregar = async () => {
     const { data, error } = await supabase.rpc('meus_pedidos_flex_parados');
@@ -68,61 +98,170 @@ export default function FlexTransportadora() {
 
   if (pendentes.length === 0) return null;
 
+  const contato = (parado: Parado) => {
+    if (!parado.contato) return null;
+
+    const link = linkDoContato(parado.contato);
+
+    if (!link) {
+      return (
+        <span className="font-semibold break-words">{parado.contato}</span>
+      );
+    }
+
+    return (
+      <a
+        href={link}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex items-center gap-1.5 font-semibold underline underline-offset-2 hover:opacity-80 break-words"
+      >
+        <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+        {parado.contato}
+      </a>
+    );
+  };
+
+  const texto = (parado: Parado) => (
+    <>
+      O envio Flex de {parado.fornecedor} é feito pela{' '}
+      <strong>{parado.transportadora}</strong>, e ela só despacha para quem tem
+      cadastro. Enquanto você não se cadastrar, a etiqueta destes pedidos não
+      libera.
+    </>
+  );
+
   return (
-    <div className="space-y-3">
-      {pendentes.map((parado) => (
-        <div
-          key={parado.supplier_id}
-          className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-5"
-        >
-          <div className="flex items-start gap-3">
-            <Truck
-              className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
-              aria-hidden="true"
-            />
+    <>
+      {/* A janela aparece uma vez por visita e sai no primeiro fechar: quem já
+          sabe não quer ser parado de novo a cada pedido que vem conferir. */}
+      {!janelaFechada && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 px-4 py-6">
+            <div className="w-full max-w-lg max-h-full overflow-y-auto rounded-2xl bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 shadow-2xl">
+              <div className="flex items-start justify-between gap-4 p-6 pb-0">
+                <div className="flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
+                    <Truck
+                      className="w-5 h-5 text-amber-600 dark:text-amber-400"
+                      aria-hidden="true"
+                    />
+                  </span>
 
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold text-navy-900 dark:text-white">
-                {parado.pedidos === 1
-                  ? '1 pedido Flex parado'
-                  : `${parado.pedidos} pedidos Flex parados`}
-              </p>
+                  <h2 className="text-lg font-bold text-navy-900 dark:text-white">
+                    {pendentes.reduce((total, p) => total + Number(p.pedidos || 0), 0) === 1
+                      ? 'Você tem 1 pedido Flex parado'
+                      : `Você tem ${pendentes.reduce(
+                          (total, p) => total + Number(p.pedidos || 0),
+                          0
+                        )} pedidos Flex parados`}
+                  </h2>
+                </div>
 
-              <p className="text-sm text-amber-800 dark:text-amber-200 mt-1 leading-relaxed">
-                O envio Flex de {parado.fornecedor} é feito pela{' '}
-                <strong>{parado.transportadora}</strong>, e ela só despacha para
-                quem tem cadastro. Enquanto você não se cadastrar, a etiqueta
-                destes pedidos não libera.
-              </p>
+                <button
+                  type="button"
+                  onClick={() => setJanelaFechada(true)}
+                  aria-label="Fechar"
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-navy-700"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-              {parado.contato && (
-                <p className="text-sm text-amber-800 dark:text-amber-200 mt-2">
-                  Contato da transportadora:{' '}
-                  <strong className="break-words">{parado.contato}</strong>
-                </p>
-              )}
+              <div className="p-6 pt-4 space-y-5">
+                {pendentes.map((parado) => (
+                  <div key={parado.supplier_id} className="space-y-3">
+                    <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed">
+                      {texto(parado)}
+                    </p>
 
-              <button
-                type="button"
-                onClick={() => confirmar(parado)}
-                disabled={confirmando === parado.supplier_id}
-                className="inline-flex items-center gap-2 mt-4 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
-              >
-                {confirmando === parado.supplier_id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                ) : (
-                  <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                    {parado.contato && (
+                      <p className="text-sm text-gray-600 dark:text-slate-300">
+                        Fale com a transportadora: {contato(parado)}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => confirmar(parado)}
+                      disabled={confirmando === parado.supplier_id}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                    >
+                      {confirmando === parado.supplier_id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                      )}
+                      Já estou cadastrado na {parado.transportadora}
+                    </button>
+                  </div>
+                ))}
+
+                {erro && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>
                 )}
-                Já estou cadastrado
-              </button>
 
-              {erro && (
-                <p className="text-sm text-red-600 dark:text-red-400 mt-3">{erro}</p>
-              )}
+                <p className="text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
+                  Confirmando, a etiqueta libera para todos os pedidos Flex desse
+                  fornecedor — agora e nas próximas vendas.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      ))}
-    </div>
+        </ModalPortal>
+      )}
+
+      <div className="space-y-3">
+        {pendentes.map((parado) => (
+          <div
+            key={parado.supplier_id}
+            className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-5"
+          >
+            <div className="flex items-start gap-3">
+              <Truck
+                className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
+                aria-hidden="true"
+              />
+
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-navy-900 dark:text-white">
+                  {Number(parado.pedidos) === 1
+                    ? '1 pedido Flex parado'
+                    : `${parado.pedidos} pedidos Flex parados`}
+                </p>
+
+                <p className="text-sm text-amber-800 dark:text-amber-200 mt-1 leading-relaxed">
+                  {texto(parado)}
+                </p>
+
+                {parado.contato && (
+                  <p className="text-sm text-amber-800 dark:text-amber-200 mt-2">
+                    Contato da transportadora: {contato(parado)}
+                  </p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => confirmar(parado)}
+                  disabled={confirmando === parado.supplier_id}
+                  className="inline-flex items-center gap-2 mt-4 px-4 py-2.5 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                >
+                  {confirmando === parado.supplier_id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  Já estou cadastrado
+                </button>
+
+                {erro && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-3">{erro}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
