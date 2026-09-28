@@ -44,6 +44,18 @@ export function esquecerFuncionalidades() {
   respostaEmAndamento = null;
 }
 
+/**
+ * TROCA DE CONTA
+ *
+ * Sem tratar isso, entrar na conta de um cliente pelo Admin — ou sair e entrar
+ * com outro login sem recarregar — deixava a resposta do admin valendo para
+ * ele: a novidade em teste aparecia para quem não estava liberado.
+ *
+ * Cada gancho abaixo ouve a troca, esquece a resposta e pergunta de novo. O
+ * ouvinte vive com o componente, e não solto no módulo, para sumir junto com
+ * ele em vez de acumular a cada tela aberta.
+ */
+
 /** Todas as novidades liberadas para esta conta, para quem precisa filtrar lista. */
 export function useFuncionalidades() {
   const [liberadas, setLiberadas] = useState<Set<string>>(new Set());
@@ -51,14 +63,26 @@ export function useFuncionalidades() {
   useEffect(() => {
     let vivo = true;
 
-    respostaEmAndamento = respostaEmAndamento ?? carregar();
+    const ler = () => {
+      respostaEmAndamento = respostaEmAndamento ?? carregar();
 
-    respostaEmAndamento.then((chaves) => {
-      if (vivo) setLiberadas(chaves);
+      respostaEmAndamento.then((chaves) => {
+        if (vivo) setLiberadas(chaves);
+      });
+    };
+
+    ler();
+
+    // Trocou de conta, a resposta anterior não vale mais.
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      respostaEmAndamento = null;
+      setLiberadas(new Set());
+      ler();
     });
 
     return () => {
       vivo = false;
+      data.subscription.unsubscribe();
     };
   }, []);
 
@@ -72,17 +96,28 @@ export function useFuncionalidade(chave: string) {
   useEffect(() => {
     let vivo = true;
 
-    respostaEmAndamento = respostaEmAndamento ?? carregar();
+    const ler = () => {
+      respostaEmAndamento = respostaEmAndamento ?? carregar();
 
-    respostaEmAndamento.then((chaves) => {
-      if (!vivo) return;
+      respostaEmAndamento.then((chaves) => {
+        if (!vivo) return;
 
-      setLiberada(chaves.has(chave));
-      setCarregando(false);
+        setLiberada(chaves.has(chave));
+        setCarregando(false);
+      });
+    };
+
+    ler();
+
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      respostaEmAndamento = null;
+      setLiberada(false);
+      ler();
     });
 
     return () => {
       vivo = false;
+      data.subscription.unsubscribe();
     };
   }, [chave]);
 
