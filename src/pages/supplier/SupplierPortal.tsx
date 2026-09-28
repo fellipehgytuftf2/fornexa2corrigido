@@ -65,6 +65,8 @@ interface SupplierOrder {
   flex?: boolean;
   /** Flex esperando o vendedor confirmar cadastro na transportadora. */
   flex_sem_cadastro?: boolean;
+  /** Quando o vendedor declarou o cadastro. Nulo quando não declarou. */
+  flex_confirmado_em?: string | null;
   transportadora_nome?: string | null;
   /**
    * Pago, separado e esperando uma etiqueta que não sai.
@@ -1540,6 +1542,22 @@ export default function SupplierPortal() {
                               >
                                 <Truck className="w-3 h-3" aria-hidden="true" />
                                 Flex
+                              </span>
+                            )}
+
+                            {/* Ausência de alerta não é confirmação: sem este
+                                selo, o fornecedor não sabia se o vendedor
+                                estava liberado ou se a trava nem existia. */}
+                            {order.flex && order.flex_confirmado_em && (
+                              <span
+                                title={`O vendedor declarou cadastro na ${
+                                  order.transportadora_nome || 'transportadora'
+                                }`}
+                                className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300"
+                              >
+                                <CheckCircle className="w-3 h-3" aria-hidden="true" />
+                                Cadastro na transportadora em{' '}
+                                {new Date(order.flex_confirmado_em).toLocaleDateString('pt-BR')}
                               </span>
                             )}
                           </div>
