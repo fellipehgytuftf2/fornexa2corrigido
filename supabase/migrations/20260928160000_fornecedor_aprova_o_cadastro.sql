@@ -48,6 +48,10 @@ comment on column public.cadastros_na_transportadora.recusado_em is
 -- O vendedor declara
 -- ----------------------------------------------------------------------------
 
+-- A versão de dois parâmetros sai de cena: mantida, viraria uma sobrecarga
+-- ambígua para quem chamasse sem o protocolo.
+drop function if exists public.vendedor_confirma_transportadora(uuid, boolean);
+
 create or replace function public.vendedor_confirma_transportadora(
   p_supplier_id uuid,
   p_confirmado boolean default true,
@@ -214,7 +218,14 @@ as $$
 $$;
 
 
-/** O que o vendedor vê: parado, esperando o fornecedor, ou recusado. */
+/**
+ * O que o vendedor vê: parado, esperando o fornecedor, ou recusado.
+ *
+ * Derrubada antes de recriar porque `create or replace` não muda as colunas de
+ * retorno de uma função que já existe — e esta ganhou três.
+ */
+drop function if exists public.meus_pedidos_flex_parados();
+
 create or replace function public.meus_pedidos_flex_parados()
 returns table (
   supplier_id uuid,
