@@ -106,6 +106,10 @@ grant execute on function public.ranking_vendedores(text) to authenticated;
  * Quanto falta é uma subtração entre dois números meus — o meu total e o do
  * terceiro lugar. Nunca diz quem é o terceiro.
  */
+-- Ganhou a coluna "falta para o pódio", e `create or replace` não muda o
+-- retorno de uma função que já existe.
+drop function if exists public.minha_posicao_no_ranking(text);
+
 create or replace function public.minha_posicao_no_ranking(p_periodo text default 'mes')
 returns table (
   posicao bigint,
