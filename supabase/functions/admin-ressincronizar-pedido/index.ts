@@ -183,6 +183,16 @@ Deno.serve(async (req: Request) => {
       sem_mercado_envios: false,
       ml_shipment_id: String(shippingId),
       ml_shipment_substatus: envio?.substatus ? String(envio.substatus) : null,
+
+      // O tipo de logística decide se o pedido é Flex, e Flex trava a etiqueta
+      // até o vendedor ter cadastro na transportadora. Era escrito só na
+      // chegada da venda: se o Mercado Livre trocasse o envio depois, a marca
+      // antiga ficava, e o vendedor via uma cobrança de cadastro que já não
+      // valia. Só reescreve quando a leitura trouxe o campo.
+      ...(envio?.logistic_type
+        ? { ml_logistic_type: String(envio.logistic_type) }
+        : {}),
+
       ml_shipment_visto_em: new Date().toISOString(),
       ml_liberacao_em: typeof buffering?.date === 'string' ? buffering.date : null,
       tracking_code: envio?.tracking_number ?? null,
@@ -204,11 +214,20 @@ Deno.serve(async (req: Request) => {
     },
   });
 
+  const flex = envio?.logistic_type === 'self_service';
+
   return json({
     ok: true,
     encontrou_envio: true,
     shipment_id: String(shippingId),
     substatus: envio?.substatus ?? null,
-    conclusao: 'Envio encontrado e gravado. A etiqueta deve aparecer no Portal.',
+    logistica: envio?.logistic_type ?? null,
+    conclusao:
+      'Envio encontrado e gravado. A etiqueta deve aparecer no Portal.' +
+      (envio?.logistic_type
+        ? ` O Mercado Livre diz que a logística é "${envio.logistic_type}"${
+            flex ? ' — é Flex, e exige cadastro do vendedor na transportadora.' : '.'
+          }`
+        : ''),
   });
 });
