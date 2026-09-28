@@ -48,8 +48,12 @@ interface SupplierOrder {
   status: OrderStatus;
   tracking_code: string | null;
   etiqueta_url: string | null;
-  /** A view calcula isto a partir de ml_shipment_id — sem expor o id em si. */
   etiqueta_disponivel: boolean;
+  /**
+   * O envio no Mercado Livre. Vários pedidos podem dividir o mesmo: é o
+   * carrinho, em que o comprador leva mais de um produto na mesma caixa.
+   */
+  ml_shipment_id?: string | null;
   /** A trava de remetente barrou a última tentativa de baixar a etiqueta. */
   etiqueta_barrada?: boolean;
   /** Quando o fornecedor pôs este pedido na prateleira, por decisão dele. */
@@ -829,16 +833,41 @@ export default function SupplierPortal() {
    * etiquetas liberadas e separa o produto das reservadas". Esta marca é essa
    * decisão, e convive com a automática.
    */
+  /**
+   * Os pedidos que dividem o mesmo envio no Mercado Livre.
+   *
+   * É o carrinho: o comprador leva três produtos, o Mercado Livre gera um
+   * envio e uma etiqueta, e o FORNEXA cria três pedidos — um por produto,
+   * porque cada um tem preço e repasse próprios. Na bancada, porém, é uma
+   * caixa só.
+   */
+  const pedidosDoMesmoEnvio = (order: SupplierOrder) =>
+    order.ml_shipment_id
+      ? orders.filter((outro) => outro.ml_shipment_id === order.ml_shipment_id)
+      : [order];
+
   const reservar = async (order: SupplierOrder, reservado: boolean) => {
     setActionId(order.id);
     setErroNoPedido(null);
 
-    const { data, error } = await supabase.rpc('fornecedor_reserva_pedido', {
-      p_order_id: order.id,
-      p_reservado: reservado,
-    });
+    // Carrinho vai junto: os pedidos do mesmo envio são uma caixa só, e
+    // reservar um deixando os outros na fila é convite a separar duas vezes.
+    const alvos = pedidosDoMesmoEnvio(order);
+
+    const respostas = await Promise.all(
+      alvos.map((alvo) =>
+        supabase.rpc('fornecedor_reserva_pedido', {
+          p_order_id: alvo.id,
+          p_reservado: reservado,
+        })
+      )
+    );
 
     setActionId(null);
+
+    const { data, error } = respostas.find(
+      (r) => r.error || (r.data as { ok?: boolean } | null)?.ok === false
+    ) ?? respostas[0];
 
     const resposta = data as { ok?: boolean; erro?: string } | null;
 
@@ -919,14 +948,24 @@ export default function SupplierPortal() {
     setActionId(order.id);
     setErroNoPedido(null);
 
+    // Os pedidos do mesmo envio andam juntos: são uma caixa, uma etiqueta e
+    // uma postagem. Marcar só um deixaria os outros dizendo que faltam separar.
+    const alvos = pedidosDoMesmoEnvio(order);
+
     // A função valida dono e transição no banco. O fornecedor não consegue
     // dar UPDATE em `orders` de forma alguma.
-    const { error } = await supabase.rpc('fornecedor_atualiza_status_pedido', {
-      p_pedido_id: order.id,
-      p_novo_status: nextStatus,
-    });
+    const respostas = await Promise.all(
+      alvos.map((alvo) =>
+        supabase.rpc('fornecedor_atualiza_status_pedido', {
+          p_pedido_id: alvo.id,
+          p_novo_status: nextStatus,
+        })
+      )
+    );
 
     setActionId(null);
+
+    const { error } = respostas.find((r) => r.error) ?? respostas[0];
 
     if (error) {
       console.error('Erro ao atualizar pedido:', error);
@@ -1603,6 +1642,47 @@ export default function SupplierPortal() {
                           <h2 className="font-display text-lg font-semibold mt-2 leading-snug">
                             {order.product_name}
                           </h2>
+
+                          {/* Carrinho: uma caixa, uma etiqueta, três pedidos.
+                              Sem esta lista o fornecedor separava, embalava e
+                              imprimia três vezes o que é uma encomenda só. */}
+                          {(() => {
+                            const noEnvio = pedidosDoMesmoEnvio(order);
+
+                            if (noEnvio.length < 2) return null;
+
+                            return (
+                              <div className="mt-3 rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-3">
+                                <p className="text-sm font-semibold text-violet-200">
+                                  Mesma caixa: {noEnvio.length} produtos neste envio
+                                </p>
+
+                                <ul className="mt-2 space-y-1">
+                                  {noEnvio.map((irmao) => (
+                                    <li
+                                      key={irmao.id}
+                                      className={`text-sm leading-snug ${
+                                        irmao.id === order.id
+                                          ? 'text-white'
+                                          : 'text-slate-400'
+                                      }`}
+                                    >
+                                      <span className="font-mono tabular-nums">
+                                        {irmao.quantidade ?? 1}×
+                                      </span>{' '}
+                                      {irmao.product_name}
+                                    </li>
+                                  ))}
+                                </ul>
+
+                                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                                  Separe e embale juntos, e imprima a etiqueta uma
+                                  vez só. Marcar como separado ou enviado vale para
+                                  os {noEnvio.length} de uma vez.
+                                </p>
+                              </div>
+                            );
+                          })()}
 
                           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-3">
                             <p className="font-mono text-sm text-slate-400 tabular-nums">
