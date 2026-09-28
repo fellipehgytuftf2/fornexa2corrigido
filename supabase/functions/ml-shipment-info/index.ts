@@ -210,7 +210,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: pedido, error: pedidoError } = await admin
     .from('orders')
-    .select('id, user_id, ml_order_id, ml_shipment_id, status')
+    .select('id, user_id, ml_order_id, ml_shipment_id, status, ml_logistic_type')
     .eq('id', pedidoId)
     .maybeSingle();
 
@@ -291,6 +291,25 @@ Deno.serve(async (req: Request) => {
   }
 
   const envio = JSON.parse(corpo) as Record<string, unknown>;
+
+  // Esta é a leitura mais nova que existe do envio, e o tipo de logística
+  // decide se o pedido é Flex — que trava a etiqueta até o vendedor ter
+  // cadastro na transportadora. Era gravado só na chegada da venda: quando o
+  // Mercado Livre trocava o envio depois, a marca antiga ficava cobrando um
+  // cadastro que já não fazia falta, sem jeito de corrigir pela tela.
+  //
+  // Consultar e não guardar o que se descobriu é perder a resposta.
+  const logistica =
+    (envio.logistic_type as string) ??
+    ((envio.logistic as Record<string, unknown>)?.type as string) ??
+    null;
+
+  if (logistica && logistica !== pedido.ml_logistic_type) {
+    await admin
+      .from('orders')
+      .update({ ml_logistic_type: logistica, updated_at: new Date().toISOString() })
+      .eq('id', pedido.id);
+  }
 
   return json({
     ml_shipment_id: pedido.ml_shipment_id,
