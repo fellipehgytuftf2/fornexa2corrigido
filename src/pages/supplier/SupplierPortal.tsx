@@ -1949,7 +1949,9 @@ export default function SupplierPortal() {
                           quem consegue perguntar à transportadora é o
                           fornecedor. Marcar "estou cadastrado" sem estar é
                           fácil, e o pacote volta recusado da bancada dele. */}
-                      {order.flex_declarado_em && !order.cancelado_no_marketplace && (
+                      {order.flex &&
+                        order.flex_declarado_em &&
+                        !order.cancelado_no_marketplace && (
                         <div className="mt-5 rounded-xl border border-sky-500/25 bg-sky-500/10 px-4 py-3.5">
                           <p className="text-sm text-sky-100">
                             <strong>{order.vendedor_nome}</strong> declarou ter
