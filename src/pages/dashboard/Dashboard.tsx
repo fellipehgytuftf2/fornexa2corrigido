@@ -22,7 +22,6 @@ import {
 } from 'recharts';
 import { supabase } from '../../lib/supabase';
 import { useFuncionalidade } from '../../lib/funcionalidades';
-import BarraDeFaturamento from '../../components/conquistas/BarraDeFaturamento';
 import ComemoracaoDeConquista from '../../components/conquistas/ComemoracaoDeConquista';
 
 interface UserProduct {
@@ -345,12 +344,9 @@ export default function Dashboard({ darkMode }: DashboardProps) {
     <div className="space-y-6">
       {/* Novidade em teste: quem não estiver liberado no Admin não vê nem a
           barra nem a comemoração. Ver src/lib/funcionalidades. */}
-      {vendoOTopo && (
-        <>
-          <ComemoracaoDeConquista />
-          <BarraDeFaturamento />
-        </>
-      )}
+      {/* A barra de faturamento mora no cabeçalho, junto do nome de quem
+          vende. Aqui fica só a comemoração, que é uma janela. */}
+      {vendoOTopo && <ComemoracaoDeConquista />}
 
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 px-5 py-4 shadow-sm">
         <div>

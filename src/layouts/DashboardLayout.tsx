@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useFuncionalidades } from '../lib/funcionalidades';
+import BarraDeFaturamento from '../components/conquistas/BarraDeFaturamento';
 
 interface NavigationSubItem {
   path: string;
@@ -671,6 +672,15 @@ export default function DashboardLayout() {
                 </p>
               </div>
             </div>
+
+            {/* No cabeçalho, e não numa faixa abaixo dele: faturamento e meta
+                são o placar do dia, e placar fica junto do nome de quem joga.
+                Some no celular, onde a linha não comporta os dois. */}
+            {liberadas.has('top-vendedores') && (
+              <div className="hidden md:flex flex-1 justify-center px-4 min-w-0">
+                <BarraDeFaturamento />
+              </div>
+            )}
 
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Antes do tema: o sino é sobre o que mudou na conta, e o tema é

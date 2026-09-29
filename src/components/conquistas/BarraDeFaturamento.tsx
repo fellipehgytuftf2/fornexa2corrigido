@@ -84,7 +84,9 @@ export default function BarraDeFaturamento() {
       : 'Você passou da maior meta cadastrada. Parabéns.';
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 px-4 py-2">
+    // Sem moldura: ela vive dentro do cabeçalho, que já é um bloco. Um card
+    // dentro de outro card vira duas bordas coladas.
+    <div className="flex items-center gap-3 w-full max-w-lg">
       <Selo
         icone={conquista?.icone ?? 'raio'}
         tamanho="p"
