@@ -1282,7 +1282,7 @@ export default function SupplierPortal() {
   return (
     <div className="min-h-screen bg-navy-950 text-white">
       <header className="border-b border-white/5 bg-navy-900/60 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-md overflow-hidden bg-navy-900 flex items-center justify-center shrink-0">
               <img
@@ -1360,7 +1360,7 @@ export default function SupplierPortal() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8">
         {successMessage && (
           <div
             role="status"
@@ -1593,11 +1593,11 @@ export default function SupplierPortal() {
               </p>
             </div>
           ) : (
-            <ul className="space-y-4">
+            <ul className="grid gap-4 xl:grid-cols-2 items-start">
               {/* Some quando nada está marcado: barra de ação vazia é ruído em
                   cima da lista que o fornecedor veio ler. */}
               {selecionados.size > 0 && (
-                <li className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-navy-900/95 px-4 py-3 backdrop-blur">
+                <li className="xl:col-span-2 sticky top-2 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-navy-900/95 px-4 py-3 backdrop-blur">
                   <p className="text-sm text-white">
                     {selecionados.size === 1
                       ? '1 pedido marcado'
