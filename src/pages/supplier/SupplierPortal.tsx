@@ -1196,7 +1196,6 @@ export default function SupplierPortal() {
       ).length,
     [orders]
   );
-
   const naoLidasPorAba = useMemo(() => {
     const contas: Record<string, number> = {};
 
@@ -1236,6 +1235,31 @@ export default function SupplierPortal() {
     [daAba, filtroPagamento]
   );
 
+
+  /**
+   * Os cartões: um por envio.
+   *
+   * Carrinho é o comprador levando três produtos na mesma compra. O Mercado
+   * Livre gera UM envio com UMA etiqueta, e o FORNEXA cria três pedidos —
+   * certo, porque cada produto tem preço e repasse próprios. Na bancada, é uma
+   * caixa só: três cartões faziam o fornecedor separar, embalar e imprimir três
+   * vezes a mesma encomenda.
+   *
+   * Pedido sem envio fica sozinho no próprio cartão, como sempre foi.
+   */
+  const grupos = useMemo(() => {
+    const porEnvio = new Map<string, SupplierOrder[]>();
+
+    visibleOrders.forEach((pedido) => {
+      const chave = pedido.ml_shipment_id
+        ? `envio:${pedido.ml_shipment_id}`
+        : `pedido:${pedido.id}`;
+
+      porEnvio.set(chave, [...(porEnvio.get(chave) ?? []), pedido]);
+    });
+
+    return [...porEnvio.entries()].map(([chave, pedidos]) => ({ chave, pedidos }));
+  }, [visibleOrders]);
   const contagemPorFase = useMemo(() => {
     const contagem = { aguardando: 0, conferir: 0, confirmados: 0 };
 
@@ -1599,8 +1623,12 @@ export default function SupplierPortal() {
                 </li>
               )}
 
-              {visibleOrders.map((order) => {
-                const isBusy = actionId === order.id;
+              {grupos.map(({ chave, pedidos: grupo }) => {
+                // O cartão é do ENVIO, não do pedido: carrinho é uma caixa, uma
+                // etiqueta e um endereço. O primeiro pedido responde por tudo
+                // que é do envio; o que é de cada produto se repete abaixo.
+                const order = grupo[0];
+                const isBusy = grupo.some((pedido) => actionId === pedido.id);
 
                 /**
                  * Este pedido pode ser despachado agora?
@@ -1685,7 +1713,7 @@ export default function SupplierPortal() {
 
                 return (
                   <li
-                    key={order.id}
+                    key={chave}
                     id={`pedido-${order.id}`}
                     className={
                       pronto
@@ -1821,49 +1849,69 @@ export default function SupplierPortal() {
                           {/* Carrinho: uma caixa, uma etiqueta, três pedidos.
                               Sem esta lista o fornecedor separava, embalava e
                               imprimia três vezes o que é uma encomenda só. */}
-                          {(() => {
-                            const noEnvio = pedidosDoMesmoEnvio(order);
+                          {/* Os outros produtos da mesma caixa. O primeiro é o
+                              do cabeçalho; estes vêm abaixo com foto pequena,
+                              porque o que se faz com eles é conferir e separar,
+                              não admirar. */}
+                          {grupo.length > 1 && (
+                            <div className="mt-3 rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-3">
+                              <p className="text-sm font-semibold text-violet-200">
+                                Mesma caixa: {grupo.length} produtos neste envio
+                              </p>
 
-                            if (noEnvio.length < 2) return null;
+                              <ul className="mt-3 space-y-2">
+                                {grupo.slice(1).map((item) => (
+                                  <li key={item.id} className="flex items-center gap-3">
+                                    {item.product_image_url ? (
+                                      <img
+                                        src={item.product_image_url}
+                                        alt=""
+                                        className="w-10 h-10 rounded-lg object-cover bg-navy-900 shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-lg bg-navy-900 shrink-0" />
+                                    )}
 
-                            return (
-                              <div className="mt-3 rounded-xl border border-violet-500/25 bg-violet-500/10 px-4 py-3">
-                                <p className="text-sm font-semibold text-violet-200">
-                                  Mesma caixa: {noEnvio.length} produtos neste envio
-                                </p>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm text-white leading-snug truncate">
+                                        <span className="font-mono tabular-nums text-slate-400">
+                                          {item.quantidade ?? 1}×
+                                        </span>{' '}
+                                        {item.product_name}
+                                      </p>
 
-                                <ul className="mt-2 space-y-1">
-                                  {noEnvio.map((irmao) => (
-                                    <li
-                                      key={irmao.id}
-                                      className={`text-sm leading-snug ${
-                                        irmao.id === order.id
-                                          ? 'text-white'
-                                          : 'text-slate-400'
-                                      }`}
-                                    >
-                                      <span className="font-mono tabular-nums">
-                                        {irmao.quantidade ?? 1}×
-                                      </span>{' '}
-                                      {irmao.product_name}
-                                    </li>
-                                  ))}
-                                </ul>
+                                      {item.sku && (
+                                        <p className="font-mono text-[11px] text-slate-500">
+                                          {item.sku}
+                                        </p>
+                                      )}
+                                    </div>
 
-                                <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                                  Separe e embale juntos, e imprima a etiqueta uma
-                                  vez só. Marcar como separado ou enviado vale para
-                                  os {noEnvio.length} de uma vez.
-                                </p>
-                              </div>
-                            );
-                          })()}
+                                    <p className="font-mono text-sm text-gold tabular-nums shrink-0">
+                                      {formatCurrency(
+                                        item.supplier_price * (item.quantidade ?? 1) +
+                                          Number(item.taxa_embalagem ?? 0)
+                                      )}
+                                    </p>
+                                  </li>
+                                ))}
+                              </ul>
+
+                              <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                                Uma etiqueta para os {grupo.length}. Separar, reservar
+                                e marcar como enviado vale para todos de uma vez.
+                              </p>
+                            </div>
+                          )}
 
                           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mt-3">
                             <p className="font-mono text-sm text-slate-400 tabular-nums">
                               Quantidade{' '}
                               <span className="text-white text-base">
-                                {order.quantidade ?? 1}
+                                {grupo.reduce(
+                                  (soma, item) => soma + Number(item.quantidade ?? 1),
+                                  0
+                                )}
                               </span>
                             </p>
 
@@ -1875,11 +1923,16 @@ export default function SupplierPortal() {
                               Seu valor{' '}
                               <span className="text-gold text-base">
                                 {formatCurrency(
-                                  order.supplier_price * (order.quantidade ?? 1) +
-                                    Number(order.taxa_embalagem ?? 0)
+                                  grupo.reduce(
+                                    (soma, item) =>
+                                      soma +
+                                      item.supplier_price * (item.quantidade ?? 1) +
+                                      Number(item.taxa_embalagem ?? 0),
+                                    0
+                                  )
                                 )}
                               </span>
-                              {Number(order.taxa_embalagem ?? 0) > 0 && (
+                              {grupo.length === 1 && Number(order.taxa_embalagem ?? 0) > 0 && (
                                 <span className="text-slate-500 text-xs ml-2">
                                   (
                                   {formatCurrency(
@@ -1916,6 +1969,12 @@ export default function SupplierPortal() {
                         </div>
                       </div>
 
+                      {/* Cada produto do carrinho tem o proprio repasse e a
+                          propria confirmacao: o vendedor pode ter pago um e
+                          nao os outros. Por isso este bloco se repete dentro
+                          do cartao, um por pedido. */}
+                      {grupo.map((pedidoDoGrupo) => (
+                        <div key={pedidoDoGrupo.id}>
                       {/* Confirmação de recebimento.
                           Fica sempre visível, mesmo para quem não exige
                           pagamento antecipado: o carimbo do fornecedor é o
@@ -1932,11 +1991,11 @@ export default function SupplierPortal() {
                                 conferir: ele ainda está montando o pagamento e
                                 pode trocar o comprovante ou pagar amanhã. */}
                             <p className="text-sm text-white mt-1.5">
-                              {order.recebimento_confirmado_em
+                              {pedidoDoGrupo.recebimento_confirmado_em
                                 ? 'Você confirmou que recebeu este pagamento.'
-                                : !order.pago_em
+                                : !pedidoDoGrupo.pago_em
                                   ? 'O vendedor ainda não informou o pagamento deste pedido.'
-                                  : order.aguardando_pagamento
+                                  : pedidoDoGrupo.aguardando_pagamento
                                     ? 'Endereço e etiqueta liberam quando você confirmar.'
                                     : 'Confirme quando o dinheiro cair na sua conta.'}
                             </p>
@@ -1948,10 +2007,10 @@ export default function SupplierPortal() {
                             {/* A prova que sustenta a contestação de um MED.
                                 Fica junto do identificador porque é o par que
                                 o banco pede: qual pagamento, e de qual pedido. */}
-                            {order.comprovante_path && (
+                            {pedidoDoGrupo.comprovante_path && (
                               <button
                                 type="button"
-                                onClick={() => abrirComprovante(order)}
+                                onClick={() => abrirComprovante(pedidoDoGrupo)}
                                 className="inline-flex items-center gap-2 mt-3 rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-white/5"
                               >
                                 <FileText className="w-4 h-4 text-gold" aria-hidden="true" />
@@ -1959,20 +2018,20 @@ export default function SupplierPortal() {
                               </button>
                             )}
 
-                            {order.repasse_txid && !order.recebimento_confirmado_em && (
+                            {pedidoDoGrupo.repasse_txid && !pedidoDoGrupo.recebimento_confirmado_em && (
                               <div className="mt-3 rounded-lg bg-navy-900/80 border border-white/5 px-3 py-2.5">
                                 <p className="text-xs text-slate-400">
                                   Procure no seu extrato por
                                 </p>
 
                                 <p className="font-mono text-sm text-gold mt-0.5 break-all">
-                                  {order.repasse_txid}
+                                  {pedidoDoGrupo.repasse_txid}
                                 </p>
 
                                 <p className="text-xs text-slate-400 mt-1.5">
-                                  {formatCurrency(Number(order.repasse_valor ?? 0))}
-                                  {Number(order.repasse_pedidos ?? 0) > 1 &&
-                                    ` · um PIX para ${order.repasse_pedidos} pedidos`}
+                                  {formatCurrency(Number(pedidoDoGrupo.repasse_valor ?? 0))}
+                                  {Number(pedidoDoGrupo.repasse_pedidos ?? 0) > 1 &&
+                                    ` · um PIX para ${pedidoDoGrupo.repasse_pedidos} pedidos`}
                                 </p>
                               </div>
                             )}
@@ -1991,11 +2050,11 @@ export default function SupplierPortal() {
                               deixava o comprovante ser trocado depois de
                               conferido. Engano raro vira conversa; isso é o
                               custo certo. */}
-                          {!order.recebimento_confirmado_em && (
+                          {!pedidoDoGrupo.recebimento_confirmado_em && (
                             <button
-                              onClick={() => alternarRecebimento(order)}
-                              disabled={confirmandoId === order.id}
-                              hidden={!order.pago_em}
+                              onClick={() => alternarRecebimento(pedidoDoGrupo)}
+                              disabled={confirmandoId === pedidoDoGrupo.id}
+                              hidden={!pedidoDoGrupo.pago_em}
                               className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover disabled:opacity-50"
                             >
                               Confirmar recebimento
@@ -2003,6 +2062,8 @@ export default function SupplierPortal() {
                           )}
                         </div>
                       </div>
+                        </div>
+                      ))}
 
                       {/* Trava de despacho. O pedido continua aparecendo — o
                           fornecedor precisa saber que existe venda para se
