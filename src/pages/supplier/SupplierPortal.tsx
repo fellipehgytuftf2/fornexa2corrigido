@@ -298,6 +298,15 @@ export default function SupplierPortal() {
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [baixandoLote, setBaixandoLote] = useState(false);
 
+  /**
+   * Cartões com o detalhe aberto.
+   *
+   * Fechado, o cartão responde "dá para despachar?"; aberto, mostra
+   * pagamento, vendedor e endereço. Com o carrinho num cartão só, deixar tudo
+   * aberto empilhava três blocos de recebimento e enterrava os botões.
+   */
+  const [detalhesAbertos, setDetalhesAbertos] = useState<Set<string>>(new Set());
+
   /** Quantos pedidos entraram desde a última vez que o fornecedor olhou. */
   const [pedidosNovos, setPedidosNovos] = useState(0);
 
@@ -1969,10 +1978,45 @@ export default function SupplierPortal() {
                         </div>
                       </div>
 
-                      {/* Cada produto do carrinho tem o proprio repasse e a
-                          propria confirmacao: o vendedor pode ter pago um e
-                          nao os outros. Por isso este bloco se repete dentro
-                          do cartao, um por pedido. */}
+                      {/* Fechado, o cartao responde a pergunta do dia: dá para
+                          despachar? O resto — pagamento de cada item, quem
+                          vendeu, endereço — abre quando alguém precisa. */}
+                      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-navy-900/40 px-4 py-3">
+                        <p className="text-sm text-slate-300">
+                          {grupo.length > 1
+                            ? `${grupo.filter((p) => p.recebimento_confirmado_em).length} de ${grupo.length} pagamentos confirmados`
+                            : order.recebimento_confirmado_em
+                              ? "Pagamento confirmado por você"
+                              : order.pago_em
+                                ? "Pagamento declarado, falta você conferir"
+                                : "Pagamento ainda não declarado"}
+                          {order.vendedor_nome ? ` · ${order.vendedor_nome}` : ""}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDetalhesAbertos((atuais) => {
+                              const novos = new Set(atuais);
+
+                              if (novos.has(chave)) novos.delete(chave);
+                              else novos.add(chave);
+
+                              return novos;
+                            })
+                          }
+                          className="text-sm font-semibold text-gold hover:underline"
+                        >
+                          {detalhesAbertos.has(chave) ? "Ocultar detalhes" : "Ver detalhes"}
+                        </button>
+                      </div>
+
+                      {detalhesAbertos.has(chave) && (
+                        <>
+                      {/* Cada produto do carrinho tem o próprio repasse e a
+                          própria confirmação: o vendedor pode ter pago um e
+                          não os outros. Por isso este bloco se repete dentro
+                          do cartão, um por pedido. */}
                       {grupo.map((pedidoDoGrupo) => (
                         <div key={pedidoDoGrupo.id}>
                       {/* Confirmação de recebimento.
@@ -2180,6 +2224,8 @@ export default function SupplierPortal() {
                           </div>
                         )}
                       </div>
+                        </>
+                      )}
 
                       {/* A declaração do vendedor não libera nada sozinha:
                           quem consegue perguntar à transportadora é o
