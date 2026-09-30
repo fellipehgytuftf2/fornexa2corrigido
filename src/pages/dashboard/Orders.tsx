@@ -131,7 +131,9 @@ export default function Orders() {
    * continua existindo em "Pagos" — o pedido segue andando na logística depois
    * do repasse.
    */
-  const [filtroRepasse, setFiltroRepasse] = useState<'pagar' | 'pagos'>('pagar');
+  const [filtroRepasse, setFiltroRepasse] = useState<'pagar' | 'pagos' | 'devolucoes'>(
+    'pagar'
+  );
 
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
@@ -596,12 +598,25 @@ export default function Orders() {
     showSuccess('Pedido excluído.');
   };
 
-  const pedidosVisiveis = useMemo(
+  const pedidosVisiveis = useMemo(() => {
+    // Devolução some no meio de cem pedidos pagos, e é a que tem relógio
+    // correndo: sem aba própria, o vendedor só descobre quando já perdeu.
+    if (filtroRepasse === 'devolucoes') {
+      return orders.filter((order) => devolucoes[order.id]);
+    }
+
+    return filtroRepasse === 'pagar'
+      ? orders.filter((order) => !order.pago_ao_fornecedor_em)
+      : orders.filter((order) => order.pago_ao_fornecedor_em);
+  }, [orders, filtroRepasse, devolucoes]);
+
+  /** Devoluções a caminho sem o código de autorização colado. */
+  const devolucoesPendentes = useMemo(
     () =>
-      filtroRepasse === 'pagar'
-        ? orders.filter((order) => !order.pago_ao_fornecedor_em)
-        : orders.filter((order) => order.pago_ao_fornecedor_em),
-    [orders, filtroRepasse]
+      Object.values(devolucoes).filter(
+        (devolucao) => devolucao.status === 'avisada' && !devolucao.codigo_autorizacao
+      ).length,
+    [devolucoes]
   );
 
   const totalPaginas = Math.max(1, Math.ceil(pedidosVisiveis.length / PEDIDOS_POR_PAGINA));
@@ -794,7 +809,12 @@ export default function Orders() {
           [
             ['pagar', 'A pagar', orders.filter((o) => !o.pago_ao_fornecedor_em).length],
             ['pagos', 'Pagos', orders.filter((o) => o.pago_ao_fornecedor_em).length],
-          ] as ['pagar' | 'pagos', string, number][]
+            [
+              'devolucoes',
+              'Devoluções',
+              orders.filter((o) => devolucoes[o.id]).length,
+            ],
+          ] as ['pagar' | 'pagos' | 'devolucoes', string, number][]
         ).map(([id, rotulo, quantos]) => (
           <button
             key={id}
@@ -809,6 +829,16 @@ export default function Orders() {
           >
             {rotulo}
             <span className="font-mono tabular-nums opacity-70">{quantos}</span>
+
+            {/* Devolução esperando o código tem relógio correndo: são duas
+                tentativas do motorista e o produto se perde. A bolinha existe
+                para isso — o número sozinho não diz que é urgente. */}
+            {id === 'devolucoes' && devolucoesPendentes > 0 && (
+              <span
+                title="Devolução esperando o código de autorização"
+                className="w-2 h-2 rounded-full bg-red-500"
+              />
+            )}
           </button>
         ))}
       </div>
