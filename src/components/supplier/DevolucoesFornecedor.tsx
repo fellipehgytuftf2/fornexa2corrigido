@@ -12,6 +12,14 @@ interface DevolucaoDoFornecedor {
   status: 'avisada' | 'recebida' | 'avariada' | 'nao_chegou' | 'revendida';
   avisada_em: string;
   prazo_cd: string | null;
+  /** O que libera o motorista na portaria. Vem do vendedor. */
+  codigo_autorizacao: string | null;
+  tentativas: number | null;
+  ultima_tentativa_em: string | null;
+  /** O número impresso na etiqueta de ida, quando é o ML que devolve. */
+  ml_order_id: string | null;
+  vendedor: string | null;
+  vendedor_whatsapp: string | null;
 }
 
 const MOTIVOS: Record<string, string> = {
@@ -62,6 +70,32 @@ export default function DevolucoesFornecedor() {
   useEffect(() => {
     carregar();
   }, []);
+
+  /**
+   * O motorista veio e foi embora sem entregar.
+   *
+   * Registrar isso avisa o vendedor na hora e deixa claro quando a proxima
+   * tentativa e a ultima -- a diferenca entre as duas e o produto inteiro.
+   */
+  const registrarTentativa = async (devolucao: DevolucaoDoFornecedor) => {
+    setSalvandoId(devolucao.id);
+    setErro("");
+
+    const { data, error } = await supabase.rpc("fornecedor_registra_tentativa", {
+      p_devolucao: devolucao.id,
+    });
+
+    setSalvandoId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || resposta?.ok === false) {
+      setErro(error?.message ?? resposta?.erro ?? "Não foi possível registrar.");
+      return;
+    }
+
+    await carregar();
+  };
 
   const responder = async (
     devolucao: DevolucaoDoFornecedor,
@@ -167,6 +201,23 @@ export default function DevolucoesFornecedor() {
                       </dd>
                     </div>
 
+                    {/* O número da venda é o que está impresso na etiqueta de
+                        ida: quando é o Mercado Livre que devolve, o pacote
+                        volta com ela, e é por aqui que se acha o dono. */}
+                    <div>
+                      <dt className="text-xs text-slate-500">Nº da venda</dt>
+                      <dd className="text-slate-200 font-mono break-all mt-0.5">
+                        {devolucao.ml_order_id || '—'}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs text-slate-500">Vendedor</dt>
+                      <dd className="text-slate-200 break-words mt-0.5">
+                        {devolucao.vendedor || '—'}
+                      </dd>
+                    </div>
+
                     <div>
                       <dt className="text-xs text-slate-500">Avisada em</dt>
                       <dd className="text-slate-200 mt-0.5">
@@ -192,6 +243,81 @@ export default function DevolucoesFornecedor() {
                   aria-hidden="true"
                 />
               </div>
+
+              {/* O código de autorização é o que a portaria precisa ter na mão
+                  quando o motorista chega. Fica em destaque, e grande: é para
+                  ser lido de longe, com o motorista esperando. */}
+              {esperando && (
+                <div
+                  className={`mt-4 rounded-xl border p-4 ${
+                    devolucao.codigo_autorizacao
+                      ? 'border-emerald-500/30 bg-emerald-500/10'
+                      : 'border-amber-500/30 bg-amber-500/10'
+                  }`}
+                >
+                  {devolucao.codigo_autorizacao ? (
+                    <>
+                      <p className="text-xs text-emerald-300/80">
+                        Código de autorização — informe ao motorista
+                      </p>
+
+                      <p className="font-mono text-2xl font-bold tracking-widest text-emerald-200 mt-1">
+                        {devolucao.codigo_autorizacao}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-amber-200">
+                        O vendedor ainda não mandou o código
+                      </p>
+
+                      <p className="text-sm text-amber-200/80 mt-1 leading-relaxed">
+                        O Mercado Livre manda esse código a ele no dia da
+                        entrega. Sem o código, o motorista não entrega — e são
+                        duas tentativas.
+                      </p>
+
+                      {devolucao.vendedor_whatsapp && (
+                        <a
+                          href={`https://wa.me/55${devolucao.vendedor_whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(
+                            `Olá! Chegou a devolução de "${devolucao.produto}" aqui no nosso CD. Preciso do código de autorização que o Mercado Livre te enviou para liberar o motorista. Pode mandar? Você também pode colar o código direto no FORNEXA, na tela de Pedidos.`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 mt-3 rounded-lg bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:brightness-95"
+                        >
+                          Cobrar o código no WhatsApp
+                        </a>
+                      )}
+                    </>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => registrarTentativa(devolucao)}
+                      disabled={salvandoId === devolucao.id}
+                      className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5 disabled:opacity-50"
+                    >
+                      Motorista veio e não entregou
+                    </button>
+
+                    {Number(devolucao.tentativas ?? 0) > 0 && (
+                      <span
+                        className={`text-xs font-semibold ${
+                          Number(devolucao.tentativas) >= 2
+                            ? 'text-red-300'
+                            : 'text-amber-300'
+                        }`}
+                      >
+                        {Number(devolucao.tentativas) >= 2
+                          ? 'Duas tentativas usadas — o produto pode estar perdido'
+                          : '1 tentativa usada, resta uma'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {esperando && (
                 <div className="flex flex-col sm:flex-row gap-2 mt-4">

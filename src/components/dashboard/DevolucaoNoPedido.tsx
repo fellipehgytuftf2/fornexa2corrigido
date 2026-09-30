@@ -8,6 +8,10 @@ export interface Devolucao {
   order_id: string;
   motivo: string;
   codigo_devolucao: string | null;
+  /** O que o Mercado Livre manda ao vendedor para liberar a entrega. */
+  codigo_autorizacao?: string | null;
+  /** Quantas vezes o motorista tentou. Na segunda, o produto se perde. */
+  tentativas?: number | null;
   status: 'avisada' | 'recebida' | 'avariada' | 'nao_chegou' | 'revendida';
   avisada_em: string;
   prazo_cd: string | null;
@@ -96,6 +100,39 @@ export default function DevolucaoNoPedido({
   const [codigo, setCodigo] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+
+  /** O código de autorização, enquanto o vendedor digita. */
+  const [codigoAutorizacao, setCodigoAutorizacao] = useState("");
+  const [salvandoCodigo, setSalvandoCodigo] = useState(false);
+
+  /**
+   * Manda o código ao fornecedor.
+   *
+   * Vai por função, e não por update direto: o vendedor nao tem permissao de
+   * escrita em `devolucoes` -- e nem deveria, porque a linha carrega decisoes
+   * do fornecedor.
+   */
+  const enviarCodigo = async () => {
+    setSalvandoCodigo(true);
+    setErro("");
+
+    const { data, error } = await supabase.rpc("vendedor_define_codigo_devolucao", {
+      p_devolucao: devolucao?.id,
+      p_codigo: codigoAutorizacao,
+    });
+
+    setSalvandoCodigo(false);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || resposta?.ok === false) {
+      setErro(error?.message ?? resposta?.erro ?? "Não foi possível enviar o código.");
+      return;
+    }
+
+    setCodigoAutorizacao("");
+    onMudou();
+  };
   const [copiado, setCopiado] = useState(false);
 
   const mensagem = (dados: { motivo: string; codigo: string | null }) =>
@@ -184,6 +221,67 @@ export default function DevolucaoNoPedido({
                     restam > 1 ? 's' : ''
                   } útil${restam > 1 ? 'eis' : ''}.`}
           </p>
+        )}
+
+        {/* O código é o que libera o motorista na portaria do fornecedor. Sem
+            ele, a entrega falha — e são duas tentativas antes de o produto se
+            perder. Fica no topo do bloco, com cara de pendência, porque é a
+            coisa mais urgente da devolução inteira. */}
+        {esperando && (
+          <div
+            className={`mt-3 rounded-lg border p-3 ${
+              devolucao.codigo_autorizacao
+                ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+                : 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20'
+            }`}
+          >
+            {devolucao.codigo_autorizacao ? (
+              <p className="text-sm text-green-800 dark:text-green-300">
+                Código de autorização enviado ao fornecedor:{' '}
+                <strong className="font-mono">{devolucao.codigo_autorizacao}</strong>
+              </p>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                  Cole aqui o código de autorização
+                </p>
+
+                <p className="text-xs text-amber-800 dark:text-amber-300/90 mt-1 leading-relaxed">
+                  O Mercado Livre te manda esse código no dia da entrega, por
+                  WhatsApp e no painel de vendas. Quem recebe o motorista é a
+                  equipe do fornecedor, e sem o código ele não entrega. São duas
+                  tentativas — na segunda, o produto se perde.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                  <input
+                    id={`codigo-${devolucao.id}`}
+                    value={codigoAutorizacao}
+                    onChange={(evento) => setCodigoAutorizacao(evento.target.value)}
+                    placeholder="Ex: 3B9629AA"
+                    className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-white dark:bg-navy-900 border border-amber-300 dark:border-amber-700 text-sm font-mono uppercase text-navy-900 dark:text-white placeholder:text-gray-400 placeholder:normal-case focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={enviarCodigo}
+                    disabled={salvandoCodigo || !codigoAutorizacao.trim()}
+                    className="px-4 py-2 rounded-lg bg-navy-900 dark:bg-gold text-white dark:text-navy-900 text-sm font-semibold hover:opacity-90 disabled:opacity-50 shrink-0"
+                  >
+                    {salvandoCodigo ? 'Enviando...' : 'Enviar ao fornecedor'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {Number(devolucao.tentativas ?? 0) > 0 && (
+              <p className="text-sm font-medium text-red-700 dark:text-red-400 mt-2">
+                {Number(devolucao.tentativas) >= 2
+                  ? 'O motorista já tentou duas vezes. Esta era a última — fale com o fornecedor agora.'
+                  : 'O motorista já tentou uma vez e não conseguiu entregar. Resta uma tentativa.'}
+              </p>
+            )}
+          </div>
         )}
 
         {devolucao.status === 'avariada' && (
