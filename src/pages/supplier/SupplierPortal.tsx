@@ -54,6 +54,10 @@ interface SupplierOrder {
    * carrinho, em que o comprador leva mais de um produto na mesma caixa.
    */
   ml_shipment_id?: string | null;
+  /** O código do anúncio no Mercado Livre. É por ele que se acha na prateleira. */
+  sku?: string | null;
+  /** Como o Mercado Livre classifica o envio. `self_service` é o Flex. */
+  ml_logistic_type?: string | null;
   /** A trava de remetente barrou a última tentativa de baixar a etiqueta. */
   etiqueta_barrada?: boolean;
   /** Quando o fornecedor pôs este pedido na prateleira, por decisão dele. */
@@ -149,6 +153,21 @@ interface Tab {
 /** Cancelado no marketplace sai de todas as abas de trabalho. */
 const emAndamento = (order: SupplierOrder, ...statuses: OrderStatus[]) =>
   !order.cancelado_no_marketplace && statuses.includes(order.status);
+
+/**
+ * O que fazer com o pacote, em português.
+ *
+ * O Mercado Livre devolve `xd_drop_off`, `cross_docking` e companhia, e cada um
+ * manda o pacote para um lugar diferente — agência, coleta na porta, ponto de
+ * retirada. O fornecedor descobria isso lendo a etiqueta, depois de imprimir.
+ */
+const LOGISTICA: Record<string, string> = {
+  self_service: 'Flex — entrega no mesmo dia',
+  drop_off: 'Levar à agência dos Correios ou ponto do Mercado Livre',
+  xd_drop_off: 'Levar ao ponto de coleta do Mercado Livre',
+  cross_docking: 'O Mercado Livre coleta no seu endereço',
+  fulfillment: 'Full — o estoque já está com o Mercado Livre',
+};
 
 /**
  * Pedido cancelado, pelas duas origens.
@@ -269,6 +288,15 @@ export default function SupplierPortal() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null);
   const [labelId, setLabelId] = useState<string | null>(null);
+
+  /**
+   * Pedidos marcados para imprimir de uma vez.
+   *
+   * Guardado por id, e nao por indice: a lista se reordena sozinha a cada
+   * atualizacao, e indice guardado marcaria o pedido errado.
+   */
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [baixandoLote, setBaixandoLote] = useState(false);
 
   /** Quantos pedidos entraram desde a última vez que o fornecedor olhou. */
   const [pedidosNovos, setPedidosNovos] = useState(0);
@@ -786,6 +814,65 @@ export default function SupplierPortal() {
 
   const baixarEtiqueta = (order: SupplierOrder) =>
     abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta');
+
+  /**
+   * As etiquetas dos pedidos marcados, num arquivo só.
+   *
+   * Cinquenta pedidos eram cinquenta cliques, cinquenta esperas e cinquenta
+   * arquivos — e qualquer um esquecido no meio só aparecia no fim do dia, com
+   * o pacote sobrando na bancada.
+   */
+  const baixarSelecionadas = async () => {
+    setBaixandoLote(true);
+    setErroNoPedido(null);
+
+    let data: Blob | null = null;
+    let error: unknown = null;
+
+    try {
+      const resposta = await supabase.functions.invoke<Blob>('supplier-labels-lote', {
+        body: { pedidos: [...selecionados] },
+      });
+
+      data = resposta.data;
+      error = resposta.error;
+    } catch (estouro) {
+      error = estouro;
+    }
+
+    setBaixandoLote(false);
+
+    if (error || !data) {
+      let mensagem: string | undefined;
+
+      const contexto = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (contexto?.json) {
+        try {
+          mensagem = (await contexto.json())?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setErrorMessage(mensagem ?? 'Não foi possível baixar as etiquetas selecionadas.');
+      return;
+    }
+
+    const url = URL.createObjectURL(data);
+    const aberta = window.open(url, '_blank', 'noopener,noreferrer');
+
+    if (!aberta) {
+      setErrorMessage(
+        'O navegador bloqueou a janela das etiquetas. Libere pop-ups para este site e tente de novo.'
+      );
+    }
+
+    setSelecionados(new Set());
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
 
   /**
    * O DACE é a versão impressa da Declaração de Conteúdo.
@@ -1474,6 +1561,44 @@ export default function SupplierPortal() {
             </div>
           ) : (
             <ul className="space-y-4">
+              {/* Some quando nada está marcado: barra de ação vazia é ruído em
+                  cima da lista que o fornecedor veio ler. */}
+              {selecionados.size > 0 && (
+                <li className="sticky top-2 z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-navy-900/95 px-4 py-3 backdrop-blur">
+                  <p className="text-sm text-white">
+                    {selecionados.size === 1
+                      ? '1 pedido marcado'
+                      : `${selecionados.size} pedidos marcados`}
+                  </p>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelecionados(new Set())}
+                      className="text-sm text-slate-400 hover:text-white transition-colors"
+                    >
+                      Limpar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={baixarSelecionadas}
+                      disabled={baixandoLote}
+                      className="inline-flex items-center gap-2 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-navy-900 hover:bg-gold-hover disabled:opacity-60"
+                    >
+                      {baixandoLote ? (
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <FileText className="w-4 h-4" aria-hidden="true" />
+                      )}
+                      {baixandoLote
+                        ? 'Juntando as etiquetas...'
+                        : `Baixar ${selecionados.size} etiqueta(s) num PDF`}
+                    </button>
+                  </div>
+                </li>
+              )}
+
               {visibleOrders.map((order) => {
                 const isBusy = actionId === order.id;
 
@@ -1584,6 +1709,34 @@ export default function SupplierPortal() {
 
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {/* Só quem tem etiqueta para baixar. Marcar um
+                                pedido travado só levaria a uma recusa no meio
+                                do lote. */}
+                            {order.etiqueta_disponivel && (
+                              <label
+                                htmlFor={`marcar-${order.id}`}
+                                className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer"
+                              >
+                                <input
+                                  id={`marcar-${order.id}`}
+                                  type="checkbox"
+                                  checked={selecionados.has(order.id)}
+                                  onChange={(evento) =>
+                                    setSelecionados((atuais) => {
+                                      const novos = new Set(atuais);
+
+                                      if (evento.target.checked) novos.add(order.id);
+                                      else novos.delete(order.id);
+
+                                      return novos;
+                                    })
+                                  }
+                                  className="w-4 h-4 rounded border-white/20 bg-transparent"
+                                />
+                                Imprimir junto
+                              </label>
+                            )}
+
                             <MarketplaceBadge
                               marketplace={order.marketplace}
                               className="font-mono text-[11px] uppercase tracking-[0.18em] text-slate-400"
@@ -1642,6 +1795,28 @@ export default function SupplierPortal() {
                           <h2 className="font-display text-lg font-semibold mt-2 leading-snug">
                             {order.product_name}
                           </h2>
+
+                          {/* Quem separa procura pelo código, não pelo nome:
+                              "Kit Remendo Macarrão Reparo Pneu Carro Moto S/
+                              Câmara Ferro" é ruim de achar na prateleira. */}
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                            {order.sku && (
+                              <button
+                                type="button"
+                                onClick={() => navigator.clipboard?.writeText(order.sku ?? '')}
+                                title="Copiar o código do anúncio"
+                                className="font-mono text-xs text-slate-400 hover:text-white transition-colors"
+                              >
+                                {order.sku}
+                              </button>
+                            )}
+
+                            {order.ml_logistic_type && LOGISTICA[order.ml_logistic_type] && (
+                              <span className="text-xs text-slate-400">
+                                {LOGISTICA[order.ml_logistic_type]}
+                              </span>
+                            )}
+                          </div>
 
                           {/* Carrinho: uma caixa, uma etiqueta, três pedidos.
                               Sem esta lista o fornecedor separava, embalava e
@@ -1731,7 +1906,7 @@ export default function SupplierPortal() {
                               ) : order.pago_em ? (
                                 <span className="text-amber-400 text-base">
                                   vendedor declarou em{' '}
-                                  {new Date(order.pago_em).toLocaleDateString('pt-BR')}
+                                  {new Date(order.pago_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
                                 </span>
                               ) : (
                                 <span className="text-amber-400 text-base">em aberto</span>
