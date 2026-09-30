@@ -574,7 +574,7 @@ Deno.serve(async (req: Request) => {
     // nunca são afetados por isso.
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, whatsapp")
       .eq("id", vendedorId)
       .maybeSingle();
 
@@ -592,6 +592,35 @@ Deno.serve(async (req: Request) => {
 
     const isTestAdmin = profileData?.role === "admin";
     const TEST_TITLE_PREFIX = "[TESTE - NÃO COMPRAR] ";
+
+    // 1.6 WhatsApp é obrigatório para publicar.
+    //
+    //     Todo pedido deste anúncio vai parar na bancada de um fornecedor que
+    //     não conhece o vendedor. Quando a devolução chega e falta o código de
+    //     autorização, quando o pacote volta sem dono, quando o Flex empaca por
+    //     cadastro — em todas, alguém precisa falar com ele em minutos.
+    //
+    //     Sem telefone, a única saída é esperar o vendedor abrir o FORNEXA. Em
+    //     30/09/2026 isso custou um produto inteiro: o motorista veio duas
+    //     vezes e foi embora.
+    //
+    //     A exigência fica aqui, e não no cadastro: quem só olha o catálogo não
+    //     precisa dar telefone a ninguém. Quem vai vender, precisa.
+    const whatsapp = String(profileData?.whatsapp ?? "").replace(/\D/g, "");
+
+    if (whatsapp.length < 10) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Cadastre seu WhatsApp antes de publicar. Ele é como o fornecedor " +
+            "fala com você quando um pedido seu trava — devolução esperando " +
+            "código, pacote voltando, envio parado. Vá em Configurações, " +
+            "preencha o WhatsApp e publique de novo.",
+          whatsapp_faltando: true,
+        }),
+        { status: 428, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // 2. Buscar a conexão ML do vendedor
     const { data: connection, error: connectionError } = await supabase

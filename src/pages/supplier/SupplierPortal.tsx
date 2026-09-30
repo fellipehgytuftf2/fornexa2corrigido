@@ -56,6 +56,19 @@ interface SupplierOrder {
   ml_shipment_id?: string | null;
   /** O código do anúncio no Mercado Livre. É por ele que se acha na prateleira. */
   sku?: string | null;
+
+  /**
+   * A devolução deste pedido, quando existe.
+   *
+   * Mora no card porque foi o que o fornecedor pediu: "no pedido". O pacote
+   * que volta encontra o pedido que saiu, sem ninguém procurar.
+   */
+  devolucao_id?: string | null;
+  devolucao_status?: string | null;
+  devolucao_motivo?: string | null;
+  devolucao_prazo?: string | null;
+  devolucao_codigo?: string | null;
+  devolucao_tentativas?: number | null;
   /** Como o Mercado Livre classifica o envio. `self_service` é o Flex. */
   ml_logistic_type?: string | null;
   /** A trava de remetente barrou a última tentativa de baixar a etiqueta. */
@@ -161,6 +174,15 @@ const emAndamento = (order: SupplierOrder, ...statuses: OrderStatus[]) =>
  * manda o pacote para um lugar diferente — agência, coleta na porta, ponto de
  * retirada. O fornecedor descobria isso lendo a etiqueta, depois de imprimir.
  */
+/** Os motivos de devolução, como o vendedor escolheu ao abrir. */
+const MOTIVO_DA_DEVOLUCAO: Record<string, string> = {
+  arrependimento: 'arrependimento do comprador',
+  nao_entregue: 'não entregue',
+  defeito: 'defeito',
+  produto_errado: 'produto errado',
+  cancelado_flex: 'cancelado (Flex)',
+};
+
 const LOGISTICA: Record<string, string> = {
   self_service: 'Flex — entrega no mesmo dia',
   drop_off: 'Levar à agência dos Correios ou ponto do Mercado Livre',
@@ -1211,6 +1233,19 @@ export default function SupplierPortal() {
       ).length,
     [orders]
   );
+  /**
+   * Devoluções que ainda não chegaram ao CD.
+   *
+   * Conta sobre todos os pedidos carregados, e não sobre a aba aberta: é aviso
+   * de que existe trabalho em outro lugar.
+   */
+  const devolucoesEsperando = useMemo(
+    () =>
+      orders.filter((pedido) => pedido.devolucao_id && pedido.devolucao_status === 'avisada')
+        .length,
+    [orders]
+  );
+
   const naoLidasPorAba = useMemo(() => {
     const contas: Record<string, number> = {};
 
@@ -1477,6 +1512,21 @@ export default function SupplierPortal() {
             }`}
           >
             Devoluções
+
+            {/* O mesmo número que os pedidos novos têm: devolução esperando é
+                trabalho que chegou, e ninguém abre uma aba para descobrir se
+                tem algo lá dentro. */}
+            {devolucoesEsperando > 0 && (
+              <span
+                className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full font-mono text-[11px] font-semibold tabular-nums ${
+                  activeTab === 'devolucoes'
+                    ? 'bg-navy-900/20 text-navy-900'
+                    : 'bg-gold text-navy-900'
+                }`}
+              >
+                {devolucoesEsperando}
+              </span>
+            )}
           </button>
 
         </nav>
@@ -2280,6 +2330,72 @@ export default function SupplierPortal() {
                               Não encontrei o cadastro
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {/* A devolução, no próprio pedido. Foi o que o fornecedor
+                          pediu com essas palavras — antes vinha por WhatsApp,
+                          que é onde a informação se perde entre dezenas de
+                          conversas justamente quando o motorista está na
+                          portaria. */}
+                      {order.devolucao_id && order.devolucao_status === 'avisada' && (
+                        <div className="mt-5 rounded-xl border border-orange-500/30 bg-orange-500/10 p-4">
+                          <p className="text-sm font-semibold text-orange-200">
+                            Devolução a caminho ·{' '}
+                            {MOTIVO_DA_DEVOLUCAO[order.devolucao_motivo ?? ''] ??
+                              order.devolucao_motivo}
+                          </p>
+
+                          {order.devolucao_prazo && (
+                            <p className="text-xs text-orange-200/80 mt-1">
+                              Prazo para chegar ao CD:{' '}
+                              {new Date(
+                                `${order.devolucao_prazo}T00:00:00`
+                              ).toLocaleDateString('pt-BR')}
+                            </p>
+                          )}
+
+                          {/* O código é o que libera o motorista. Grande, para
+                              ser lido com ele esperando na portaria. */}
+                          {order.devolucao_codigo ? (
+                            <div className="mt-3">
+                              <p className="text-xs text-emerald-300/80">
+                                Código de autorização — informe ao motorista
+                              </p>
+
+                              <p className="font-mono text-2xl font-bold tracking-widest text-emerald-200">
+                                {order.devolucao_codigo}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-amber-200 mt-3 leading-relaxed">
+                              O vendedor ainda não mandou o código de autorização.
+                              Sem ele o motorista não entrega — e são duas
+                              tentativas.
+                            </p>
+                          )}
+
+                          {Number(order.devolucao_tentativas ?? 0) > 0 && (
+                            <p
+                              className={`text-xs font-semibold mt-2 ${
+                                Number(order.devolucao_tentativas) >= 2
+                                  ? 'text-red-300'
+                                  : 'text-amber-300'
+                              }`}
+                            >
+                              {Number(order.devolucao_tentativas) >= 2
+                                ? 'Duas tentativas usadas — o produto pode estar perdido'
+                                : '1 tentativa usada, resta uma'}
+                            </p>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('devolucoes')}
+                            className="text-sm font-semibold text-gold hover:underline mt-3"
+                          >
+                            Abrir em Devoluções
+                          </button>
                         </div>
                       )}
 
