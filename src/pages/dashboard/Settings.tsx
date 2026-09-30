@@ -454,22 +454,23 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           <div>
             <label htmlFor="quem-recebe" className={rotulo}>
               <User className="w-4 h-4" />
-              Nome no endereço do Mercado Livre
+              Nome na etiqueta de devolução
             </label>
 
             <input
               id="quem-recebe"
               value={quemRecebe}
               onChange={(evento) => setQuemRecebe(evento.target.value)}
-              placeholder="Como está em Meu perfil → Endereços"
+              placeholder={nome ? `${nome} (o mesmo do seu nome)` : 'O mesmo do seu nome'}
               className={campo}
               disabled={carregando}
             />
 
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-              É o "Quem recebe" que sai impresso na etiqueta quando o comprador
-              devolve. O fornecedor usa esse nome para saber de quem é o pacote
-              que chegou no galpão dele.
+              Opcional. Preencha só se o "Quem recebe" do seu endereço no
+              Mercado Livre for outro nome — um sócio, um funcionário. Vazio,
+              vale o seu nome, e é por ele que o fornecedor identifica o pacote
+              devolvido que chega no galpão.
             </p>
           </div>
 

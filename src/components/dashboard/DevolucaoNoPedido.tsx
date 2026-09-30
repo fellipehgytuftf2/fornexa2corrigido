@@ -102,8 +102,8 @@ export default function DevolucaoNoPedido({
 }: Props) {
   const [aberto, setAberto] = useState(false);
 
-  /** O nome que o vendedor usa no endereço do Mercado Livre. */
-  const [quemRecebe, setQuemRecebe] = useState("");
+  /** O nome impresso na etiqueta de devolução. Vazio vale o do cadastro. */
+  const [quemRecebe, setQuemRecebe] = useState('');
 
   useEffect(() => {
     const carregar = async () => {
@@ -114,12 +114,14 @@ export default function DevolucaoNoPedido({
       if (!user) return;
 
       const { data } = await supabase
-        .from("profiles")
-        .select("quem_recebe")
-        .eq("id", user.id)
-        .maybeSingle<{ quem_recebe: string | null }>();
+        .from('profiles')
+        .select('quem_recebe, name')
+        .eq('id', user.id)
+        .maybeSingle<{ quem_recebe: string | null; name: string | null }>();
 
-      setQuemRecebe(data?.quem_recebe ?? "");
+      // Para a maioria os dois são o mesmo nome, e pedir que preencham de novo
+      // é trabalho sem ganho — campo que dá trabalho fica vazio.
+      setQuemRecebe(data?.quem_recebe || data?.name || '');
     };
 
     carregar();
@@ -173,7 +175,7 @@ export default function DevolucaoNoPedido({
    */
   const mensagem = (dados: { motivo: string; codigo: string | null }) =>
     [
-      `Quem recebe: ${quemRecebe || '— (cadastre em Configurações)'}`,
+      `Quem recebe: ${quemRecebe || '—'}`,
       `Cód Rastreio: ${order.tracking_code || '—'}`,
       `Nº Pedido: ${order.id.slice(0, 8)}`,
       `Cód interno do fornecedor: ${order.codigo_interno || '—'}`,
