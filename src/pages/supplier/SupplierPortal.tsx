@@ -873,10 +873,16 @@ export default function SupplierPortal() {
     const url = URL.createObjectURL(data);
     const aberta = window.open(url, '_blank', 'noopener,noreferrer');
 
+    // O navegador trata como pop-up: o clique terminou antes de o PDF ficar
+    // pronto, e a janela nasce fora do gesto da pessoa. Em vez de pedir para
+    // liberar pop-ups, baixa o arquivo — que é o que ela ia fazer de qualquer
+    // jeito para mandar à impressora.
     if (!aberta) {
-      setErrorMessage(
-        'O navegador bloqueou a janela das etiquetas. Libere pop-ups para este site e tente de novo.'
-      );
+      const link = document.createElement('a');
+
+      link.href = url;
+      link.download = `etiquetas-${selecionados.size}-pedidos.pdf`;
+      link.click();
     }
 
     setSelecionados(new Set());
