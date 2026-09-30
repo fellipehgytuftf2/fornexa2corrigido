@@ -2336,7 +2336,7 @@ export default function SupplierPortal() {
                           </div>
                         </div>
                       ) : (
-                      <div className="mt-5 flex flex-col sm:flex-row gap-3">
+                      <div className="mt-5 flex flex-wrap gap-2">
                         {order.etiqueta_disponivel ? (
                           <button
                             onClick={() => baixarEtiqueta(order)}
