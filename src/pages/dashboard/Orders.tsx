@@ -70,6 +70,8 @@ interface Order {
   repasse_id: string | null;
   status: OrderStatus;
   tracking_code: string | null;
+  /** Código que a equipe do fornecedor carimbou na separação. */
+  codigo_interno?: string | null;
   ml_shipment_id: string | null;
   taxa_embalagem: number | null;
   dce_emitida_em: string | null;
@@ -453,6 +455,7 @@ export default function Orders() {
         repasse_id,
         status,
         tracking_code,
+        codigo_interno,
         ml_shipment_id,
         taxa_embalagem,
         dce_emitida_em,

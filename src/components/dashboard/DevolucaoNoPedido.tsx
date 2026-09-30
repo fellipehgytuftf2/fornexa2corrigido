@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, Check, Copy, RotateCcw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ModalPortal from '../ui/modal-portal';
@@ -24,6 +24,8 @@ interface Props {
     id: string;
     product_name: string;
     tracking_code: string | null;
+    /** O código que a equipe do fornecedor carimbou na separação. */
+    codigo_interno?: string | null;
   };
   devolucao?: Devolucao;
   onMudou: () => void;
@@ -34,6 +36,9 @@ const MOTIVOS: { valor: string; rotulo: string }[] = [
   { valor: 'nao_entregue', rotulo: 'Não entregue / devolvido pelos Correios' },
   { valor: 'defeito', rotulo: 'Defeito de fabricação' },
   { valor: 'produto_errado', rotulo: 'Produto errado' },
+  // Pedido do fornecedor: o Flex cancelado depois do envio volta pelo mesmo
+  // caminho, e chegava sem motivo que o descrevesse.
+  { valor: 'cancelado_flex', rotulo: 'Cancelado (Flex)' },
 ];
 
 const rotuloDoMotivo = (valor: string) =>
@@ -96,6 +101,29 @@ export default function DevolucaoNoPedido({
   onMudou,
 }: Props) {
   const [aberto, setAberto] = useState(false);
+
+  /** O nome que o vendedor usa no endereço do Mercado Livre. */
+  const [quemRecebe, setQuemRecebe] = useState("");
+
+  useEffect(() => {
+    const carregar = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("quem_recebe")
+        .eq("id", user.id)
+        .maybeSingle<{ quem_recebe: string | null }>();
+
+      setQuemRecebe(data?.quem_recebe ?? "");
+    };
+
+    carregar();
+  }, []);
   const [motivo, setMotivo] = useState(MOTIVOS[0].valor);
   const [codigo, setCodigo] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -135,10 +163,20 @@ export default function DevolucaoNoPedido({
   };
   const [copiado, setCopiado] = useState(false);
 
+  /**
+   * A mensagem que o vendedor manda ao fornecedor.
+   *
+   * O formato é o que a MS Digital pediu, e ganhou o que faltava: quem recebe
+   * — o nome impresso na etiqueta de devolução, única coisa que liga o pacote
+   * ao dono no galpão — e o código interno da separação, que amarra o pacote
+   * ao pedido no processo deles.
+   */
   const mensagem = (dados: { motivo: string; codigo: string | null }) =>
     [
+      `Quem recebe: ${quemRecebe || '— (cadastre em Configurações)'}`,
       `Cód Rastreio: ${order.tracking_code || '—'}`,
       `Nº Pedido: ${order.id.slice(0, 8)}`,
+      `Cód interno do fornecedor: ${order.codigo_interno || '—'}`,
       `Produto: ${order.product_name}`,
       `Motivo da devolução: ${rotuloDoMotivo(dados.motivo)}`,
       `Cód devolução se houver: ${dados.codigo || '—'}`,

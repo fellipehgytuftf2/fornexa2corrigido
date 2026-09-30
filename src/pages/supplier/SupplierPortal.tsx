@@ -54,6 +54,11 @@ interface SupplierOrder {
    * carrinho, em que o comprador leva mais de um produto na mesma caixa.
    */
   ml_shipment_id?: string | null;
+  /** O código de separação que a equipe do fornecedor escreve. */
+  codigo_interno?: string | null;
+  /** O nome no endereço do vendedor no ML, impresso na etiqueta de devolução. */
+  quem_recebe?: string | null;
+
   /** O código do anúncio no Mercado Livre. É por ele que se acha na prateleira. */
   sku?: string | null;
 
@@ -845,6 +850,31 @@ export default function SupplierPortal() {
 
   const baixarEtiqueta = (order: SupplierOrder) =>
     abrirPdfDoPedido(order, 'supplier-order-label', 'a etiqueta');
+
+  /**
+   * O código de separação da equipe, no pedido.
+   *
+   * Salva ao sair do campo, sem botão: quem está separando tem as mãos na
+   * caixa, e um botão a mais é um passo que se esquece.
+   */
+  const salvarCodigoInterno = async (order: SupplierOrder, codigo: string) => {
+    const { data, error } = await supabase.rpc('fornecedor_define_codigo_interno', {
+      p_order_id: order.id,
+      p_codigo: codigo,
+    });
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || resposta?.ok === false) {
+      avisarNoPedido(
+        order.id,
+        error?.message ?? resposta?.erro ?? 'Não foi possível salvar o código.'
+      );
+      return;
+    }
+
+    await loadOrders({ silencioso: true });
+  };
 
   /**
    * As etiquetas dos pedidos marcados, num arquivo só.
@@ -1909,6 +1939,24 @@ export default function SupplierPortal() {
                                 {LOGISTICA[order.ml_logistic_type]}
                               </span>
                             )}
+
+                            {/* O código da separação, escrito por quem separa.
+                                Some junto quando o pacote volta, e é por ele
+                                que a equipe reencontra o pedido lá dentro. */}
+                            <input
+                              id={`codigo-interno-${order.id}`}
+                              defaultValue={order.codigo_interno ?? ''}
+                              onBlur={(evento) => {
+                                const novo = evento.target.value.trim();
+
+                                if (novo !== (order.codigo_interno ?? '')) {
+                                  salvarCodigoInterno(order, novo);
+                                }
+                              }}
+                              placeholder="cód. interno"
+                              title="Seu código de separação"
+                              className="w-28 rounded-lg border border-white/10 bg-navy-900/60 px-2 py-1 font-mono text-[11px] text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+                            />
                           </div>
 
                           {/* Carrinho: uma caixa, uma etiqueta, três pedidos.

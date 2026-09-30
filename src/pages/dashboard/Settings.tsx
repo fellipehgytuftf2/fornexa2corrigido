@@ -65,6 +65,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
   const [nome, setNome] = useState('');
   const [empresa, setEmpresa] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [quemRecebe, setQuemRecebe] = useState('');
   /**
    * Se o FORNEXA emite a Declaração de Conteúdo sozinho, quando a venda chega.
    *
@@ -112,13 +113,14 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       const { data: perfil } = await supabase
         .from('profiles')
         .select(
-          'name, empresa, whatsapp, plan, plan_status, plan_expira_em, plan_origem, dce_automatica'
+          'name, empresa, whatsapp, quem_recebe, plan, plan_status, plan_expira_em, plan_origem, dce_automatica'
         )
         .eq('id', user.id)
         .maybeSingle<{
           name: string | null;
           empresa: string | null;
           whatsapp: string | null;
+          quem_recebe: string | null;
           plan: string | null;
           plan_status: string | null;
           plan_expira_em: string | null;
@@ -131,6 +133,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       setNome(nomeAtual);
         setEmpresa(perfil?.empresa || '');
       setWhatsapp(perfil?.whatsapp || '');
+      setQuemRecebe(perfil?.quem_recebe || '');
       setPlano(perfil?.plan || 'free');
       setStatusPlano(perfil?.plan_status || 'inativo');
       setExpiraEm(perfil?.plan_expira_em || null);
@@ -222,6 +225,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       .update({
         empresa: empresa.trim() || null,
         whatsapp: whatsapp.trim() || null,
+        quem_recebe: quemRecebe.trim() || null,
       })
       .eq('id', user.id)
       .select('id');
@@ -441,6 +445,31 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
               Para urgência que não pode esperar chamado. O fornecedor vê este
               número; o comprador nunca.
+            </p>
+          </div>
+
+          {/* Devolução do comprador chega com etiqueta nova, e a única coisa
+              impressa nela é este nome. Sem ele, o pacote chega no galpão do
+              fornecedor sem dono. */}
+          <div>
+            <label htmlFor="quem-recebe" className={rotulo}>
+              <User className="w-4 h-4" />
+              Nome no endereço do Mercado Livre
+            </label>
+
+            <input
+              id="quem-recebe"
+              value={quemRecebe}
+              onChange={(evento) => setQuemRecebe(evento.target.value)}
+              placeholder="Como está em Meu perfil → Endereços"
+              className={campo}
+              disabled={carregando}
+            />
+
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+              É o "Quem recebe" que sai impresso na etiqueta quando o comprador
+              devolve. O fornecedor usa esse nome para saber de quem é o pacote
+              que chegou no galpão dele.
             </p>
           </div>
 

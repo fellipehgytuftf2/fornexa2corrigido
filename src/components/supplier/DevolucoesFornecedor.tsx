@@ -20,6 +20,25 @@ interface DevolucaoDoFornecedor {
   ml_order_id: string | null;
   vendedor: string | null;
   vendedor_whatsapp: string | null;
+  /** O nome impresso na etiqueta de devolução do comprador. */
+  quem_recebe: string | null;
+  /** O código que a equipe carimbou na separação. */
+  codigo_interno: string | null;
+}
+
+interface VendaEncontrada {
+  order_id: string;
+  produto: string;
+  quantidade: number;
+  ml_order_id: string | null;
+  codigo_interno: string | null;
+  vendedor: string | null;
+  vendedor_whatsapp: string | null;
+  quem_recebe: string | null;
+  status: string;
+  devolucao_id: string | null;
+  devolucao_status: string | null;
+  devolucao_codigo: string | null;
 }
 
 const MOTIVOS: Record<string, string> = {
@@ -27,6 +46,7 @@ const MOTIVOS: Record<string, string> = {
   nao_entregue: 'Não entregue / devolvido pelos Correios',
   defeito: 'Defeito de fabricação',
   produto_errado: 'Produto errado',
+  cancelado_flex: 'Cancelado (Flex)',
 };
 
 const SITUACOES: Record<DevolucaoDoFornecedor['status'], string> = {
@@ -50,6 +70,11 @@ export default function DevolucoesFornecedor() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
+
+  /** A busca pelo numero da etiqueta. */
+  const [numeroBuscado, setNumeroBuscado] = useState("");
+  const [encontradas, setEncontradas] = useState<VendaEncontrada[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
 
   const carregar = async () => {
     setCarregando(true);
@@ -123,6 +148,30 @@ export default function DevolucoesFornecedor() {
     );
   };
 
+  /**
+   * Acha a venda pelo numero impresso na etiqueta.
+   *
+   * Quando e o Mercado Livre que devolve, o pacote volta com a etiqueta de
+   * ida -- e o numero da venda nela e o unico identificador confiavel.
+   */
+  const buscarVenda = async () => {
+    setBuscando(true);
+    setErro("");
+
+    const { data, error } = await supabase.rpc("fornecedor_busca_venda", {
+      p_numero: numeroBuscado,
+    });
+
+    setBuscando(false);
+
+    if (error) {
+      setErro(`Não foi possível procurar: ${error.message}`);
+      return;
+    }
+
+    setEncontradas((data as VendaEncontrada[]) || []);
+  };
+
   const formatarData = (valor: string | null) =>
     valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
 
@@ -156,6 +205,100 @@ export default function DevolucoesFornecedor() {
           <p className="text-sm text-red-300">{erro}</p>
         </div>
       )}
+
+      {/* Quando é o Mercado Livre que devolve, o pacote volta com a etiqueta
+          de ida — e nela está o número da venda. Digitando esse número, a
+          equipe descobre de quem é sem depender de nome nenhum. */}
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+        <p className="text-sm font-semibold text-white">
+          Chegou um pacote e você não sabe de quem é?
+        </p>
+
+        <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+          Digite o número da venda impresso na etiqueta, ou o rastreio.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-2 mt-3">
+          <input
+            id="buscar-venda"
+            value={numeroBuscado}
+            onChange={(evento) => setNumeroBuscado(evento.target.value)}
+            onKeyDown={(evento) => {
+              if (evento.key === 'Enter') buscarVenda();
+            }}
+            placeholder="Ex: 2000018520550620"
+            className="flex-1 min-w-0 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-2.5 text-sm font-mono text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
+          />
+
+          <button
+            type="button"
+            onClick={buscarVenda}
+            disabled={buscando || numeroBuscado.trim().length < 6}
+            className="rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-navy-900 hover:bg-gold-hover disabled:opacity-50 shrink-0"
+          >
+            {buscando ? 'Procurando...' : 'Procurar'}
+          </button>
+        </div>
+
+        {encontradas !== null && encontradas.length === 0 && (
+          <p className="text-sm text-amber-300 mt-3">
+            Nenhuma venda sua com esse número. Confira se o número está inteiro.
+          </p>
+        )}
+
+        {encontradas?.map((venda) => (
+          <div
+            key={venda.order_id}
+            className="mt-3 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4"
+          >
+            <p className="text-sm font-semibold text-white">{venda.produto}</p>
+
+            <dl className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div>
+                <dt className="text-xs text-slate-500">Vendedor</dt>
+                <dd className="text-slate-200 break-words">{venda.vendedor || '—'}</dd>
+              </div>
+
+              <div>
+                <dt className="text-xs text-slate-500">Quem recebe</dt>
+                <dd className="text-slate-200 break-words">{venda.quem_recebe || '—'}</dd>
+              </div>
+
+              <div>
+                <dt className="text-xs text-slate-500">Cód. interno</dt>
+                <dd className="text-slate-200 font-mono">{venda.codigo_interno || '—'}</dd>
+              </div>
+
+              <div>
+                <dt className="text-xs text-slate-500">Devolução</dt>
+                <dd className="text-slate-200">
+                  {venda.devolucao_id
+                    ? SITUACOES[venda.devolucao_status as DevolucaoDoFornecedor['status']] ??
+                      venda.devolucao_status
+                    : 'não aberta pelo vendedor'}
+                </dd>
+              </div>
+            </dl>
+
+            {venda.devolucao_codigo && (
+              <p className="font-mono text-xl font-bold tracking-widest text-emerald-200 mt-3">
+                {venda.devolucao_codigo}
+              </p>
+            )}
+
+            {venda.vendedor_whatsapp && (
+              <a
+                href={`https://wa.me/55${venda.vendedor_whatsapp.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block text-sm font-semibold text-gold hover:underline mt-3"
+              >
+                Falar com o vendedor no WhatsApp
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
 
       <ul className="space-y-3">
         {devolucoes.map((devolucao) => {
@@ -215,6 +358,22 @@ export default function DevolucoesFornecedor() {
                       <dt className="text-xs text-slate-500">Vendedor</dt>
                       <dd className="text-slate-200 break-words mt-0.5">
                         {devolucao.vendedor || '—'}
+                      </dd>
+                    </div>
+
+                    {/* O nome impresso na etiqueta da devolução do comprador:
+                        é por ele que o pacote encontra o dono no galpão. */}
+                    <div>
+                      <dt className="text-xs text-slate-500">Quem recebe</dt>
+                      <dd className="text-slate-200 break-words mt-0.5">
+                        {devolucao.quem_recebe || '—'}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs text-slate-500">Cód. interno</dt>
+                      <dd className="text-slate-200 font-mono break-all mt-0.5">
+                        {devolucao.codigo_interno || '—'}
                       </dd>
                     </div>
 
