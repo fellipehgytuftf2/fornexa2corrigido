@@ -1282,7 +1282,7 @@ export default function SupplierPortal() {
   return (
     <div className="min-h-screen bg-navy-950 text-white">
       <header className="border-b border-white/5 bg-navy-900/60 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-[1700px] mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-md overflow-hidden bg-navy-900 flex items-center justify-center shrink-0">
               <img
@@ -1360,7 +1360,7 @@ export default function SupplierPortal() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-[1700px] mx-auto px-6 py-8">
         {successMessage && (
           <div
             role="status"
