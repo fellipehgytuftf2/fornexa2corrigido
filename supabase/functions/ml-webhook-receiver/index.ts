@@ -305,6 +305,55 @@ Deno.serve(async (req: Request) => {
             })
             .eq("ml_order_id", mlOrderDoEnvio)
             .eq("user_id", vendedorId);
+
+          // O pacote está voltando.
+          //
+          // O Mercado Livre diz isso no estado do envio, e ninguém lia: a
+          // devolução só existia se o vendedor abrisse na mão, depois de ver
+          // um e-mail. Em 30/09 um pacote voltou duas vezes sem ninguém
+          // reagir, e o produto se perdeu.
+          //
+          // Aberta aqui, o vendedor acorda com ela já registrada e só precisa
+          // colar o código de autorização — que é o passo que trava o motorista
+          // na portaria do fornecedor.
+          const statusDoEnvio = String(envio?.status ?? "");
+          const subStatusDoEnvio = String(envio?.substatus ?? "");
+
+          const voltando =
+            statusDoEnvio === "not_delivered" ||
+            subStatusDoEnvio.includes("returning") ||
+            subStatusDoEnvio === "return_to_sender" ||
+            subStatusDoEnvio === "refused_delivery";
+
+          // Cancelado depois de despachado também volta — é o caso do Flex que
+          // o fornecedor relatou.
+          const canceladoDepoisDeSair =
+            statusDoEnvio === "cancelled" && Boolean(envio?.tracking_number);
+
+          if (voltando || canceladoDepoisDeSair) {
+            const { data: resultado } = await supabase.rpc("abrir_devolucao_automatica", {
+              p_ml_order_id: mlOrderDoEnvio,
+              p_motivo:
+                canceladoDepoisDeSair && envio?.logistic_type === "self_service"
+                  ? "cancelado_flex"
+                  : "nao_entregue",
+            });
+
+            const criada = resultado as { ok?: boolean; ja_existia?: boolean } | null;
+
+            if (criada?.ok && !criada.ja_existia) {
+              await supabase.from("log_integracao_ml").insert({
+                contexto: "devolucao-automatica",
+                mensagem: `Devolução aberta pelo estado do envio (${statusDoEnvio}/${subStatusDoEnvio})`,
+                detalhes: {
+                  ml_order_id: mlOrderDoEnvio,
+                  shipment_id: String(envio?.id ?? ""),
+                  status: statusDoEnvio,
+                  substatus: subStatusDoEnvio,
+                },
+              });
+            }
+          }
         }
       }
 
