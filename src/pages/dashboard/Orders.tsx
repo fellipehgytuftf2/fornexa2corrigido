@@ -73,6 +73,8 @@ interface Order {
   /** Código que a equipe do fornecedor carimbou na separação. */
   codigo_interno?: string | null;
   ml_shipment_id: string | null;
+  /** Número da venda no Mercado Livre, o que sai impresso na etiqueta. */
+  ml_order_id?: string | null;
   taxa_embalagem: number | null;
   dce_emitida_em: string | null;
   dce_emitida_pelo_sistema: boolean | null;
@@ -459,6 +461,7 @@ export default function Orders() {
         tracking_code,
         codigo_interno,
         ml_shipment_id,
+        ml_order_id,
         taxa_embalagem,
         dce_emitida_em,
         dce_emitida_pelo_sistema,
@@ -609,6 +612,34 @@ export default function Orders() {
       ? orders.filter((order) => !order.pago_ao_fornecedor_em)
       : orders.filter((order) => order.pago_ao_fornecedor_em);
   }, [orders, filtroRepasse, devolucoes]);
+
+  /** Busca do pedido que vai receber uma devolução nova. */
+  const [buscaDevolucao, setBuscaDevolucao] = useState('');
+
+  /**
+   * Pedidos que podem receber devolução agora.
+   *
+   * Despachado ou entregue, e ainda sem devolução aberta. Antes de despachar
+   * o produto está na bancada do fornecedor, e aí o caso é cancelamento.
+   */
+  const candidatosADevolucao = useMemo(() => {
+    const termo = buscaDevolucao.trim().toLowerCase();
+
+    if (termo.length < 3) return [];
+
+    return orders
+      .filter(
+        (pedido) =>
+          (pedido.status === 'shipped' || pedido.status === 'delivered') &&
+          !devolucoes[pedido.id] &&
+          [pedido.product_name, pedido.tracking_code, pedido.ml_order_id]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(termo)
+      )
+      .slice(0, 5);
+  }, [orders, devolucoes, buscaDevolucao]);
 
   /** Devoluções a caminho sem o código de autorização colado. */
   const devolucoesPendentes = useMemo(
@@ -842,6 +873,62 @@ export default function Orders() {
           </button>
         ))}
       </div>
+
+      {/* Registrar a devolução mora aqui, e não só dentro do pedido: achar o
+          pedido certo no meio de cem pagos era o passo que fazia a pessoa
+          desistir — e devolução tem relógio correndo. */}
+      {filtroRepasse === 'devolucoes' && (
+        <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
+          <p className="font-semibold text-navy-900 dark:text-white">
+            Registrar uma devolução
+          </p>
+
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
+            Procure o pedido que está voltando. Só aparecem os que já foram
+            despachados — antes disso o produto está com o fornecedor, e o caso
+            é cancelamento.
+          </p>
+
+          <input
+            id="buscar-para-devolver"
+            value={buscaDevolucao}
+            onChange={(evento) => setBuscaDevolucao(evento.target.value)}
+            placeholder="Nome do produto, rastreio ou número da venda"
+            className="w-full mt-3 px-4 py-2.5 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-sm text-navy-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+          />
+
+          {buscaDevolucao.trim().length >= 3 && (
+            <ul className="mt-3 space-y-2">
+              {candidatosADevolucao.length === 0 && (
+                <li className="text-sm text-gray-500 dark:text-slate-400">
+                  Nenhum pedido despachado com esse termo. Pedido com devolução
+                  já aberta não aparece aqui — ele está na lista abaixo.
+                </li>
+              )}
+
+              {candidatosADevolucao.map((pedido) => (
+                <li
+                  key={pedido.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-navy-600 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-navy-900 dark:text-white truncate">
+                      {pedido.product_name}
+                    </p>
+
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                      {pedido.tracking_code || 'sem rastreio'} ·{' '}
+                      {formatDate(pedido.created_at)}
+                    </p>
+                  </div>
+
+                  <DevolucaoNoPedido order={pedido} onMudou={loadOrders} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-16 text-center">
