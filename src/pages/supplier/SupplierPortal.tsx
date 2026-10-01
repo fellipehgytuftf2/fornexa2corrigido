@@ -236,14 +236,18 @@ const tabs: Tab[] = [
   {
     id: 'reservados',
     label: 'Reservados',
-    match: (order) => Boolean(order.reservado),
+    // Separar tira da prateleira: quem já está sendo separado pertence à aba
+    // seguinte, mesmo com a marca de reserva ainda posta. Sem isto o pedido
+    // reservado some ao ser marcado como "estou separando" — fica preso aqui,
+    // porque a aba de separação esconde o que está reservado.
+    match: (order) => Boolean(order.reservado) && order.status !== 'separating',
     emptyMessage:
       'Nenhum pedido reservado. Reserve em Confirmados, depois de separar a mercadoria — nada entra aqui sozinho.',
   },
   {
     id: 'separacao',
     label: 'Em separação',
-    match: (order) => emAndamento(order, 'separating') && !order.reservado,
+    match: (order) => emAndamento(order, 'separating'),
     emptyMessage: 'Nenhum pedido em separação.',
   },
   {
@@ -2226,6 +2230,43 @@ export default function SupplierPortal() {
                                   <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                                 ) : null}
                                 {order.reservado_em ? 'Tirar dos reservados' : 'Reservar'}
+                              </button>
+                            )}
+
+                          {/* Os dois passos da bancada, na face. Dentro do
+                              "Ver detalhes" eles tinham o mesmo destino do
+                              reembolso: o fornecedor não achava e concluía
+                              que a tela não funcionava. */}
+                          {!foiCancelado(order) &&
+                            (order.status === 'pending' ||
+                              order.status === 'sent_to_supplier') && (
+                              <button
+                                type="button"
+                                onClick={() => updateStatus(order, 'separating')}
+                                disabled={isBusy}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:opacity-50"
+                              >
+                                {isBusy ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                ) : null}
+                                Estou separando
+                              </button>
+                            )}
+
+                          {!foiCancelado(order) &&
+                            (order.status === 'pending' ||
+                              order.status === 'sent_to_supplier' ||
+                              order.status === 'separating') && (
+                              <button
+                                type="button"
+                                onClick={() => updateStatus(order, 'shipped')}
+                                disabled={isBusy}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-4 py-2 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover disabled:opacity-60"
+                              >
+                                {isBusy ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                ) : null}
+                                Marcar como enviado
                               </button>
                             )}
 
