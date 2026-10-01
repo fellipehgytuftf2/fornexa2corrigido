@@ -2678,34 +2678,6 @@ export default function SupplierPortal() {
                           </button>
                         )}
 
-                        {(order.status === 'pending' ||
-                          order.status === 'sent_to_supplier') && (
-                          <button
-                            onClick={() => updateStatus(order, 'separating')}
-                            disabled={isBusy}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50"
-                          >
-                            {isBusy ? (
-                              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                            ) : null}
-                            Estou separando
-                          </button>
-                        )}
-
-                        {(order.status === 'pending' ||
-                          order.status === 'sent_to_supplier' ||
-                          order.status === 'separating') && (
-                          <button
-                            onClick={() => updateStatus(order, 'shipped')}
-                            disabled={isBusy}
-                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 text-sm font-semibold text-navy-900 transition-colors hover:bg-gold-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:opacity-60"
-                          >
-                            {isBusy ? (
-                              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                            ) : null}
-                            Marcar como enviado
-                          </button>
-                        )}
 
                         {order.chamado_id ? (
                           <button
