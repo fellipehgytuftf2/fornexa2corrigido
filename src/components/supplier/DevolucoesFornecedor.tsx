@@ -260,7 +260,7 @@ export default function DevolucoesFornecedor() {
               </div>
 
               <div>
-                <dt className="text-xs text-slate-500">Quem recebe</dt>
+                <dt className="text-xs text-slate-500" title="O nome impresso na etiqueta da devolução — é do vendedor, não de quem recebe no galpão">Nome na etiqueta</dt>
                 <dd className="text-slate-200 break-words">{venda.quem_recebe || '—'}</dd>
               </div>
 
@@ -364,7 +364,7 @@ export default function DevolucoesFornecedor() {
                     {/* O nome impresso na etiqueta da devolução do comprador:
                         é por ele que o pacote encontra o dono no galpão. */}
                     <div>
-                      <dt className="text-xs text-slate-500">Quem recebe</dt>
+                      <dt className="text-xs text-slate-500" title="O nome impresso na etiqueta da devolução — é do vendedor, não de quem recebe no galpão">Nome na etiqueta</dt>
                       <dd className="text-slate-200 break-words mt-0.5">
                         {devolucao.quem_recebe || '—'}
                       </dd>
