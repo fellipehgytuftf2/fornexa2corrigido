@@ -238,7 +238,7 @@ const tabs: Tab[] = [
     label: 'Reservados',
     match: (order) => Boolean(order.reservado),
     emptyMessage:
-      'Nenhum pedido reservado. Aqui ficam os que já foram pagos e estão esperando a etiqueta sair.',
+      'Nenhum pedido reservado. Reserve em Confirmados, depois de separar a mercadoria — nada entra aqui sozinho.',
   },
   {
     id: 'separacao',
@@ -980,12 +980,13 @@ export default function SupplierPortal() {
   };
 
   /**
-   * A prateleira, decidida por ele.
+   * A prateleira, decidida por ele — e só por ele.
    *
-   * A aba Reservados já mostrava sozinha o que está pago e sem etiqueta. Mas
-   * quem olha a bancada é ele: "em confirmados o fornecedor imprime as
-   * etiquetas liberadas e separa o produto das reservadas". Esta marca é essa
-   * decisão, e convive com a automática.
+   * A aba enchia sozinha com o que estava pago e sem etiqueta, antes de ele
+   * conferir o pagamento: "está automático e puxando pedido sem confirmação".
+   * Mercadoria aparecia separada sem ninguém ter separado nada. Agora reservar
+   * é um passo da bancada, na ordem que ele desenhou — paga, confirma, separa,
+   * reserva.
    */
   /**
    * Os pedidos que dividem o mesmo envio no Mercado Livre.
@@ -2082,6 +2083,82 @@ export default function SupplierPortal() {
                         </div>
                       </div>
 
+                      {/* Cancelado: o aviso e o reembolso ficam na face.
+                          Escondidos atrás de "Ver detalhes", o fornecedor
+                          abria a aba Cancelados, via cartões fechados e
+                          concluía que o botão não funcionava — e com 48
+                          cancelados na lista ninguém abre um por um para
+                          descobrir qual ainda deve dinheiro. */}
+                      {foiCancelado(order) && (
+                        <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3.5">
+                          <AlertCircle
+                            className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5"
+                            aria-hidden="true"
+                          />
+
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-red-200">
+                              {grupo.length > 1
+                                ? `Os ${grupo.length} itens deste envio foram cancelados no ${order.marketplace}. Não envie.`
+                                : `Este pedido foi cancelado no ${order.marketplace}. Não envie.`}{' '}
+                              Se já tiver separado, pode devolver ao estoque.
+                            </p>
+
+                            {/* Um por pedido: no carrinho o vendedor pode ter
+                                pago um item e não os outros, e o reembolso é
+                                de cada um. */}
+                            {grupo
+                              .filter((pedidoDoGrupo) => pedidoDoGrupo.pago_em)
+                              .map((pedidoDoGrupo) => (
+                                <div
+                                  key={pedidoDoGrupo.id}
+                                  className="mt-3 flex flex-wrap items-center gap-3"
+                                >
+                                  {grupo.length > 1 && (
+                                    <span className="text-xs text-slate-400 truncate max-w-[220px]">
+                                      {pedidoDoGrupo.product_name}
+                                    </span>
+                                  )}
+
+                                  {pedidoDoGrupo.reembolsado_em ? (
+                                    <>
+                                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                                        <CheckCircle className="w-3 h-3" aria-hidden="true" />
+                                        Reembolsado em{' '}
+                                        {new Date(
+                                          pedidoDoGrupo.reembolsado_em
+                                        ).toLocaleDateString('pt-BR')}
+                                      </span>
+
+                                      <button
+                                        onClick={() => marcarReembolso(pedidoDoGrupo, false)}
+                                        disabled={actionId === pedidoDoGrupo.id}
+                                        className="text-xs font-semibold text-slate-400 underline underline-offset-2 hover:text-white disabled:opacity-50"
+                                      >
+                                        desfazer
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      onClick={() => marcarReembolso(pedidoDoGrupo, true)}
+                                      disabled={actionId === pedidoDoGrupo.id}
+                                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/30 px-4 py-2.5 text-sm font-semibold text-red-200 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                                    >
+                                      {actionId === pedidoDoGrupo.id ? (
+                                        <Loader2
+                                          className="w-4 h-4 animate-spin"
+                                          aria-hidden="true"
+                                        />
+                                      ) : null}
+                                      Marcar reembolso
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Fechado, o cartao responde a pergunta do dia: dá para
                           despachar? O resto — pagamento de cada item, quem
                           vendeu, endereço — abre quando alguém precisa. */}
@@ -2097,22 +2174,49 @@ export default function SupplierPortal() {
                           {order.vendedor_nome ? ` · ${order.vendedor_nome}` : ""}
                         </p>
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDetalhesAbertos((atuais) => {
-                              const novos = new Set(atuais);
+                        <div className="flex flex-wrap items-center gap-4">
+                          {/* Reservar na face do cartão, e não dentro dos
+                              detalhes. Desde que a aba parou de se encher
+                              sozinha, é este botão que põe o pedido na
+                              prateleira — e botão que decide o dia não pode
+                              exigir dois cliques para aparecer. */}
+                          {!foiCancelado(order) &&
+                            order.status !== 'shipped' &&
+                            order.status !== 'delivered' && (
+                              <button
+                                type="button"
+                                onClick={() => reservar(order, !order.reservado_em)}
+                                disabled={isBusy}
+                                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                                  order.reservado_em
+                                    ? 'border border-gold/40 bg-gold/10 text-gold'
+                                    : 'border border-white/15 text-white hover:bg-white/5'
+                                }`}
+                              >
+                                {isBusy ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                                ) : null}
+                                {order.reservado_em ? 'Tirar dos reservados' : 'Reservar'}
+                              </button>
+                            )}
 
-                              if (novos.has(chave)) novos.delete(chave);
-                              else novos.add(chave);
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDetalhesAbertos((atuais) => {
+                                const novos = new Set(atuais);
 
-                              return novos;
-                            })
-                          }
-                          className="text-sm font-semibold text-gold hover:underline"
-                        >
-                          {detalhesAbertos.has(chave) ? "Ocultar detalhes" : "Ver detalhes"}
-                        </button>
+                                if (novos.has(chave)) novos.delete(chave);
+                                else novos.add(chave);
+
+                                return novos;
+                              })
+                            }
+                            className="text-sm font-semibold text-gold hover:underline"
+                          >
+                            {detalhesAbertos.has(chave) ? "Ocultar detalhes" : "Ver detalhes"}
+                          </button>
+                        </div>
                       </div>
 
                       {detalhesAbertos.has(chave) && (
@@ -2447,65 +2551,13 @@ export default function SupplierPortal() {
                         </div>
                       )}
 
-                      {/* Cancelado no marketplace: nada a fazer, e é preciso
-                          dizer isso com todas as letras. O fornecedor pode já
-                          ter separado e embalado. */}
-                      {order.cancelado_no_marketplace ? (
-                        <div className="mt-5 flex items-start gap-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3.5">
-                          <AlertCircle
-                            className="w-[18px] h-[18px] text-red-400 shrink-0 mt-0.5"
-                            aria-hidden="true"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm text-red-200">
-                              Este pedido foi cancelado no {order.marketplace}. Não envie.
-                              Se já tiver separado, pode devolver ao estoque.
-                            </p>
-
-                            {/* "Quando cancela mistura tudo aí tem q ficar
-                                procurando": com 48 cancelados na lista, o que
-                                falta não é o aviso, é separar o que já foi
-                                devolvido do que ainda deve dinheiro. */}
-                            {order.pago_em && (
-                              <div className="mt-3 flex flex-wrap items-center gap-3">
-                                {order.reembolsado_em ? (
-                                  <>
-                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
-                                      <CheckCircle className="w-3 h-3" aria-hidden="true" />
-                                      Reembolsado em{' '}
-                                      {new Date(order.reembolsado_em).toLocaleDateString(
-                                        'pt-BR'
-                                      )}
-                                    </span>
-
-                                    <button
-                                      onClick={() => marcarReembolso(order, false)}
-                                      disabled={actionId === order.id}
-                                      className="text-xs font-semibold text-slate-400 underline underline-offset-2 hover:text-white disabled:opacity-50"
-                                    >
-                                      desfazer
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button
-                                    onClick={() => marcarReembolso(order, true)}
-                                    disabled={actionId === order.id}
-                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/30 px-4 py-2.5 text-sm font-semibold text-red-200 transition-colors hover:bg-red-500/10 disabled:opacity-50"
-                                  >
-                                    {actionId === order.id ? (
-                                      <Loader2
-                                        className="w-4 h-4 animate-spin"
-                                        aria-hidden="true"
-                                      />
-                                    ) : null}
-                                    Marcar reembolso
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
+                      {/* Cancelado não tem botão nenhum aqui: o aviso e o
+                          reembolso ficam na face do cartão, fora do "Ver
+                          detalhes". Dentro, o fornecedor abria a aba
+                          Cancelados e via cartão fechado, sem nada para
+                          clicar — era por isso que o reembolso "não
+                          funcionava". */}
+                      {!order.cancelado_no_marketplace && (
                       <div className="mt-5 flex flex-wrap gap-2">
                         {order.etiqueta_disponivel ? (
                           <button
@@ -2553,27 +2605,6 @@ export default function SupplierPortal() {
                           >
                             <FileText className="w-4 h-4" aria-hidden="true" />
                             Baixar DACE
-                          </button>
-                        )}
-
-                        {/* Jogar para Reservados na mão. Ao lado de "Estou
-                            separando" porque as duas respondem a mesma
-                            pergunta de quem está na bancada: para onde vai
-                            este pedido agora. */}
-                        {order.status !== 'shipped' && order.status !== 'delivered' && (
-                          <button
-                            onClick={() => reservar(order, !order.reservado_em)}
-                            disabled={isBusy}
-                            className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 disabled:opacity-50 ${
-                              order.reservado_em
-                                ? 'border border-gold/40 bg-gold/10 text-gold'
-                                : 'border border-white/15 text-white hover:bg-white/5'
-                            }`}
-                          >
-                            {isBusy ? (
-                              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-                            ) : null}
-                            {order.reservado_em ? 'Tirar dos reservados' : 'Reservar'}
                           </button>
                         )}
 
