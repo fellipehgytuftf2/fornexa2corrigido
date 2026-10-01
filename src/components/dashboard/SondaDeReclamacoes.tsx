@@ -13,6 +13,8 @@ type Resultado = {
   ok?: boolean;
   veredito?: string;
   tentativas?: Tentativa[];
+  reclamacao_testada?: string | null;
+  pedido_da_reclamacao?: string | null;
   error?: string;
 };
 
@@ -100,6 +102,13 @@ export default function SondaDeReclamacoes() {
                 )}
                 <span>{resultado.veredito}</span>
               </div>
+
+              {resultado.reclamacao_testada && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Reclamação usada no teste: {resultado.reclamacao_testada}
+                  {resultado.pedido_da_reclamacao && ` (venda ${resultado.pedido_da_reclamacao})`}
+                </p>
+              )}
 
               {/* O detalhe cru fica à vista de propósito: quando o Mercado
                   Livre recusa, o motivo vem escrito na resposta dele, e é por

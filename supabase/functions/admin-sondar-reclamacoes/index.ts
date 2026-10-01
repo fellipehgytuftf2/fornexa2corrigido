@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
 
   const tentativas: Array<Record<string, unknown>> = [];
 
-  for (const caminho of caminhos) {
+  async function perguntar(caminho: string) {
     const resposta = await fetch(`https://api.mercadolibre.com${caminho}`, {
       headers: { Authorization: `Bearer ${token.accessToken}` },
     });
@@ -175,20 +175,86 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  for (const caminho of caminhos) {
+    await perguntar(caminho);
+  }
+
+  // A BUSCA NÃO É A PERGUNTA QUE IMPORTA
+  //
+  // O Mercado Livre bloqueia a busca de reclamações para quase toda aplicação
+  // — responde 403 do "PolicyAgent" mesmo para quem consegue ler uma
+  // reclamação específica. E ler uma específica é exatamente o que o webhook
+  // faz: a notificação chega com o id na mão, ninguém precisa procurar.
+  //
+  // Então procuramos uma reclamação antiga nas vendas da conta e tentamos ler
+  // ESSA. É esse resultado que diz se o canal novo vai funcionar.
+  let idDeReclamacao: string | null = null;
+  let pedidoDaReclamacao: string | null = null;
+
+  for (const offset of [0, 50, 100]) {
+    if (idDeReclamacao) break;
+
+    const buscaDeVendas = await fetch(
+      `https://api.mercadolibre.com/orders/search?seller=${encodeURIComponent(
+        String(conexao.external_account_id)
+      )}&sort=date_desc&limit=50&offset=${offset}`,
+      { headers: { Authorization: `Bearer ${token.accessToken}` } }
+    );
+
+    if (!buscaDeVendas.ok) break;
+
+    const vendas = await buscaDeVendas.json().catch(() => null);
+    const resultados = Array.isArray(vendas?.results) ? vendas.results : [];
+
+    if (resultados.length === 0) break;
+
+    for (const venda of resultados) {
+      const mediacoes = Array.isArray(venda?.mediations) ? venda.mediations : [];
+
+      if (mediacoes.length > 0 && mediacoes[0]?.id) {
+        idDeReclamacao = String(mediacoes[0].id);
+        pedidoDaReclamacao = String(venda?.id ?? '');
+        break;
+      }
+    }
+  }
+
+  if (idDeReclamacao) {
+    await perguntar(`/post-purchase/v1/claims/${idDeReclamacao}`);
+    await perguntar(`/v1/claims/${idDeReclamacao}`);
+  }
+
+  const leituraDireta = tentativas.some(
+    (t) => t.http === 200 && String(t.caminho).includes('claims/') && !String(t.caminho).includes('search')
+  );
   const algumPassou = tentativas.some((t) => t.http === 200);
   const algumNegou = tentativas.some((t) => t.http === 401 || t.http === 403);
 
-  const veredito = algumPassou
-    ? 'A aplicação consegue ler reclamações. Quando o Mercado Livre avisar de uma, a devolução abre sozinha.'
-    : algumNegou
-      ? 'O Mercado Livre recusou a leitura. A permissão "Venda e envios de um produto" precisa estar em Leitura e escrita no painel da aplicação — e a conta sondada talvez precise reconectar para pegar o escopo novo.'
-      : 'Nenhum dos endereços respondeu como esperado. Veja o detalhe abaixo.';
+  const veredito = leituraDireta
+    ? 'A aplicação lê reclamação pelo id — que é como o webhook recebe. O canal está pronto: quando o Mercado Livre avisar de uma, a devolução abre sozinha.'
+    : !idDeReclamacao
+      ? 'Esta conta não tem reclamação antiga para testar a leitura direta. A busca ser recusada é normal (o Mercado Livre bloqueia a busca para quase toda aplicação) e não diz nada sobre o canal. A primeira reclamação real vai ficar registrada no log, com o conteúdo cru, mesmo que não vire devolução.'
+      : algumNegou
+        ? 'O Mercado Livre recusou até a leitura de uma reclamação específica. A permissão "Venda e envios de um produto" precisa estar em Leitura e escrita no painel da aplicação, e a conta sondada precisa reconectar depois disso — o token guarda o escopo de quando foi criado.'
+        : 'Nenhum dos endereços respondeu como esperado. Veja o detalhe abaixo.';
 
   await admin.from('log_integracao_ml').insert({
     contexto: 'sonda-reclamacoes',
     mensagem: veredito,
-    detalhes: { conta_ml: conexao.external_account_id, tentativas },
+    detalhes: {
+      conta_ml: conexao.external_account_id,
+      reclamacao_testada: idDeReclamacao,
+      pedido_da_reclamacao: pedidoDaReclamacao,
+      tentativas,
+    },
   });
 
-  return json({ ok: algumPassou, veredito, tentativas });
+  return json({
+    ok: leituraDireta,
+    veredito,
+    reclamacao_testada: idDeReclamacao,
+    pedido_da_reclamacao: pedidoDaReclamacao,
+    tentativas,
+    algumPassou,
+  });
 });
