@@ -309,7 +309,7 @@ export default function SupplierPortal() {
    * mercadoria parada esperando um clique dele.
    */
   const [filtroPagamento, setFiltroPagamento] = useState<
-    'todos' | 'aguardando' | 'conferir' | 'confirmados'
+    'todos' | 'aguardando' | 'conferir' | 'confirmados' | 'reembolsados'
   >('todos');
 
   const [actionId, setActionId] = useState<string | null>(null);
@@ -1298,13 +1298,22 @@ export default function SupplierPortal() {
     setFiltroPagamento('todos');
   }, [activeTab]);
 
-  /** Em qual das três esperas este pedido está. */
+  /**
+   * Em qual das esperas este pedido está.
+   *
+   * Em Cancelados a pergunta muda de dono: não é mais "posso despachar", é
+   * "ainda devo esse dinheiro". Por isso o reembolso vira fase própria — são
+   * 58 cancelados na tela dele, e sem separar os devolvidos dos que ainda
+   * devem, achar o que falta é procurar um por um.
+   */
   const faseDoPagamento = (order: SupplierOrder) =>
-    order.recebimento_confirmado_em
-      ? 'confirmados'
-      : order.pago_em
-        ? 'conferir'
-        : 'aguardando';
+    order.reembolsado_em
+      ? 'reembolsados'
+      : order.recebimento_confirmado_em
+        ? 'confirmados'
+        : order.pago_em
+          ? 'conferir'
+          : 'aguardando';
 
   const daAba = useMemo(() => orders.filter(currentTab.match), [orders, currentTab]);
 
@@ -1342,7 +1351,7 @@ export default function SupplierPortal() {
     return [...porEnvio.entries()].map(([chave, pedidos]) => ({ chave, pedidos }));
   }, [visibleOrders]);
   const contagemPorFase = useMemo(() => {
-    const contagem = { aguardando: 0, conferir: 0, confirmados: 0 };
+    const contagem = { aguardando: 0, conferir: 0, confirmados: 0, reembolsados: 0 };
 
     daAba.forEach((order) => {
       contagem[faseDoPagamento(order)] += 1;
@@ -1598,6 +1607,20 @@ export default function SupplierPortal() {
                       ['aguardando', 'Aguardando o vendedor', contagemPorFase.aguardando],
                       ['conferir', 'Conferir pagamento', contagemPorFase.conferir],
                       ['confirmados', 'Confirmados', contagemPorFase.confirmados],
+
+                      // Só em Cancelados, onde a pergunta é outra: destes,
+                      // quais já foram devolvidos ao vendedor. Nas outras abas
+                      // não existe reembolso, e um botão sempre zerado é
+                      // ruído.
+                      ...(activeTab === 'cancelados'
+                        ? ([
+                            [
+                              'reembolsados',
+                              'Reembolsados',
+                              contagemPorFase.reembolsados,
+                            ],
+                          ] as const)
+                        : []),
                     ] as const
                   ).map(([id, rotulo, quantos]) => (
                     <button
