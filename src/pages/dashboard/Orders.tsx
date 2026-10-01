@@ -1071,9 +1071,17 @@ export default function Orders() {
                   />
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    {/* Só depois de entregue: antes disso não existe devolução
-                        para avisar, e o pedido ainda segue o fluxo normal. */}
-                    {order.status === 'delivered' && !devolucoes[order.id] && (
+                    {/* A partir de despachado, e não só de entregue.
+                        Pacote volta por dois caminhos: o comprador devolve
+                        depois de receber, ou o envio falha no meio — não
+                        entregue, recusado, Flex cancelado após a saída. O
+                        segundo nunca chega a "Entregue", então a tela escondia
+                        o botão justamente nos motivos mais comuns.
+
+                        Antes de despachar não é devolução: o produto está na
+                        bancada do fornecedor e o pedido vira cancelamento. */}
+                    {(order.status === 'shipped' || order.status === 'delivered') &&
+                      !devolucoes[order.id] && (
                       <DevolucaoNoPedido
                         order={order}
                         onMudou={loadOrders}
