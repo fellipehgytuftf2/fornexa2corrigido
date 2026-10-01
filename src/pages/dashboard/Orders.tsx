@@ -1158,23 +1158,11 @@ export default function Orders() {
                   />
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
-                    {/* A partir de despachado, e não só de entregue.
-                        Pacote volta por dois caminhos: o comprador devolve
-                        depois de receber, ou o envio falha no meio — não
-                        entregue, recusado, Flex cancelado após a saída. O
-                        segundo nunca chega a "Entregue", então a tela escondia
-                        o botão justamente nos motivos mais comuns.
-
-                        Antes de despachar não é devolução: o produto está na
-                        bancada do fornecedor e o pedido vira cancelamento. */}
-                    {(order.status === 'shipped' || order.status === 'delivered') &&
-                      !devolucoes[order.id] && (
-                      <DevolucaoNoPedido
-                        order={order}
-                        onMudou={loadOrders}
-                      />
-                    )}
-
+                    {/* Registrar devolução saiu daqui: ficava em todo pedido
+                        pago, e achar o certo no meio de cem era o passo que
+                        fazia a pessoa desistir. Agora mora na aba Devoluções,
+                        com busca. O que sobra no card é o acompanhamento de
+                        uma devolução já aberta, mais abaixo. */}
                     {order.ml_shipment_id && (
                       <button
                         onClick={() => diagnosticarEnvio(order)}
