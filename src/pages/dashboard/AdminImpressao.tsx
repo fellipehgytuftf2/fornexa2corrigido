@@ -1,6 +1,7 @@
 import ImpressaoDasContas from '../../components/dashboard/ImpressaoDasContas';
 import PausasPorEstoque from '../../components/dashboard/PausasPorEstoque';
 import RemetenteTravado from '../../components/dashboard/RemetenteTravado';
+import SondaDeReclamacoes from '../../components/dashboard/SondaDeReclamacoes';
 
 export default function AdminImpressao() {
   return (
@@ -15,6 +16,11 @@ export default function AdminImpressao() {
       {/* Mesma tela porque é a mesma pergunta: por que esta etiqueta não sai.
           Aqui a resposta é o endereço, e a decisão de liberar é do dono. */}
       <RemetenteTravado />
+
+      {/* Mesma pergunta das outras: o que impede um pedido de andar. Aqui o
+          impedimento seria descoberto tarde — só no dia de uma reclamação
+          real — então ela se pergunta antes. */}
+      <SondaDeReclamacoes />
     </div>
   );
 }
