@@ -257,7 +257,13 @@ const tabs: Tab[] = [
     label: 'Cancelados',
     // Duas origens: cancelamento no marketplace, e o status interno, que hoje
     // nenhuma tela grava mas continua previsto.
-    match: (order) => order.cancelado_no_marketplace || order.status === 'cancelled',
+    //
+    // Cancelado DEPOIS de despachado sai daqui: virou pacote voltando, com
+    // código de autorização e motorista na portaria, e vive em Devoluções.
+    // Misturado com cancelamento de prateleira — que não dá trabalho nenhum —
+    // o que tem prazo some no meio do que não tem.
+    match: (order) =>
+      (order.cancelado_no_marketplace || order.status === 'cancelled') && !order.devolucao_id,
     emptyMessage: 'Nenhum pedido cancelado.',
   },
   {

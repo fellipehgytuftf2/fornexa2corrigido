@@ -24,6 +24,11 @@ interface DevolucaoDoFornecedor {
   quem_recebe: string | null;
   /** O código que a equipe carimbou na separação. */
   codigo_interno: string | null;
+  /** O pedido por trás da devolução — é nele que o reembolso é marcado. */
+  order_id: string;
+  /** Quando o vendedor pagou este pedido. Nulo = não há o que devolver. */
+  pago_em: string | null;
+  reembolsado_em: string | null;
 }
 
 interface VendaEncontrada {
@@ -116,6 +121,38 @@ export default function DevolucoesFornecedor() {
 
     if (error || resposta?.ok === false) {
       setErro(error?.message ?? resposta?.erro ?? "Não foi possível registrar.");
+      return;
+    }
+
+    await carregar();
+  };
+
+  /**
+   * O dinheiro de volta ao vendedor.
+   *
+   * Cancelado depois de despachado saiu da aba Cancelados e veio para cá — e
+   * levaria junto o botão de reembolso, que é a única marca de quem ainda deve
+   * dinheiro. O produto voltando e o valor voltando são duas contas separadas:
+   * uma pode andar sem a outra.
+   */
+  const marcarReembolso = async (
+    devolucao: DevolucaoDoFornecedor,
+    reembolsado: boolean
+  ) => {
+    setSalvandoId(devolucao.id);
+    setErro('');
+
+    const { data, error } = await supabase.rpc('fornecedor_marca_reembolso', {
+      p_order_id: devolucao.order_id,
+      p_reembolsado: reembolsado,
+    });
+
+    setSalvandoId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || resposta?.ok === false) {
+      setErro(error?.message ?? resposta?.erro ?? 'Não foi possível marcar o reembolso.');
       return;
     }
 
@@ -475,6 +512,42 @@ export default function DevolucoesFornecedor() {
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* O valor pago fica à vista enquanto não voltar: é o que
+                  separa a devolução resolvida da que ainda deve dinheiro. */}
+              {devolucao.pago_em && (
+                <div className="flex flex-wrap items-center gap-3 mt-4">
+                  {devolucao.reembolsado_em ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                        Reembolsado em{' '}
+                        {new Date(devolucao.reembolsado_em).toLocaleDateString('pt-BR')}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => marcarReembolso(devolucao, false)}
+                        disabled={salvandoId === devolucao.id}
+                        className="text-xs font-semibold text-slate-400 underline underline-offset-2 hover:text-white disabled:opacity-50"
+                      >
+                        desfazer
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => marcarReembolso(devolucao, true)}
+                      disabled={salvandoId === devolucao.id}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-400/30 px-4 py-2.5 text-sm font-semibold text-red-200 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                    >
+                      {salvandoId === devolucao.id && (
+                        <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      )}
+                      Marcar reembolso
+                    </button>
+                  )}
                 </div>
               )}
 
