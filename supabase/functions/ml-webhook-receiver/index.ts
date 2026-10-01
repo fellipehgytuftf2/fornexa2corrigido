@@ -161,7 +161,25 @@ Deno.serve(async (req: Request) => {
      */
     const isShipmentTopic = typeof topic === "string" && topic.includes("shipment");
 
-    if (!isOrderTopic && !isShipmentTopic) {
+    /**
+     * A reclamação do comprador.
+     *
+     * A devolução que o estado do envio enxerga é a que volta sozinha: pacote
+     * não entregue, recusado, cancelado depois de sair. A outra metade começa
+     * na mão do comprador DEPOIS de ele receber — arrependimento, defeito,
+     * produto errado — e disso o envio não diz nada, porque ele foi entregue.
+     *
+     * Essa metade vive no canal de pós-venda do Mercado Livre, que o FORNEXA
+     * não escutava. Era o pedaço que ainda dependia de alguém ler e-mail.
+     *
+     * Os tópicos chegam com nomes diferentes conforme o que o aplicativo
+     * assinou ("claims", "post_purchase"), então olhamos os dois.
+     */
+    const isClaimTopic =
+      typeof topic === "string" &&
+      (topic.includes("claim") || topic.includes("post_purchase"));
+
+    if (!isOrderTopic && !isShipmentTopic && !isClaimTopic) {
       if (webhookEventId) {
         await supabase
           .from("webhook_events")
@@ -362,6 +380,114 @@ Deno.serve(async (req: Request) => {
           .from("webhook_events")
           .update({
             status: "processado",
+            processado_em: new Date().toISOString(),
+          })
+          .eq("id", webhookEventId);
+      }
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2.7 Reclamação do comprador: abre a devolução do que já foi entregue.
+    //
+    // POR QUE GRAVAMOS A RECLAMAÇÃO CRUA
+    //
+    // O motivo não vem num campo só, e o nome dele muda conforme o tipo da
+    // reclamação. Em vez de adivinhar e abrir devolução com motivo errado, a
+    // reclamação inteira fica em `log_integracao_ml` — como fizemos com a
+    // DC-e. Com as primeiras reclamações reais na mão, o mapa abaixo deixa de
+    // ser palpite.
+    if (isClaimTopic) {
+      // O recurso às vezes vem só como "/claims/{id}". O detalhe completo (com
+      // o pedido e o motivo) mora no caminho de pós-venda.
+      const idDaReclamacao = String(resource).split("/").filter(Boolean).pop() ?? "";
+      const caminhos = [
+        String(resource),
+        `/post-purchase/v1/claims/${idDaReclamacao}`,
+      ];
+
+      let reclamacao: Record<string, unknown> | null = null;
+
+      for (const caminho of caminhos) {
+        const resposta = await fetch(`https://api.mercadolibre.com${caminho}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!resposta.ok) continue;
+
+        const lido = comoJson(await resposta.text());
+        if (lido && typeof lido === "object") {
+          reclamacao = lido as Record<string, unknown>;
+          break;
+        }
+      }
+
+      // O pedido pode vir como `resource_id` (reclamação de venda) ou dentro
+      // de `resource`.
+      const pedidoDaReclamacao = (() => {
+        const direto = reclamacao?.resource_id;
+        if (direto) return String(direto);
+        const dentro = (reclamacao?.resource as Record<string, unknown> | undefined)?.id;
+        return dentro ? String(dentro) : null;
+      })();
+
+      const textoDaReclamacao = JSON.stringify(reclamacao ?? {}).toLowerCase();
+
+      // Só abre devolução quando o produto está voltando. Reclamação que é só
+      // conversa (pergunta sobre prazo, mediação sem retorno) não é devolução,
+      // e abrir uma faria o fornecedor esperar um pacote que não vem.
+      const temRetorno =
+        textoDaReclamacao.includes("return") ||
+        textoDaReclamacao.includes("devolucion") ||
+        String(reclamacao?.type ?? "").includes("cancel");
+
+      const motivo = textoDaReclamacao.includes("not_received") ||
+        textoDaReclamacao.includes("not_delivered")
+        ? "nao_entregue"
+        : textoDaReclamacao.includes("defect") ||
+            textoDaReclamacao.includes("damaged") ||
+            textoDaReclamacao.includes("broken")
+          ? "defeito"
+          : textoDaReclamacao.includes("different") ||
+              textoDaReclamacao.includes("wrong") ||
+              textoDaReclamacao.includes("incomplete")
+            ? "produto_errado"
+            : "arrependimento";
+
+      let resultadoDaAbertura: unknown = null;
+
+      if (temRetorno && pedidoDaReclamacao) {
+        const { data } = await supabase.rpc("abrir_devolucao_automatica", {
+          p_ml_order_id: pedidoDaReclamacao,
+          p_motivo: motivo,
+        });
+        resultadoDaAbertura = data;
+      }
+
+      await supabase.from("log_integracao_ml").insert({
+        contexto: "reclamacao-ml",
+        mensagem: temRetorno && pedidoDaReclamacao
+          ? `Devolução de reclamação (${motivo}) no pedido ${pedidoDaReclamacao}`
+          : `Reclamação recebida sem retorno de produto (tópico ${topic})`,
+        detalhes: {
+          topic,
+          resource,
+          ml_order_id: pedidoDaReclamacao,
+          motivo_escolhido: motivo,
+          abriu_devolucao: resultadoDaAbertura,
+          reclamacao,
+        },
+      });
+
+      if (webhookEventId) {
+        await supabase
+          .from("webhook_events")
+          .update({
+            status: "processado",
+            erro_mensagem: reclamacao ? null : "Reclamação não pôde ser lida na API",
             processado_em: new Date().toISOString(),
           })
           .eq("id", webhookEventId);
