@@ -345,8 +345,18 @@ Deno.serve(async (req: Request) => {
 
           // Cancelado depois de despachado também volta — é o caso do Flex que
           // o fornecedor relatou.
+          //
+          // "Despachado" não é ter número de rastreio: o Mercado Livre entrega
+          // esse número junto com a etiqueta, antes de o pacote existir. Usar
+          // o rastreio como sinal fez cancelamento de mercadoria parada na
+          // prateleira virar devolução — "devolução só após enviado", como ele
+          // corrigiu. O que vale é a data de postagem.
+          const dataDeEnvio =
+            (envio?.status_history as Record<string, unknown> | undefined)?.date_shipped ??
+            (envio?.status_history as Record<string, unknown> | undefined)?.date_first_visit;
+
           const canceladoDepoisDeSair =
-            statusDoEnvio === "cancelled" && Boolean(envio?.tracking_number);
+            statusDoEnvio === "cancelled" && Boolean(dataDeEnvio);
 
           if (voltando || canceladoDepoisDeSair) {
             const { data: resultado } = await supabase.rpc("abrir_devolucao_automatica", {
