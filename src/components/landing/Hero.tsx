@@ -112,9 +112,14 @@ export default function Hero() {
               </a>
             </div>
 
-            {/* Prova social — pequena e minimalista */}
+            {/* Prova social — pequena e minimalista.
+                No celular com a imagem ligada, ela desce para depois dela: a
+                frase é o fecho do argumento, e separar o selo do produto que
+                ele aprova enfraquece os dois. */}
             <div
-              className="flex items-center gap-2 justify-center lg:justify-start mt-6 animate-fade-in"
+              className={`items-center gap-2 justify-center lg:justify-start mt-6 animate-fade-in ${
+                vendoAImagemNoMobile ? 'hidden lg:flex' : 'flex'
+              }`}
               style={{ animationDelay: '0.25s' }}
             >
               <div className="flex items-center gap-0.5">
@@ -189,6 +194,22 @@ export default function Hero() {
                 draggable={false}
               />
             </div>
+
+            {/* A prova social, aqui, só no celular com a imagem ligada. No
+                computador ela continua embaixo dos botões, do outro lado. */}
+            {vendoAImagemNoMobile && (
+              <div className="flex items-center justify-center gap-2 mt-2 lg:hidden">
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star key={i} className="w-4 h-4 text-gold fill-gold" />
+                  ))}
+                </div>
+
+                <span className="text-slate-500 text-sm">
+                  Aprovado por vendedores de todo o Brasil
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
