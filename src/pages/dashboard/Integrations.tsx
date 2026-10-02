@@ -8,6 +8,7 @@ import {
   Unplug,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import AntesDeConectar from '../../components/dashboard/AntesDeConectar';
 import EnderecoDoFornecedor from '../../components/dashboard/EnderecoDoFornecedor';
 import ImpressaoDaEtiqueta from '../../components/dashboard/ImpressaoDaEtiqueta';
 import MarketplaceBadge from '../../components/ui/marketplace-badge';
@@ -62,6 +63,16 @@ export default function Integrations() {
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+
+  /**
+   * A pergunta antes da conexão.
+   *
+   * No Mercado Livre, comprar e vender são contas diferentes — e a de
+   * comprador conecta aqui sem reclamar. O erro só aparece ao publicar, com o
+   * anúncio já montado, e quem chega até ali costuma pedir reembolso achando
+   * que a ferramenta não funciona.
+   */
+  const [perguntandoDaConta, setPerguntandoDaConta] = useState(false);
 
   const loadConnection = async () => {
     setLoading(true);
@@ -277,6 +288,16 @@ export default function Integrations() {
           vendedor faz uma vez no Mercado Livre e que decidem como o pacote
           sai do galpão do fornecedor. */}
       <ImpressaoDaEtiqueta />
+
+      {perguntandoDaConta && (
+        <AntesDeConectar
+          aoFechar={() => setPerguntandoDaConta(false)}
+          aoContinuar={() => {
+            setPerguntandoDaConta(false);
+            handleConnectMercadoLivre();
+          }}
+        />
+      )}
 
       {successMessage && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start gap-3">
@@ -620,7 +641,7 @@ export default function Integrations() {
                     e é o que se responde a quem perguntar. */}
                 {!mercadoLivreConnected && (
                   <button
-                    onClick={handleConnectMercadoLivre}
+                    onClick={() => setPerguntandoDaConta(true)}
                     disabled={saving}
                     className="inline-flex items-center justify-center gap-2 mt-4 px-4 py-2.5 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-medium transition-colors disabled:opacity-60"
                   >
