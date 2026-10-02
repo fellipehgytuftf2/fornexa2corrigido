@@ -5,12 +5,15 @@ import {
   Package,
   Search,
   ExternalLink,
+  Share2,
   Store,
   Trash2,
   Truck,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Pagination from '../../components/ui/pagination';
+import DivulgarNoFacebook from '../../components/dashboard/DivulgarNoFacebook';
+import { useFuncionalidade } from '../../lib/funcionalidades';
 
 const PRODUTOS_POR_PAGINA = 10;
 
@@ -74,6 +77,14 @@ export default function MyProducts() {
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
+
+  /**
+   * Em teste: sobe desligada e só a conta admin enxerga, até o lançamento.
+   */
+  const { liberada: vendoADivulgacao } = useFuncionalidade('divulgar-no-facebook');
+
+  /** O anúncio com o modal de divulgação aberto. */
+  const [divulgando, setDivulgando] = useState<UserProduct | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -522,6 +533,19 @@ export default function MyProducts() {
                       </a>
                     )}
 
+                    {/* Mesma condição do botão acima: sem anúncio publicado não
+                        há o que divulgar, e um botão que abre um modal sem link
+                        seria pior que botão nenhum. */}
+                    {vendoADivulgacao && enderecoDoAnuncio(product) && (
+                      <button
+                        onClick={() => setDivulgando(product)}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm font-semibold transition-colors"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Divulgar
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleDeleteProduct(product.id)}
                       disabled={actionId === product.id}
@@ -556,6 +580,18 @@ export default function MyProducts() {
             Vá até o Catálogo, escolha um produto e salve em Meus Anúncios.
           </p>
         </div>
+      )}
+
+      {divulgando && (
+        <DivulgarNoFacebook
+          produtoId={divulgando.id}
+          titulo={divulgando.announcement_title || divulgando.name}
+          // A categoria do anúncio é o que vira termo de busca de grupo:
+          // "Pet" acha grupo de pet, o nome do produto não acha nada.
+          categoria={divulgando.announcement_category || divulgando.name}
+          linkDoAnuncio={enderecoDoAnuncio(divulgando) as string}
+          aoFechar={() => setDivulgando(null)}
+        />
       )}
     </div>
   );
