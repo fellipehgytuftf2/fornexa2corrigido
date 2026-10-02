@@ -616,7 +616,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                   </p>
 
                   <p className="text-red-700 dark:text-red-400 text-sm mt-1">
-                    Este produto precisa ter um supplier_id na tabela catalog_products para ser salvo corretamente em Meus Produtos.
+                    Este produto precisa ter um supplier_id na tabela catalog_products para ser salvo corretamente em Meus Anúncios.
                   </p>
                 </div>
               </div>

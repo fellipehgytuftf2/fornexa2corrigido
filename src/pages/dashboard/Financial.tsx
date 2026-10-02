@@ -718,7 +718,7 @@ export default function Financial() {
                 </h3>
 
                 <p className="text-gray-500 dark:text-slate-400 text-sm mt-2">
-                  Registre uma venda em Meus Produtos para aparecer aqui.
+                  Registre uma venda em Meus Anúncios para aparecer aqui.
                 </p>
               </div>
             )}

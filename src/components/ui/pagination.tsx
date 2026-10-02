@@ -10,7 +10,7 @@ interface PaginationProps {
 
 /**
  * Navegação de páginas, extraída do Catálogo pra reusar em toda lista
- * grande do painel (Meus Produtos, Pedidos, Financeiro, Chamados...).
+ * grande do painel (Meus Anúncios, Pedidos, Financeiro, Chamados...).
  *
  * Sempre mostra a primeira e a última página, a atual e as vizinhas, com
  * reticências no lugar do que foi omitido — evita uma fileira de botões

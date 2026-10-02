@@ -15,6 +15,7 @@ import {
   Moon,
   Package,
   Settings,
+  Megaphone,
   ShoppingCart,
   Store,
   Sun,
@@ -59,8 +60,12 @@ const navigationItems: NavigationItem[] = [
 
   {
     path: '/dashboard/my-products',
-    label: 'Meus Produtos',
-    icon: ShoppingCart,
+    // "Anúncios" e não "Produtos": o que mora aqui é o que foi publicado no
+    // marketplace, e produto solto quem tem é o Catálogo.
+    label: 'Meus Anúncios',
+    // Carrinho ficou para Pedidos. Dois itens do menu com o mesmo desenho um
+    // embaixo do outro não distinguem nada.
+    icon: Megaphone,
   },
 
   {

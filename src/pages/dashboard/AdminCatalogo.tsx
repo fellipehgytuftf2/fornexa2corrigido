@@ -965,7 +965,7 @@ export default function AdminCatalogo() {
         </p>
 
         <p className="text-blue-700 dark:text-blue-400 text-sm mt-1">
-          Os produtos cadastrados aqui aparecem na tela Catálogo e podem ser salvos em Meus Produtos.
+          Os produtos cadastrados aqui aparecem na tela Catálogo e podem ser salvos em Meus Anúncios.
         </p>
       </div>
 
@@ -2029,7 +2029,7 @@ export default function AdminCatalogo() {
                           {previaCatalogo.anuncios_ligados} anúncio(s) de vendedores
                         </strong>{' '}
                         nasceram destes produtos. Eles continuam no ar no Mercado
-                        Livre e continuam em Meus Produtos — só perdem a ligação
+                        Livre e continuam em Meus Anúncios — só perdem a ligação
                         com o catálogo.
                       </p>
 

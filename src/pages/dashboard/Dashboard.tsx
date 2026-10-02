@@ -6,6 +6,7 @@ import {
   Link2,
   Package,
   Receipt,
+  Megaphone,
   ShoppingCart,
   TrendingDown,
   TrendingUp,
@@ -369,8 +370,8 @@ export default function Dashboard({ darkMode }: DashboardProps) {
             to="/dashboard/my-products"
             className="glow-gold-hover inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold hover:bg-gold-hover text-black text-sm font-semibold transition-all"
           >
-            <ShoppingCart className="w-4 h-4" />
-            Meus Produtos
+            <Megaphone className="w-4 h-4" />
+            Meus Anúncios
           </Link>
         </div>
       </div>

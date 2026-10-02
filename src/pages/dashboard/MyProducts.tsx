@@ -263,7 +263,7 @@ export default function MyProducts() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-navy-900 dark:text-white">
-            Meus Produtos
+            Meus Anúncios
           </h1>
 
           <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
@@ -553,7 +553,7 @@ export default function MyProducts() {
           </h3>
 
           <p className="text-gray-500 dark:text-slate-400 text-sm mt-2">
-            Vá até o Catálogo, escolha um produto e salve em Meus Produtos.
+            Vá até o Catálogo, escolha um produto e salve em Meus Anúncios.
           </p>
         </div>
       )}

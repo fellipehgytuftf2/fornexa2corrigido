@@ -1318,7 +1318,7 @@ export default function Orders() {
           </h3>
 
           <p className="text-gray-500 dark:text-slate-400 text-sm mt-2">
-            Quando você registrar uma venda em Meus Produtos, o pedido aparecerá aqui.
+            Quando você registrar uma venda em Meus Anúncios, o pedido aparecerá aqui.
           </p>
         </div>
       )}
