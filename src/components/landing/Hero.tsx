@@ -16,6 +16,15 @@ export default function Hero() {
    */
   const { liberada: vendoAImagemNova } = useFuncionalidade('landing-imagem-nova');
 
+  /**
+   * A imagem aparecendo no celular, em teste.
+   *
+   * Separada da marca acima de propósito: são duas perguntas diferentes —
+   * qual imagem mostrar, e se ela aparece no celular. Uma pode ser lançada sem
+   * a outra.
+   */
+  const { liberada: vendoAImagemNoMobile } = useFuncionalidade('landing-imagem-no-mobile');
+
   const handleScrollToPlans = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
@@ -125,7 +134,16 @@ export default function Hero() {
               pronta. Por isso aqui NÃO tem borda, NÃO tem rotate/transform,
               e NÃO tem retângulo de fundo — só a imagem flutuando de verdade
               sobre o glow, sem nenhuma caixa ao redor. */}
-          <div className="relative hidden lg:block animate-fade-in" style={{ animationDelay: '0.15s' }}>
+          {/* No celular a imagem some desde sempre, e é meio hero a menos:
+              quem chega por anúncio vê só texto e botão, sem nunca ver o
+              produto. Em teste, ela aparece — abaixo do texto, que é onde cabe
+              numa coluna só. */}
+          <div
+            className={`relative ${
+              vendoAImagemNoMobile ? 'block' : 'hidden'
+            } lg:block animate-fade-in`}
+            style={{ animationDelay: '0.15s' }}
+          >
             <div className="relative animate-float">
               {/* Ambient Blue Glow — atrás da imagem, difuso, saindo pelas
                   laterais e por baixo */}
@@ -159,8 +177,11 @@ export default function Hero() {
                 // escala cresce a partir do centro, que é o único jeito de
                 // ganhar presença sem avançar sobre o texto à esquerda nem
                 // sobre a borda da tela à direita.
+                // A escala só entra do notebook para cima: no celular a coluna
+                // já é a tela inteira, e crescer ali só empurraria a imagem
+                // para fora pelas laterais.
                 className={`relative z-10 w-full h-auto block select-none ${
-                  vendoAImagemNova ? 'scale-[1.12] xl:scale-[1.22]' : ''
+                  vendoAImagemNova ? 'lg:scale-[1.12] xl:scale-[1.22]' : ''
                 }`}
                 style={{
                   filter: 'drop-shadow(0 40px 100px rgba(30,123,168,0.35))',
