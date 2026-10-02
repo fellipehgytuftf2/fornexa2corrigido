@@ -26,7 +26,13 @@
 -- sino diz quantos produtos entraram desde a última vez que ela olhou, que é
 -- a pergunta que ela tem.
 
-create or replace function public.avisar_produtos_novos_do_catalogo()
+create or replace function public.avisar_produtos_novos_do_catalogo(
+  -- Ensaio: avisa só esta conta, sem tocar no resto da base.
+  p_apenas_user uuid default null,
+  -- Ensaio: conta a partir desta data, em vez do último aviso. Serve para
+  -- provar o caminho completo num dia sem importação.
+  p_desde timestamptz default null
+)
 returns jsonb
 language plpgsql
 security definer
@@ -45,7 +51,7 @@ begin
   from public.avisos
   where tipo = 'catalogo-novidades';
 
-  v_marco := coalesce(v_marco, now() - interval '1 day');
+  v_marco := coalesce(p_desde, v_marco, now() - interval '1 day');
 
   select count(*) into v_novos
   from public.catalog_products p
@@ -61,6 +67,9 @@ begin
     from auth.users u
     join public.profiles p on p.id = u.id
     where p.plan_status = 'ativo'
+      -- No ensaio, uma conta só. Sem isto, provar que funciona custaria 407
+      -- avisos a gente de verdade.
+      and (p_apenas_user is null or u.id = p_apenas_user)
   loop
     -- Aviso ainda não lido desta pessoa: soma nele.
     update public.avisos a
@@ -105,7 +114,12 @@ $$;
 
 -- Ninguém chama isto de fora: quem chama é o agendador, com os poderes do
 -- banco. Vendedor disparando a rodada criaria aviso para a base inteira.
-revoke all on function public.avisar_produtos_novos_do_catalogo() from public, anon, authenticated;
+revoke all on function public.avisar_produtos_novos_do_catalogo(uuid, timestamptz)
+  from public, anon, authenticated;
+
+-- A versão sem parâmetros deixou de existir ao ganhar os de ensaio; derrubar a
+-- antiga evita duas funções com o mesmo nome, uma delas esquecida.
+drop function if exists public.avisar_produtos_novos_do_catalogo();
 
 
 -- ----------------------------------------------------------------------------
@@ -130,8 +144,22 @@ select cron.schedule(
 -- VERIFICAÇÃO
 -- ============================================================================
 
--- (a) Rodar na mão agora, para ver o que ela faria:
+-- (a) Rodar na mão agora, para valer, avisando todo mundo:
 -- select public.avisar_produtos_novos_do_catalogo();
+
+-- (a2) ENSAIO — avisa só uma conta, contando os últimos 30 dias. Use para
+--      provar o caminho completo num dia sem importação. Apague o aviso
+--      depois: ele conta como "último aviso" e calaria a rodada seguinte.
+--
+-- select public.avisar_produtos_novos_do_catalogo(
+--   p_apenas_user => (select id from auth.users where email = 'SEU@EMAIL'),
+--   p_desde       => now() - interval '30 days'
+-- );
+--
+-- Limpeza do ensaio:
+-- delete from public.avisos
+-- where tipo = 'catalogo-novidades'
+--   and alvo_user_id = (select id from auth.users where email = 'SEU@EMAIL');
 
 -- (b) Quantos assinantes receberiam:
 -- select count(*) from public.profiles where plan_status = 'ativo';
