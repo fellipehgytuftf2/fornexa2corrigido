@@ -25,6 +25,9 @@ export default function Hero() {
    */
   const { liberada: vendoAImagemNoMobile } = useFuncionalidade('landing-imagem-no-mobile');
 
+  /** Qualquer uma das duas ligadas quer dizer: esta pessoa está testando. */
+  const testandoALanding = vendoAImagemNova || vendoAImagemNoMobile;
+
   const handleScrollToPlans = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
@@ -37,6 +40,17 @@ export default function Hero() {
 
       {/* Glow suave central (mantido do design original) */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl" />
+
+      {/* O corte no fim do hero.
+          As duas camadas acima — a grade e o brilho — terminam junto com a
+          seção, e o fundo da seção seguinte é a mesma cor sem elas. Dá uma
+          faixa de tom diferente atravessando a tela, que parece emenda de
+          página mal feita.
+          Esta camada apaga as duas aos poucos nos últimos 160px, e a emenda
+          deixa de existir. */}
+      {testandoALanding && (
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-navy-900 pointer-events-none z-[1]" />
+      )}
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-4 lg:px-6 w-full">
         <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.35fr] gap-10 lg:gap-8 items-center">
