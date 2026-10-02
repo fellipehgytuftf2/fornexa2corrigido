@@ -71,6 +71,18 @@ export default function Catalog() {
   const [nichoAtivo, setNichoAtivo] = useState(false);
   const [perguntarNicho, setPerguntarNicho] = useState(false);
 
+  /**
+   * "Ver o catálogo inteiro" é uma decisão, e decisão não se desfaz sozinha.
+   *
+   * Antes isso valia só para a visita: bastava um F5 e a faixa voltava, com o
+   * catálogo filtrado de novo. Quem clicou já tinha dito o que queria.
+   *
+   * Fica no navegador, e não no perfil, de propósito: o nicho continua salvo e
+   * o caminho de volta fica à mão. Desligar o filtro não é desistir das
+   * categorias escolhidas.
+   */
+  const chaveDoDesligado = (userId: string) => `fornexa_nicho_desligado_${userId}`;
+
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -224,7 +236,18 @@ export default function Catalog() {
 
       if (data.categorias_preferidas.length > 0) {
         setNicho(data.categorias_preferidas);
-        setNichoAtivo(true);
+
+        // Em janela anônima, com dados do site bloqueados, a leitura falha. O
+        // catálogo tem de abrir do mesmo jeito — filtrado, que é o padrão.
+        let desligado = false;
+
+        try {
+          desligado = localStorage.getItem(chaveDoDesligado(user.id)) === 'sim';
+        } catch {
+          desligado = false;
+        }
+
+        setNichoAtivo(!desligado);
       }
     };
 
@@ -268,6 +291,28 @@ export default function Catalog() {
       return 0; // recentes: mantém a ordem que veio do banco
     });
   }, [products, searchTerm, selectedCategory, ordem, nicho, nichoAtivo]);
+
+  /** Liga e desliga o nicho, lembrando a decisão na próxima visita. */
+  const guardarNichoAtivo = async (ativo: boolean) => {
+    setNichoAtivo(ativo);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    try {
+      if (ativo) {
+        localStorage.removeItem(chaveDoDesligado(user.id));
+      } else {
+        localStorage.setItem(chaveDoDesligado(user.id), 'sim');
+      }
+    } catch {
+      // Navegador que bloqueia armazenamento: a escolha vale para esta visita
+      // e nada quebra. Preferência é conforto, não dado do negócio.
+    }
+  };
 
   const filtroAtivo =
     Boolean(searchTerm.trim()) || selectedCategory !== 'Todos';
@@ -327,12 +372,25 @@ export default function Catalog() {
 
           <button
             type="button"
-            onClick={() => setNichoAtivo(false)}
+            onClick={() => guardarNichoAtivo(false)}
             className="text-sm font-semibold text-navy-900 dark:text-white underline underline-offset-2"
           >
             Ver o catálogo inteiro
           </button>
         </div>
+      )}
+
+      {/* O caminho de volta. Sem ele, desligar o filtro seria uma porta de mão
+          única: a pessoa veria o catálogo inteiro para sempre e teria de
+          descobrir sozinha que a preferência continua salva nas Configurações. */}
+      {!nichoAtivo && nicho.length > 0 && selectedCategory === 'Todos' && (
+        <button
+          type="button"
+          onClick={() => guardarNichoAtivo(true)}
+          className="self-start text-sm font-medium text-gray-500 dark:text-slate-400 underline underline-offset-2"
+        >
+          Filtrar pelas minhas categorias ({nicho.join(', ')})
+        </button>
       )}
 
       {/* Barra única, sem cartão em volta: é ferramenta, não conteúdo. Os
@@ -533,7 +591,7 @@ export default function Catalog() {
           aoResponder={(escolhidas) => {
             setPerguntarNicho(false);
             setNicho(escolhidas);
-            setNichoAtivo(escolhidas.length > 0);
+            guardarNichoAtivo(escolhidas.length > 0);
           }}
         />
       )}
