@@ -38,8 +38,18 @@ export default function Hero() {
       {/* Grid pattern */}
       <div className="absolute inset-0 grid-pattern opacity-50" />
 
-      {/* Glow suave central (mantido do design original) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl" />
+      {/* Glow suave central (mantido do design original).
+          No teste ele sobe e encolhe: do jeito antigo, o círculo desfocado
+          chegava no fim da seção e o `overflow-hidden` cortava ele reto. Corte
+          reto em desfoque vira linha — era metade da faixa que atravessava a
+          tela. */}
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/5 rounded-full blur-3xl ${
+          testandoALanding
+            ? 'top-[42%] w-[700px] h-[600px]'
+            : 'top-1/2 w-[800px] h-[800px]'
+        }`}
+      />
 
       {/* O corte no fim do hero.
           As duas camadas acima — a grade e o brilho — terminam junto com a
@@ -49,7 +59,7 @@ export default function Hero() {
           Esta camada apaga as duas aos poucos nos últimos 160px, e a emenda
           deixa de existir. */}
       {testandoALanding && (
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-navy-900 pointer-events-none z-[1]" />
+        <div className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-b from-transparent via-navy-900/90 to-navy-900 pointer-events-none z-[1]" />
       )}
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-4 lg:px-6 w-full">
