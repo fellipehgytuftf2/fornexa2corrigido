@@ -3,9 +3,13 @@ import { ExternalLink, Store, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import ModalPortal from '../ui/modal-portal';
 
-/** Onde o Mercado Livre cria a conta de vendedor. */
-const CRIAR_CONTA_DE_VENDEDOR =
-  'https://vendedores.mercadolivre.com.br/addresses/seller/hub/actionable';
+/**
+ * Onde o Mercado Livre cria a conta de vendedor.
+ *
+ * A página de endereços do hub, que estava aqui antes, exige conta de vendedor
+ * para abrir — manda justamente quem ainda não tem para uma porta fechada.
+ */
+const CRIAR_CONTA_DE_VENDEDOR = 'https://vendedores.mercadolivre.com.br/';
 
 interface Props {
   /** Fecha sem conectar. */
