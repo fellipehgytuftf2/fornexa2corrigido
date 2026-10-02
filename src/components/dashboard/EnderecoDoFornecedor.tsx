@@ -251,8 +251,8 @@ export default function EnderecoDoFornecedor() {
         {/* O caminho dentro do Mercado Livre saiu do texto: ocupava três linhas
             no celular para ensinar o que o botão abaixo faz num clique. Ele
             continua no título do botão, para quem precisar achar na mão. */}
-        Cadastre este endereço como origem no Mercado Livre — suas encomendas
-        saem do galpão do fornecedor, não da sua casa.
+        Cadastre este endereço como origem no Mercado Livre pelo botão abaixo —
+        suas encomendas saem do galpão do fornecedor, não da sua casa.
       </p>
 
       {/* A conferência, e não o aviso, é o que salva: o FORNEXA lê o CEP que o

@@ -58,7 +58,7 @@ export default function ImpressaoDaEtiqueta() {
             no título do botão, que é onde interessa a quem for procurar. */}
         Configure a etiqueta como{' '}
         <strong className="text-navy-900 dark:text-white">térmica</strong> no Mercado
-        Livre.
+        Livre pelo botão abaixo.
       </p>
 
       {/* O caminho escrito continua, porque o Mercado Livre muda o endereço das
