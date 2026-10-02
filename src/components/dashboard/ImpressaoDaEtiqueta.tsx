@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle, Printer } from 'lucide-react';
+import { AlertTriangle, CheckCircle, ExternalLink, Printer } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 /**
@@ -61,6 +61,19 @@ export default function ImpressaoDaEtiqueta() {
         </strong>
         .
       </p>
+
+      {/* O caminho escrito continua, porque o Mercado Livre muda o endereço das
+          próprias telas de tempos em tempos e o texto sobrevive ao link. O
+          botão poupa a busca de quem tem o painel aberto agora. */}
+      <a
+        href="https://vendedores.mercadolivre.com.br/preferencias-de-venda#from=seller-menu"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-semibold text-navy-900 dark:text-white transition-colors hover:bg-gray-50 dark:hover:bg-navy-700"
+      >
+        <ExternalLink className="w-4 h-4" aria-hidden="true" />
+        Configurar impressão de etiqueta
+      </a>
 
       {conferiu && termica && (
         <div className="flex items-start gap-3 rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 mt-4">

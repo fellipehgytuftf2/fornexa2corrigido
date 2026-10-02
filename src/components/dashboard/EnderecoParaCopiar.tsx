@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, ExternalLink } from 'lucide-react';
 
 export interface PartesDoEndereco {
   cep?: string | null;
@@ -82,6 +82,19 @@ export default function EnderecoParaCopiar({ partes }: { partes: PartesDoEnderec
           se aparecer outra coisa, o CEP está errado.
         </p>
       )}
+
+      {/* Copiar o endereço e procurar onde colar são dois trabalhos. O botão
+          abre a tela certa do Mercado Livre em outra aba, com o endereço já no
+          ponto de ser colado. */}
+      <a
+        href="https://vendedores.mercadolivre.com.br/addresses/seller/hub/actionable"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 mt-1 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-semibold text-navy-900 dark:text-white transition-colors hover:bg-gray-50 dark:hover:bg-navy-700"
+      >
+        <ExternalLink className="w-4 h-4" aria-hidden="true" />
+        Configurar endereço no Mercado Livre
+      </a>
     </div>
   );
 }
