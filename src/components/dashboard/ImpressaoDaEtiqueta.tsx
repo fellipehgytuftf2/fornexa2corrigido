@@ -54,16 +54,11 @@ export default function ImpressaoDaEtiqueta() {
       </p>
 
       <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-        Configure como <strong className="text-navy-900 dark:text-white">térmica</strong> no
-        Mercado Livre, pelo botão{' '}
-        <strong className="text-navy-900 dark:text-white">
-          Configurar impressão de etiqueta
-        </strong>{' '}
-        aqui embaixo — ou, se preferir achar na mão, em{' '}
-        <strong className="text-navy-900 dark:text-white">
-          Vendas → Preferências de venda → Configurações de impressão de etiqueta
-        </strong>
-        .
+        {/* Caminho longo fora: ele morava aqui e tomava a tela no celular. Vive
+            no título do botão, que é onde interessa a quem for procurar. */}
+        Configure a etiqueta como{' '}
+        <strong className="text-navy-900 dark:text-white">térmica</strong> no Mercado
+        Livre.
       </p>
 
       {/* O caminho escrito continua, porque o Mercado Livre muda o endereço das
@@ -73,6 +68,7 @@ export default function ImpressaoDaEtiqueta() {
         href="https://vendedores.mercadolivre.com.br/preferencias-de-venda#from=seller-menu"
         target="_blank"
         rel="noopener noreferrer"
+        title="No Mercado Livre: Vendas → Preferências de venda → Configurações de impressão de etiqueta"
         className="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-semibold text-navy-900 dark:text-white transition-colors hover:bg-gray-50 dark:hover:bg-navy-700"
       >
         <ExternalLink className="w-4 h-4" aria-hidden="true" />

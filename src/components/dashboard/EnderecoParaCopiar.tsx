@@ -90,6 +90,7 @@ export default function EnderecoParaCopiar({ partes }: { partes: PartesDoEnderec
         href="https://vendedores.mercadolivre.com.br/addresses/seller/hub/actionable"
         target="_blank"
         rel="noopener noreferrer"
+        title="No Mercado Livre: Configurações → Meu perfil → Endereços"
         className="inline-flex items-center gap-2 mt-1 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-navy-700 text-sm font-semibold text-navy-900 dark:text-white transition-colors hover:bg-gray-50 dark:hover:bg-navy-700"
       >
         <ExternalLink className="w-4 h-4" aria-hidden="true" />
