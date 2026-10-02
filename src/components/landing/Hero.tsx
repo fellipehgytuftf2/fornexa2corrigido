@@ -154,7 +154,14 @@ export default function Hero() {
                     ? 'Catálogo FORNEXA no notebook, ao lado de caixas da Shopee e do Mercado Livre'
                     : 'Catálogo FORNEXA — produtos prontos para anunciar'
                 }
-                className="relative z-10 w-full h-auto block select-none"
+                // O conjunto novo nasce menor dentro do próprio PNG: o notebook
+                // divide o quadro com as duas caixas, e sobra ar em volta. A
+                // escala cresce a partir do centro, que é o único jeito de
+                // ganhar presença sem avançar sobre o texto à esquerda nem
+                // sobre a borda da tela à direita.
+                className={`relative z-10 w-full h-auto block select-none ${
+                  vendoAImagemNova ? 'scale-[1.12] xl:scale-[1.22]' : ''
+                }`}
                 style={{
                   filter: 'drop-shadow(0 40px 100px rgba(30,123,168,0.35))',
                 }}
