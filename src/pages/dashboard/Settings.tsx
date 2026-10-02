@@ -76,6 +76,18 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
   const [dceAutomatica, setDceAutomatica] = useState(true);
   const [salvandoDce, setSalvandoDce] = useState(false);
 
+  /**
+   * As categorias que a pessoa escolheu ao entrar no catálogo.
+   *
+   * Vive aqui para poder ser trocada depois: quem respondeu com pressa na
+   * primeira visita, ou mudou de ramo, não deveria precisar de suporte para
+   * desfazer uma escolha de dois cliques.
+   */
+  const [nicho, setNicho] = useState<string[]>([]);
+  const [categoriasDoCatalogo, setCategoriasDoCatalogo] = useState<string[]>([]);
+  const [salvandoNicho, setSalvandoNicho] = useState(false);
+  const [nichoSalvo, setNichoSalvo] = useState(false);
+
   const [salvandoContato, setSalvandoContato] = useState(false);
   const [contatoSalvo, setContatoSalvo] = useState(false);
   const [email, setEmail] = useState('');
@@ -113,7 +125,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       const { data: perfil } = await supabase
         .from('profiles')
         .select(
-          'name, empresa, whatsapp, quem_recebe, plan, plan_status, plan_expira_em, plan_origem, dce_automatica'
+          'name, empresa, whatsapp, quem_recebe, plan, plan_status, plan_expira_em, plan_origem, dce_automatica, categorias_preferidas'
         )
         .eq('id', user.id)
         .maybeSingle<{
@@ -126,6 +138,7 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           plan_expira_em: string | null;
           plan_origem: string | null;
           dce_automatica: boolean | null;
+          categorias_preferidas: string[] | null;
         }>();
 
       const nomeAtual = perfil?.name || user.user_metadata?.name || '';
@@ -139,6 +152,22 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
       setExpiraEm(perfil?.plan_expira_em || null);
       setOrigemPlano(perfil?.plan_origem || 'nenhum');
       setDceAutomatica(perfil?.dce_automatica !== false);
+      setNicho(perfil?.categorias_preferidas ?? []);
+
+      // As categorias saem do catálogo, e não de uma lista fixa: fornecedor
+      // novo traz categoria nova, e lista escrita à mão envelheceria calada.
+      const { data: doCatalogo } = await supabase
+        .from('catalog_products')
+        .select('category')
+        .eq('status', 'active');
+
+      const encontradas = new Set(
+        ((doCatalogo ?? []) as { category: string | null }[])
+          .map((linha) => linha.category)
+          .filter((categoria): categoria is string => Boolean(categoria))
+      );
+
+      setCategoriasDoCatalogo([...encontradas].sort((a, b) => a.localeCompare(b, 'pt-BR')));
       setCarregando(false);
     };
 
@@ -204,6 +233,20 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
    * cadastro, não de venda.
    */
   const perfilCompleto = Boolean(nome.trim() && empresa.trim() && whatsapp.trim());
+
+  const salvarNicho = async () => {
+    setSalvandoNicho(true);
+    setNichoSalvo(false);
+
+    await supabase.rpc('salvar_nicho', { p_categorias: nicho });
+
+    setSalvandoNicho(false);
+    setNichoSalvo(true);
+
+    // O "Salvo." some sozinho: aviso que fica para sempre deixa de ser
+    // resposta a um clique e vira parte do layout.
+    setTimeout(() => setNichoSalvo(false), 4000);
+  };
 
   const salvarContato = async () => {
     setSalvandoContato(true);
@@ -559,6 +602,82 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
           >
             {salvandoSenha ? 'Alterando...' : 'Alterar senha'}
           </button>
+        </div>
+      </div>
+
+      {/* O nicho escolhido na entrada do catálogo. Fica junto das outras
+          preferências porque é isso que ele é — e quem quer mudar procura
+          aqui, não numa tela de produtos. */}
+      <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-navy-900 dark:text-white mb-1">
+          O que você vende
+        </h2>
+
+        <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
+          O catálogo abre mostrando estas categorias primeiro. Nada fica
+          escondido: o filtro da própria tela continua valendo, e sem nenhuma
+          marcada o catálogo abre inteiro.
+        </p>
+
+        <div className="flex flex-wrap gap-2 mt-4">
+          {categoriasDoCatalogo.map((categoria) => {
+            const marcada = nicho.includes(categoria);
+
+            return (
+              <button
+                key={categoria}
+                type="button"
+                onClick={() =>
+                  setNicho((atuais) =>
+                    atuais.includes(categoria)
+                      ? atuais.filter((c) => c !== categoria)
+                      : [...atuais, categoria]
+                  )
+                }
+                aria-pressed={marcada}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  marcada
+                    ? 'bg-gold text-navy-900'
+                    : 'border border-gray-200 dark:border-navy-700 text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700'
+                }`}
+              >
+                {categoria}
+              </button>
+            );
+          })}
+
+          {categoriasDoCatalogo.length === 0 && (
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Carregando as categorias do catálogo...
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mt-5">
+          <button
+            type="button"
+            onClick={salvarNicho}
+            disabled={salvandoNicho}
+            className="px-4 py-2.5 rounded-lg bg-gold text-navy-900 text-sm font-semibold transition-colors hover:bg-gold-hover disabled:opacity-60"
+          >
+            {salvandoNicho ? 'Salvando...' : 'Salvar categorias'}
+          </button>
+
+          {nicho.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setNicho([])}
+              className="text-sm font-medium text-gray-500 dark:text-slate-400 underline underline-offset-2"
+            >
+              Limpar seleção
+            </button>
+          )}
+
+          {nichoSalvo && (
+            <span className="text-sm font-medium text-green-600 dark:text-green-400">
+              Salvo.
+            </span>
+          )}
         </div>
       </div>
 

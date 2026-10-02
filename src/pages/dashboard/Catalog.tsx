@@ -8,6 +8,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { Product } from '../../types';
 import ProductModal from '../../components/dashboard/ProductModal';
+import EscolhaDeNicho from '../../components/dashboard/EscolhaDeNicho';
 import Pagination from '../../components/ui/pagination';
 
 /**
@@ -59,6 +60,17 @@ export default function Catalog() {
   const [ordem, setOrdem] = useState<'recentes' | 'preco-asc' | 'preco-desc' | 'nome'>(
     'recentes'
   );
+  /**
+   * O nicho da pessoa, respondido na primeira visita.
+   *
+   * Decide como o catálogo abre, e nada além disso: trocar a categoria no
+   * seletor, ou clicar em "ver tudo", passa por cima dele na hora. Travar
+   * faria a pessoa achar que o catálogo encolheu.
+   */
+  const [nicho, setNicho] = useState<string[]>([]);
+  const [nichoAtivo, setNichoAtivo] = useState(false);
+  const [perguntarNicho, setPerguntarNicho] = useState(false);
+
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -186,6 +198,39 @@ export default function Catalog() {
     loadCatalogProducts();
   }, []);
 
+  // O nicho é lido à parte dos produtos: a pergunta só faz sentido com a lista
+  // de categorias na mão, e quem já respondeu abre a tela filtrado sem ver
+  // modal nenhum.
+  useEffect(() => {
+    const lerNicho = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('profiles')
+        .select('categorias_preferidas')
+        .eq('id', user.id)
+        .maybeSingle<{ categorias_preferidas: string[] | null }>();
+
+      // Nulo é quem ainda não respondeu. Lista vazia é quem pulou — e para
+      // essa pessoa a pergunta não volta.
+      if (!data || data.categorias_preferidas === null) {
+        setPerguntarNicho(true);
+        return;
+      }
+
+      if (data.categorias_preferidas.length > 0) {
+        setNicho(data.categorias_preferidas);
+        setNichoAtivo(true);
+      }
+    };
+
+    lerNicho();
+  }, []);
+
   /** Opções montadas a partir do que existe no catálogo, não de lista fixa. */
   const categorias = useMemo(() => {
     const encontradas = new Set(products.map((produto) => produto.category).filter(Boolean));
@@ -204,8 +249,12 @@ export default function Catalog() {
         product.description.toLowerCase().includes(busca) ||
         product.category.toLowerCase().includes(busca);
 
+      // O seletor manda. Só quando ele está em "Todos" o nicho decide o que
+      // aparece — é assim que ele é sugestão de abertura e não trava.
       const matchesCategory =
-        selectedCategory === 'Todos' || product.category === selectedCategory;
+        selectedCategory !== 'Todos'
+          ? product.category === selectedCategory
+          : !nichoAtivo || nicho.length === 0 || nicho.includes(product.category);
 
       return matchesSearch && matchesCategory;
     });
@@ -218,7 +267,7 @@ export default function Catalog() {
       if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');
       return 0; // recentes: mantém a ordem que veio do banco
     });
-  }, [products, searchTerm, selectedCategory, ordem]);
+  }, [products, searchTerm, selectedCategory, ordem, nicho, nichoAtivo]);
 
   const filtroAtivo =
     Boolean(searchTerm.trim()) || selectedCategory !== 'Todos';
@@ -234,7 +283,7 @@ export default function Catalog() {
   // estando na página 3 mostraria uma lista vazia sem explicação.
   useEffect(() => {
     setPaginaAtual(1);
-  }, [searchTerm, selectedCategory, ordem]);
+  }, [searchTerm, selectedCategory, ordem, nicho, nichoAtivo]);
 
   const produtosDaPagina = useMemo(() => {
     const inicio = (paginaAtual - 1) * PRODUTOS_POR_PAGINA;
@@ -266,6 +315,25 @@ export default function Catalog() {
           Atualizar catálogo
         </button>
       </div>
+
+      {/* Quem escolheu nicho precisa saber que está vendo menos do que existe.
+          Sem este aviso, "o catálogo tem poucos produtos" vira dúvida — e
+          chamado de suporte pedindo de volta o que nunca saiu. */}
+      {nichoAtivo && nicho.length > 0 && selectedCategory === 'Todos' && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-gold/10 border border-gold/30 px-4 py-2.5">
+          <p className="text-sm text-navy-900 dark:text-white">
+            Mostrando suas categorias: <strong>{nicho.join(', ')}</strong>
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setNichoAtivo(false)}
+            className="text-sm font-semibold text-navy-900 dark:text-white underline underline-offset-2"
+          >
+            Ver o catálogo inteiro
+          </button>
+        </div>
+      )}
 
       {/* Barra única, sem cartão em volta: é ferramenta, não conteúdo. Os
           filtros são seletores em vez de botões porque a lista de categorias
@@ -453,6 +521,20 @@ export default function Catalog() {
         <ProductModal
           product={selectedProduct}
           onClose={() => setSelectedProduct(null)}
+        />
+      )}
+
+      {/* Só depois de os produtos chegarem: a pergunta precisa das categorias
+          que existem de verdade, e oferecer uma lista vazia seria pior do que
+          não perguntar. */}
+      {perguntarNicho && !loading && categorias.length > 2 && (
+        <EscolhaDeNicho
+          categorias={categorias.filter((categoria) => categoria !== 'Todos')}
+          aoResponder={(escolhidas) => {
+            setPerguntarNicho(false);
+            setNicho(escolhidas);
+            setNichoAtivo(escolhidas.length > 0);
+          }}
         />
       )}
     </div>
