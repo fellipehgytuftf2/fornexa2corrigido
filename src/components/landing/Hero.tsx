@@ -1,7 +1,21 @@
 import { Link } from 'react-router-dom';
 import { Users, Package, Link2, Star } from 'lucide-react';
+import { useFuncionalidade } from '../../lib/funcionalidades';
 
 export default function Hero() {
+  /**
+   * A imagem nova do hero, em teste.
+   *
+   * A landing é pública e quem chega nela não está logado — então visitante
+   * nenhum vê a troca. Quem enxerga é a conta admin, navegando logada, até o
+   * lançamento.
+   *
+   * A resposta demora um instante para chegar, e por isso a imagem atual
+   * aparece primeiro: segurar o hero inteiro esperando um interruptor de teste
+   * atrasaria a página de quem não tem nada a ver com o teste.
+   */
+  const { liberada: vendoAImagemNova } = useFuncionalidade('landing-imagem-nova');
+
   const handleScrollToPlans = (e: React.MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
     document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
@@ -130,8 +144,16 @@ export default function Hero() {
               {/* A própria imagem, sem caixa/borda ao redor — o recorte
                   transparente é o que dá a forma ao mockup */}
               <img
-                src="/projeto-remover-fundo.png"
-                alt="Catálogo FORNEXA — produtos prontos para anunciar"
+                src={
+                  vendoAImagemNova
+                    ? '/hero-macbook-caixas.png'
+                    : '/projeto-remover-fundo.png'
+                }
+                alt={
+                  vendoAImagemNova
+                    ? 'Catálogo FORNEXA no notebook, ao lado de caixas da Shopee e do Mercado Livre'
+                    : 'Catálogo FORNEXA — produtos prontos para anunciar'
+                }
                 className="relative z-10 w-full h-auto block select-none"
                 style={{
                   filter: 'drop-shadow(0 40px 100px rgba(30,123,168,0.35))',
