@@ -38,6 +38,7 @@ import { planoEmDia, capturarCodigoDoAfiliado } from './lib/planos';
 import { buscarCheckoutDoAfiliado } from './lib/afiliados';
 import LinkDeAfiliadoInativo from './pages/LinkDeAfiliadoInativo';
 import { Loader2 } from 'lucide-react';
+import ToastProvider from './components/ui/ToastProvider';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -289,7 +290,8 @@ function App() {
   }, [darkMode]);
 
   return (
-    <BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
 
@@ -361,7 +363,8 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </ToastProvider>
   );
 }
 

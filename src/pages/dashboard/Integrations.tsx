@@ -8,6 +8,7 @@ import {
   Unplug,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useToast } from '../../lib/toast';
 import AntesDeConectar from '../../components/dashboard/AntesDeConectar';
 import EnderecoDoFornecedor from '../../components/dashboard/EnderecoDoFornecedor';
 import ImpressaoDaEtiqueta from '../../components/dashboard/ImpressaoDaEtiqueta';
@@ -61,7 +62,7 @@ export default function Integrations() {
   const [conferindoConta, setConferindoConta] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const { mostrarToast } = useToast();
   const [errorMessage, setErrorMessage] = useState('');
 
   /**
@@ -160,12 +161,16 @@ export default function Integrations() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * O aviso de sucesso agora sai no canto da janela.
+   *
+   * A faixa antiga nascia no meio do conteúdo, abaixo dos cartões de endereço
+   * e etiqueta. Quem volta da autorização do Mercado Livre cai nesta tela com
+   * a página rolada, e o recado aparecia e sumia fora do campo de visão — a
+   * conexão dava certo e a pessoa não via confirmação nenhuma.
+   */
   const showSuccess = (message: string) => {
-    setSuccessMessage(message);
-
-    setTimeout(() => {
-      setSuccessMessage('');
-    }, 4000);
+    mostrarToast(message, 'sucesso');
   };
 
   // Chama a Edge Function ml-oauth-start, que devolve a URL de autorização
@@ -299,15 +304,9 @@ export default function Integrations() {
         />
       )}
 
-      {successMessage && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-start gap-3">
-          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" />
-
-          <p className="text-green-700 dark:text-green-400 text-sm font-medium">
-            {successMessage}
-          </p>
-        </div>
-      )}
+      {/* O sucesso saiu daqui para o canto da janela. O erro fica: ele pede
+          leitura e às vezes uma decisão, e um recado que some sozinho em seis
+          segundos não serve para isso. */}
 
       {errorMessage && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3">
