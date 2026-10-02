@@ -25,6 +25,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { useFuncionalidades } from '../lib/funcionalidades';
 import BarraDeFaturamento from '../components/conquistas/BarraDeFaturamento';
+import AvisoDeConexaoMl from '../components/dashboard/AvisoDeConexaoMl';
 
 interface NavigationSubItem {
   path: string;
@@ -750,6 +751,10 @@ export default function DashboardLayout() {
             </button>
           </div>
         )}
+
+        {/* A volta da autorização do Mercado Livre cai no painel, não na tela
+            de Integrações: o aviso precisa morar aqui para ser visto. */}
+        <AvisoDeConexaoMl />
 
         <main className="p-4 sm:p-6 bg-gray-50 dark:bg-navy-900 min-h-[calc(100vh-4rem)]">
           {isAdminOnlyRoute && checkingRole

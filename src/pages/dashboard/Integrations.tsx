@@ -131,31 +131,10 @@ export default function Integrations() {
   useEffect(() => {
     loadConnection();
 
-    // Se o usuário acabou de voltar do fluxo de autorização do Mercado
-    // Livre (redirect do ml-oauth-callback trouxe ?ml=conectado na URL),
-    // mostramos a mensagem de sucesso e limpamos o parâmetro da URL.
-    const params = new URLSearchParams(window.location.search);
-    const mlStatus = params.get('ml');
-
-    if (mlStatus === 'conectado') {
-      showSuccess('Mercado Livre conectado com sucesso!');
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (mlStatus === 'erro') {
-      const motivo = params.get('motivo');
-
-      // O único motivo que o vendedor consegue resolver sozinho merece ser
-      // dito em português. Os outros são falha interna e o código crú ajuda
-      // o suporte a achar a causa.
-      const explicacao =
-        motivo === 'conta_ja_ligada'
-          ? 'Esta conta do Mercado Livre já está conectada a outra conta do FORNEXA. Cada conta do Mercado Livre só pode estar ligada a uma. Desconecte-a lá antes, ou fale com o suporte.'
-          : motivo
-            ? `Não foi possível conectar ao Mercado Livre (motivo: ${motivo}).`
-            : 'Não foi possível conectar ao Mercado Livre.';
-
-      setErrorMessage(explicacao);
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+    // O recado da volta do Mercado Livre mora no layout do painel, em
+    // AvisoDeConexaoMl: a autorização devolve a pessoa para /dashboard, e
+    // não para cá. Tratar aqui também fazia o aviso sair duas vezes para
+    // quem chegasse nesta tela com o parâmetro ainda no endereço.
     // Roda uma vez, na entrada da tela. Incluir `loadConnection` nas
     // dependências refaria a consulta a cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
