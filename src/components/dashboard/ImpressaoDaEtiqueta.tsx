@@ -55,7 +55,11 @@ export default function ImpressaoDaEtiqueta() {
 
       <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
         Configure como <strong className="text-navy-900 dark:text-white">térmica</strong> no
-        Mercado Livre, em{' '}
+        Mercado Livre, pelo botão{' '}
+        <strong className="text-navy-900 dark:text-white">
+          Configurar impressão de etiqueta
+        </strong>{' '}
+        aqui embaixo — ou, se preferir achar na mão, em{' '}
         <strong className="text-navy-900 dark:text-white">
           Vendas → Preferências de venda → Configurações de impressão de etiqueta
         </strong>

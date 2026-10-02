@@ -248,7 +248,11 @@ export default function EnderecoDoFornecedor() {
       </p>
 
       <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 leading-relaxed">
-        Cadastre este endereço como origem no Mercado Livre, em{' '}
+        Cadastre este endereço como origem no Mercado Livre, pelo botão{' '}
+        <strong className="text-navy-900 dark:text-white">
+          Configurar endereço no Mercado Livre
+        </strong>{' '}
+        aqui embaixo — ou, se preferir achar na mão, em{' '}
         <strong className="text-navy-900 dark:text-white">
           Configurações → Meu perfil → Endereços
         </strong>
