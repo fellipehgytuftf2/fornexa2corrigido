@@ -380,18 +380,10 @@ export default function Catalog() {
         </div>
       )}
 
-      {/* O caminho de volta. Sem ele, desligar o filtro seria uma porta de mão
-          única: a pessoa veria o catálogo inteiro para sempre e teria de
-          descobrir sozinha que a preferência continua salva nas Configurações. */}
-      {!nichoAtivo && nicho.length > 0 && selectedCategory === 'Todos' && (
-        <button
-          type="button"
-          onClick={() => guardarNichoAtivo(true)}
-          className="self-start text-sm font-medium text-gray-500 dark:text-slate-400 underline underline-offset-2"
-        >
-          Filtrar pelas minhas categorias ({nicho.join(', ')})
-        </button>
-      )}
+      {/* Sem atalho de volta na tela: quem pediu o catálogo inteiro não quer um
+          lembrete permanente do filtro que acabou de desligar. O caminho de
+          volta é salvar as categorias de novo em Configurações, que religa o
+          filtro. */}
 
       {/* Barra única, sem cartão em volta: é ferramenta, não conteúdo. Os
           filtros são seletores em vez de botões porque a lista de categorias

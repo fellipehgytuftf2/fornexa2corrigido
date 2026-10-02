@@ -240,6 +240,24 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
 
     await supabase.rpc('salvar_nicho', { p_categorias: nicho });
 
+    // Religa o filtro no catálogo.
+    //
+    // Quem clicou em "ver o catálogo inteiro" deixou uma marca no navegador
+    // que desliga o nicho na abertura da tela. Sem apagá-la aqui, salvar as
+    // categorias não teria efeito nenhum — a pessoa escolheria de novo e o
+    // catálogo continuaria abrindo inteiro, sem explicação.
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        localStorage.removeItem(`fornexa_nicho_desligado_${user.id}`);
+      }
+    } catch {
+      // Navegador que bloqueia armazenamento: não havia marca para apagar.
+    }
+
     setSalvandoNicho(false);
     setNichoSalvo(true);
 
@@ -616,7 +634,8 @@ export default function Settings({ darkMode, setDarkMode }: SettingsProps) {
         <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
           O catálogo abre mostrando estas categorias primeiro. Nada fica
           escondido: o filtro da própria tela continua valendo, e sem nenhuma
-          marcada o catálogo abre inteiro.
+          marcada o catálogo abre inteiro. Salvar aqui também religa o filtro,
+          se você pediu para ver o catálogo inteiro alguma vez.
         </p>
 
         <div className="flex flex-wrap gap-2 mt-4">
