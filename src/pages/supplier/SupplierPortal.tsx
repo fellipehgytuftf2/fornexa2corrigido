@@ -262,12 +262,15 @@ const tabs: Tab[] = [
     // Duas origens: cancelamento no marketplace, e o status interno, que hoje
     // nenhuma tela grava mas continua previsto.
     //
-    // Cancelado DEPOIS de despachado sai daqui: virou pacote voltando, com
-    // código de autorização e motorista na portaria, e vive em Devoluções.
-    // Misturado com cancelamento de prateleira — que não dá trabalho nenhum —
-    // o que tem prazo some no meio do que não tem.
-    match: (order) =>
-      (order.cancelado_no_marketplace || order.status === 'cancelled') && !order.devolucao_id,
+    // Cancelado com devolução aparece aqui também, e não só em Devoluções.
+    //
+    // Tirá-lo daqui parecia organização: o pacote voltando tem aba própria,
+    // com código de autorização e prazo. Mas o fornecedor procura pedido
+    // cancelado em Cancelados — foi onde ele viu da última vez — e o pedido
+    // simplesmente não estava em lugar nenhum que ele soubesse olhar.
+    // Aparecer nas duas, com o aviso dizendo onde fica o resto, custa uma
+    // linha repetida e evita um pedido "sumido".
+    match: (order) => order.cancelado_no_marketplace || order.status === 'cancelled',
     emptyMessage: 'Nenhum pedido cancelado.',
   },
   {
@@ -2136,6 +2139,19 @@ export default function SupplierPortal() {
                                 : `Este pedido foi cancelado no ${order.marketplace}. Não envie.`}{' '}
                               Se já tiver separado, pode devolver ao estoque.
                             </p>
+
+                            {/* O pedido vive nas duas abas quando tem pacote
+                                voltando. Sem dizer isso, o fornecedor acha que
+                                a devolução dele não foi registrada. */}
+                            {order.devolucao_id && (
+                              <button
+                                type="button"
+                                onClick={() => setActiveTab('devolucoes')}
+                                className="text-sm font-semibold text-gold hover:underline mt-2"
+                              >
+                                Este pedido tem devolução a caminho — abrir em Devoluções
+                              </button>
+                            )}
 
                             {/* Um por pedido: no carrinho o vendedor pode ter
                                 pago um item e não os outros, e o reembolso é

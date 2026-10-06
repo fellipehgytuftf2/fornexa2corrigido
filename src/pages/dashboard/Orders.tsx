@@ -75,6 +75,15 @@ interface Order {
   ml_shipment_id: string | null;
   /** Número da venda no Mercado Livre, o que sai impresso na etiqueta. */
   ml_order_id?: string | null;
+  /**
+   * O que o Mercado Livre diz da venda.
+   *
+   * Cancelamento feito lá mexe só neste campo; `status` é o carimbo interno e
+   * fica congelado onde estava. Sem ler isto aqui, o vendedor via "em
+   * separação" num pedido cancelado há semanas — foi o que desorientou o
+   * Leonardo em 01/10.
+   */
+  ml_order_status?: string | null;
   taxa_embalagem: number | null;
   dce_emitida_em: string | null;
   dce_emitida_pelo_sistema: boolean | null;
@@ -96,6 +105,18 @@ interface DiagnosticoEnvio {
   substatus: string | null;
   conclusao: string;
 }
+
+/**
+ * A venda foi desfeita.
+ *
+ * Duas origens: o cancelamento feito no Mercado Livre, que mexe só em
+ * `ml_order_status`, e o status interno, que hoje nenhuma tela grava mas
+ * continua previsto. O primeiro era invisível aqui — o pedido seguia
+ * mostrando "em separação" ou "enviado" semanas depois de cancelado, e quem
+ * olhava concluía que o fornecedor não despachou.
+ */
+const foiCancelado = (order: Order) =>
+  order.ml_order_status === 'cancelled' || order.status === 'cancelled';
 
 const statusLabels: Record<OrderStatus, string> = {
   pending: 'Pendente',
@@ -133,9 +154,9 @@ export default function Orders() {
    * continua existindo em "Pagos" — o pedido segue andando na logística depois
    * do repasse.
    */
-  const [filtroRepasse, setFiltroRepasse] = useState<'pagar' | 'pagos' | 'devolucoes'>(
-    'pagar'
-  );
+  const [filtroRepasse, setFiltroRepasse] = useState<
+    'pagar' | 'pagos' | 'devolucoes' | 'cancelados'
+  >('pagar');
 
   const [syncingMl, setSyncingMl] = useState(false);
   const [pendingIssues, setPendingIssues] = useState<PendingIssue[]>([]);
@@ -462,6 +483,7 @@ export default function Orders() {
         codigo_interno,
         ml_shipment_id,
         ml_order_id,
+        ml_order_status,
         taxa_embalagem,
         dce_emitida_em,
         dce_emitida_pelo_sistema,
@@ -608,9 +630,19 @@ export default function Orders() {
       return orders.filter((order) => devolucoes[order.id]);
     }
 
+    if (filtroRepasse === 'cancelados') {
+      return orders.filter(foiCancelado);
+    }
+
+    // Cancelado sai das duas abas de dinheiro.
+    //
+    // Em "A pagar" ele pedia repasse de mercadoria que não vai sair — e, pior,
+    // parecia pedido normal esperando pagamento. Em "Pagos" ficava com cara de
+    // pedido andando, que é como o vendedor do dia 01/10 leu a tela: "em
+    // separação", semanas depois de o Mercado Livre ter cancelado.
     return filtroRepasse === 'pagar'
-      ? orders.filter((order) => !order.pago_ao_fornecedor_em)
-      : orders.filter((order) => order.pago_ao_fornecedor_em);
+      ? orders.filter((order) => !order.pago_ao_fornecedor_em && !foiCancelado(order))
+      : orders.filter((order) => order.pago_ao_fornecedor_em && !foiCancelado(order));
   }, [orders, filtroRepasse, devolucoes]);
 
   /** Busca do pedido que vai receber uma devolução nova. */
@@ -838,14 +870,23 @@ export default function Orders() {
       <div className="flex flex-wrap gap-2">
         {(
           [
-            ['pagar', 'A pagar', orders.filter((o) => !o.pago_ao_fornecedor_em).length],
-            ['pagos', 'Pagos', orders.filter((o) => o.pago_ao_fornecedor_em).length],
+            [
+              'pagar',
+              'A pagar',
+              orders.filter((o) => !o.pago_ao_fornecedor_em && !foiCancelado(o)).length,
+            ],
+            [
+              'pagos',
+              'Pagos',
+              orders.filter((o) => o.pago_ao_fornecedor_em && !foiCancelado(o)).length,
+            ],
             [
               'devolucoes',
               'Devoluções',
               orders.filter((o) => devolucoes[o.id]).length,
             ],
-          ] as ['pagar' | 'pagos' | 'devolucoes', string, number][]
+            ['cancelados', 'Cancelados', orders.filter(foiCancelado).length],
+          ] as ['pagar' | 'pagos' | 'devolucoes' | 'cancelados', string, number][]
         ).map(([id, rotulo, quantos]) => (
           <button
             key={id}
@@ -971,10 +1012,21 @@ export default function Orders() {
                             className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300"
                           />
 
+                          {/* Cancelado no Mercado Livre manda no selo.
+                              O carimbo interno continua onde parou — "em
+                              separação", "enviado" — e mostrar isso num pedido
+                              desfeito faz o vendedor cobrar do fornecedor um
+                              envio que não existe mais. */}
                           <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusStyle(order.status)}`}
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              foiCancelado(order)
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                                : getStatusStyle(order.status)
+                            }`}
                           >
-                            {statusLabels[order.status] || order.status}
+                            {foiCancelado(order)
+                              ? 'Cancelado'
+                              : statusLabels[order.status] || order.status}
                           </span>
 
                           {order.tracking_code && (
@@ -1133,6 +1185,33 @@ export default function Orders() {
                       </div>
                     </div>
                   </div>
+
+                  {/* O cancelamento explicado, com a conta do dinheiro.
+                      Saber que foi cancelado não basta: quem já pagou o
+                      fornecedor precisa saber que tem dinheiro a receber de
+                      volta, e quem não pagou precisa saber que não deve
+                      pagar. */}
+                  {foiCancelado(order) && (
+                    <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3">
+                      <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+
+                      <div className="min-w-0">
+                        <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed">
+                          Esta venda foi cancelada no {order.marketplace}. Não há
+                          o que despachar — se o pedido já tinha etiqueta, o
+                          cancelamento veio depois dela.
+                        </p>
+
+                        {order.pago_ao_fornecedor_em && (
+                          <p className="text-sm text-red-800 dark:text-red-200 leading-relaxed mt-2">
+                            Você já pagou o fornecedor por este pedido. O valor
+                            volta para você — fale com ele pelo contato do
+                            pedido.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Junto das outras ações do pedido, e depois dos dados de
                       cliente e fornecedor: pagar é a última coisa que se faz
