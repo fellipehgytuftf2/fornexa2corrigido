@@ -115,7 +115,16 @@ Deno.serve(async (req: Request) => {
     .select(
       'id, user_id, product_name, status, ml_order_status, tracking_code, created_at, user_product_id, product_id'
     )
-    .eq('ml_order_id', numeroDaVenda);
+    // Contém, e não igual.
+    //
+    // Parte dos pedidos tem o número guardado com um caractere a mais —
+    // 16 posições para 15 dígitos, provavelmente espaço ou quebra de linha que
+    // veio junto na gravação. Busca exata não achava esses, e a sonda
+    // respondia "esta venda nunca entrou" sobre pedido que estava ali.
+    //
+    // O número tem 13 dígitos ou mais, então "contém" não corre risco de
+    // casar venda errada.
+    .ilike('ml_order_id', `%${numeroDaVenda}%`);
 
   if (erroDosPedidos) {
     return json({ error: `Falha ao consultar os pedidos: ${erroDosPedidos.message}` }, 500);
