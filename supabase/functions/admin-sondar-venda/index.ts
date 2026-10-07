@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
   const { data: pedidosDaVenda, error: erroDosPedidos } = await admin
     .from('orders')
     .select(
-      'id, user_id, product_name, status, ml_order_status, tracking_code, created_at, user_product_id, product_id'
+      'id, user_id, product_name, status, ml_order_status, tracking_code, created_at, user_product_id, product_id, ml_order_id'
     )
     // Contém, e não igual.
     //
@@ -140,6 +140,7 @@ Deno.serve(async (req: Request) => {
     created_at: string | null;
     user_product_id: string | null;
     product_id: string | null;
+    ml_order_id: string | null;
   };
 
   const conhecidos = (pedidosDaVenda ?? []) as PedidoDaVenda[];
@@ -207,7 +208,16 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const resposta = await fetch(`https://api.mercadolibre.com/orders/${numeroDaVenda}`, {
+  // Consulta pelo número GUARDADO, e não pelo digitado.
+  //
+  // Quem procura costuma copiar o número de uma tela que corta os últimos
+  // dígitos, e o Mercado Livre responde 404 a número incompleto — resposta que
+  // parece "a venda não existe" e não é. Achado o pedido aqui, o número certo
+  // é o que está nele.
+  const numeroGuardado = String(conhecidos[0].ml_order_id ?? '').replace(/\D/g, '');
+  const numeroParaConsultar = numeroGuardado || numeroDaVenda;
+
+  const resposta = await fetch(`https://api.mercadolibre.com/orders/${numeroParaConsultar}`, {
     headers: { Authorization: `Bearer ${token.accessToken}` },
   });
 
@@ -224,7 +234,7 @@ Deno.serve(async (req: Request) => {
     return json({
       ok: false,
       venda: numeroDaVenda,
-      conclusao: `O Mercado Livre respondeu ${resposta.status} ao consultar esta venda.`,
+      conclusao: `O Mercado Livre respondeu ${resposta.status} ao consultar a venda ${numeroParaConsultar}.`,
       resposta_crua: texto.slice(0, 400),
       pedidos_aqui: conhecidos,
     });
