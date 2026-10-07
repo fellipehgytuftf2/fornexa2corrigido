@@ -103,15 +103,23 @@ Deno.serve(async (req: Request) => {
   // Livre aceita para ler aquela venda. Começamos pelo pedido que já existe
   // aqui; não existindo, não há como saber de quem é — e é justamente esse o
   // caso interessante, então pedimos o e-mail.
-  // `ml_item_id` é do anúncio, e mora em `user_products` — o pedido guarda só
-  // a ligação. Por isso a consulta traz o anúncio junto: é ele que diz qual
-  // item da venda cada pedido representa.
-  const { data: pedidosDaVenda } = await admin
+  // Duas consultas, e não uma com junção.
+  //
+  // `orders` aponta para `user_products` por dois caminhos — `user_product_id`
+  // e `product_id` —, e pedir o anúncio junto deixa a consulta ambígua: ela
+  // falha, volta vazia, e a sonda concluía "esta venda nunca entrou" para
+  // pedidos que existem. Foi o que aconteceu nas duas primeiras consultas
+  // reais.
+  const { data: pedidosDaVenda, error: erroDosPedidos } = await admin
     .from('orders')
     .select(
-      'id, user_id, product_name, status, ml_order_status, tracking_code, created_at, user_product_id, user_products ( ml_item_id )'
+      'id, user_id, product_name, status, ml_order_status, tracking_code, created_at, user_product_id, product_id'
     )
     .eq('ml_order_id', numeroDaVenda);
+
+  if (erroDosPedidos) {
+    return json({ error: `Falha ao consultar os pedidos: ${erroDosPedidos.message}` }, 500);
+  }
 
   type PedidoDaVenda = {
     id: string;
@@ -122,19 +130,34 @@ Deno.serve(async (req: Request) => {
     tracking_code: string | null;
     created_at: string | null;
     user_product_id: string | null;
-    user_products?: { ml_item_id: string | null } | { ml_item_id: string | null }[] | null;
+    product_id: string | null;
   };
 
   const conhecidos = (pedidosDaVenda ?? []) as PedidoDaVenda[];
 
-  /** O anúncio de um pedido, venha a junção como objeto ou como lista. */
-  const anuncioDoPedido = (pedido: PedidoDaVenda) => {
-    const ligado = Array.isArray(pedido.user_products)
-      ? pedido.user_products[0]
-      : pedido.user_products;
+  // O anúncio de cada pedido, buscado à parte. `product_id` é o caminho antigo
+  // e continua preenchido em pedidos velhos.
+  const idsDeAnuncio = [
+    ...new Set(
+      conhecidos
+        .map((pedido) => pedido.user_product_id ?? pedido.product_id)
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
 
-    return ligado?.ml_item_id ?? null;
-  };
+  const { data: anuncios } = idsDeAnuncio.length
+    ? await admin.from('user_products').select('id, ml_item_id').in('id', idsDeAnuncio)
+    : { data: [] as { id: string; ml_item_id: string | null }[] };
+
+  const anuncioPorProduto = new Map(
+    ((anuncios ?? []) as { id: string; ml_item_id: string | null }[]).map((linha) => [
+      linha.id,
+      linha.ml_item_id,
+    ])
+  );
+
+  const anuncioDoPedido = (pedido: PedidoDaVenda) =>
+    anuncioPorProduto.get(pedido.user_product_id ?? pedido.product_id ?? '') ?? null;
 
   if (conhecidos.length === 0) {
     return json({
