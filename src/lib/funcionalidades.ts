@@ -74,7 +74,12 @@ export function useFuncionalidades() {
     ler();
 
     // Trocou de conta, a resposta anterior não vale mais.
-    const { data } = supabase.auth.onAuthStateChange(() => {
+    const { data } = supabase.auth.onAuthStateChange((evento) => {
+      // Mesmo cuidado do outro ouvinte: aviso de carregamento e de renovação
+      // de token não são troca de conta, e zerar a lista neles faz a tela
+      // piscar a cada F5.
+      if (evento === 'INITIAL_SESSION' || evento === 'TOKEN_REFRESHED') return;
+
       respostaEmAndamento = null;
       setLiberadas(new Set());
       ler();
@@ -154,7 +159,15 @@ export function useFuncionalidade(chave: string) {
 
     ler();
 
-    const { data } = supabase.auth.onAuthStateChange(() => {
+    const { data } = supabase.auth.onAuthStateChange((evento) => {
+      // Nem todo aviso é troca de conta.
+      //
+      // O Supabase dispara `INITIAL_SESSION` em TODO carregamento da página, e
+      // `TOKEN_REFRESHED` de tempos em tempos. Tratar esses como troca fazia a
+      // lembrança ser apagada a cada F5 — a tela voltava para a versão antiga
+      // e piscava de novo, que é exatamente o que o cache veio resolver.
+      if (evento === 'INITIAL_SESSION' || evento === 'TOKEN_REFRESHED') return;
+
       respostaEmAndamento = null;
       esquecerTudo();
       setLiberada(false);
