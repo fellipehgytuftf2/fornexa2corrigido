@@ -89,8 +89,52 @@ export function useFuncionalidades() {
   return { liberadas };
 }
 
+/**
+ * A última resposta, lembrada no navegador.
+ *
+ * A pergunta "posso ver isto?" vai ao banco e demora alguns décimos. Até ela
+ * voltar, a tela desenha a versão antiga — e na landing isso aparece como um
+ * piscar: a imagem velha surge e a nova cobre logo depois.
+ *
+ * Guardar a resposta anterior resolve o piscar da segunda visita em diante: a
+ * tela já nasce com o que valeu da última vez, e a pergunta real só confirma.
+ *
+ * É conveniência, não permissão. Quem manda continua sendo o banco, e trocar
+ * de conta apaga tudo isto — senão a novidade de uma conta apareceria por um
+ * instante na tela de outra, que foi um problema real em 30/09.
+ */
+const PREFIXO_LEMBRADO = 'fornexa_func_';
+
+function lembrada(chave: string): boolean {
+  try {
+    return localStorage.getItem(PREFIXO_LEMBRADO + chave) === 'sim';
+  } catch {
+    // Janela anônima, ou armazenamento bloqueado: começa sem lembrança.
+    return false;
+  }
+}
+
+function lembrar(chave: string, liberada: boolean) {
+  try {
+    if (liberada) localStorage.setItem(PREFIXO_LEMBRADO + chave, 'sim');
+    else localStorage.removeItem(PREFIXO_LEMBRADO + chave);
+  } catch {
+    // Sem armazenamento, segue sem lembrar. A tela funciona igual.
+  }
+}
+
+function esquecerTudo() {
+  try {
+    Object.keys(localStorage)
+      .filter((nome) => nome.startsWith(PREFIXO_LEMBRADO))
+      .forEach((nome) => localStorage.removeItem(nome));
+  } catch {
+    // idem
+  }
+}
+
 export function useFuncionalidade(chave: string) {
-  const [liberada, setLiberada] = useState(false);
+  const [liberada, setLiberada] = useState(() => lembrada(chave));
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -104,6 +148,7 @@ export function useFuncionalidade(chave: string) {
 
         setLiberada(chaves.has(chave));
         setCarregando(false);
+        lembrar(chave, chaves.has(chave));
       });
     };
 
@@ -111,6 +156,7 @@ export function useFuncionalidade(chave: string) {
 
     const { data } = supabase.auth.onAuthStateChange(() => {
       respostaEmAndamento = null;
+      esquecerTudo();
       setLiberada(false);
       ler();
     });
