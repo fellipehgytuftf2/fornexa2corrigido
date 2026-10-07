@@ -2,6 +2,7 @@ import ImpressaoDasContas from '../../components/dashboard/ImpressaoDasContas';
 import PausasPorEstoque from '../../components/dashboard/PausasPorEstoque';
 import RemetenteTravado from '../../components/dashboard/RemetenteTravado';
 import SondaDeReclamacoes from '../../components/dashboard/SondaDeReclamacoes';
+import SondaDeVenda from '../../components/dashboard/SondaDeVenda';
 
 export default function AdminImpressao() {
   return (
@@ -16,6 +17,11 @@ export default function AdminImpressao() {
       {/* Mesma tela porque é a mesma pergunta: por que esta etiqueta não sai.
           Aqui a resposta é o endereço, e a decisão de liberar é do dono. */}
       <RemetenteTravado />
+
+      {/* A pergunta que mais chega no suporte: "o pedido do vendedor sumiu".
+          Responde de uma vez se o pedido existe, se está escondido, ou se a
+          venda tinha um item que nunca virou pedido aqui. */}
+      <SondaDeVenda />
 
       {/* Mesma pergunta das outras: o que impede um pedido de andar. Aqui o
           impedimento seria descoberto tarde — só no dia de uma reclamação
