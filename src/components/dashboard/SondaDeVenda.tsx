@@ -19,6 +19,25 @@ interface PedidoAqui {
   created_at: string | null;
 }
 
+interface VendaComVariosItens {
+  venda: string;
+  data: string | null;
+  status: string | null;
+  itens_na_venda: number;
+  pedidos_aqui: number;
+  faltam: number;
+  produtos: (string | null)[];
+}
+
+interface Varredura {
+  ok?: boolean;
+  conclusao?: string;
+  vendas_olhadas?: number;
+  itens_perdidos?: number;
+  vendas?: VendaComVariosItens[];
+  error?: string;
+}
+
 interface Resultado {
   ok?: boolean;
   venda?: string;
@@ -67,6 +86,35 @@ export default function SondaDeVenda() {
 
   const itens = resultado?.itens_do_mercado_livre ?? [];
   const faltando = itens.some((item) => !item.virou_pedido);
+
+  /**
+   * A varredura: mede o defeito em vez de esperar reclamação.
+   *
+   * Venda com dois produtos vira um pedido só aqui, e o produto perdido não
+   * aparece para ninguém — então ninguém reclama. Antes de mexer em como o
+   * pedido nasce, isto responde se o caso acontece toda semana ou quase nunca.
+   */
+  const [emailDaVarredura, setEmailDaVarredura] = useState('');
+  const [varrendo, setVarrendo] = useState(false);
+  const [varredura, setVarredura] = useState<Varredura | null>(null);
+
+  const varrer = async () => {
+    setVarrendo(true);
+    setVarredura(null);
+
+    const { data, error } = await supabase.functions.invoke('admin-varrer-multi-item', {
+      body: emailDaVarredura.trim() ? { email: emailDaVarredura.trim() } : {},
+    });
+
+    setVarrendo(false);
+
+    if (error) {
+      setVarredura({ error: 'Não foi possível varrer agora. Tente de novo.' });
+      return;
+    }
+
+    setVarredura(data as Varredura);
+  };
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
@@ -184,6 +232,94 @@ export default function SondaDeVenda() {
           )}
         </div>
       )}
+
+      {/* A varredura fica depois, separada por linha: é outra pergunta — não
+          "onde está este pedido", mas "isto acontece quanto". */}
+      <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-700">
+        <p className="text-sm font-medium text-slate-900 dark:text-white">
+          Venda com mais de um produto
+        </p>
+
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          O FORNEXA cria um pedido por venda, lendo só o primeiro produto. Esta varredura
+          olha as 50 vendas mais recentes de um vendedor e diz quantos produtos ficaram
+          sem pedido aqui.
+        </p>
+
+        <div className="flex flex-wrap gap-2 mt-3">
+          <input
+            type="email"
+            value={emailDaVarredura}
+            onChange={(e) => setEmailDaVarredura(e.target.value)}
+            placeholder="E-mail do vendedor (vazio = sua conta)"
+            className="flex-1 min-w-[260px] px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white"
+          />
+
+          <button
+            onClick={varrer}
+            disabled={varrendo}
+            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-medium text-slate-900 dark:text-white disabled:opacity-50 flex items-center gap-2"
+          >
+            {varrendo && <Loader2 className="w-4 h-4 animate-spin" />}
+            {varrendo ? 'Varrendo…' : 'Varrer 50 vendas'}
+          </button>
+        </div>
+
+        {varredura && (
+          <div className="mt-3 space-y-3">
+            {varredura.error ? (
+              <p className="text-sm text-red-600 dark:text-red-400">{varredura.error}</p>
+            ) : (
+              <>
+                <div
+                  className={`flex items-start gap-2 text-sm rounded-lg p-3 ${
+                    (varredura.itens_perdidos ?? 0) > 0
+                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200'
+                      : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200'
+                  }`}
+                >
+                  {(varredura.itens_perdidos ?? 0) > 0 ? (
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                  )}
+
+                  <span>{varredura.conclusao}</span>
+                </div>
+
+                {(varredura.vendas?.length ?? 0) > 0 && (
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700">
+                    {varredura.vendas?.map((venda) => (
+                      <div key={venda.venda} className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-mono text-xs text-slate-600 dark:text-slate-300">
+                            {venda.venda}
+                            {venda.status ? ` · ${venda.status}` : ''}
+                          </p>
+
+                          <span
+                            className={`text-xs font-semibold shrink-0 ${
+                              venda.faltam > 0
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {venda.itens_na_venda} produtos · {venda.pedidos_aqui} pedido(s)
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          {venda.produtos.filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
