@@ -77,7 +77,22 @@ export default function SondaDeVenda() {
     setRodando(false);
 
     if (error) {
-      setResultado({ error: 'Não foi possível consultar agora. Tente de novo.' });
+      // Mesmo cuidado da varredura abaixo: o motivo vem no corpo.
+      let motivo: string | undefined;
+
+      const contexto = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (contexto?.json) {
+        try {
+          motivo = (await contexto.json())?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setResultado({ error: motivo ?? 'Não foi possível consultar agora. Tente de novo.' });
       return;
     }
 
@@ -109,7 +124,27 @@ export default function SondaDeVenda() {
     setVarrendo(false);
 
     if (error) {
-      setVarredura({ error: 'Não foi possível varrer agora. Tente de novo.' });
+      // O motivo real vem no corpo da resposta, não no erro.
+      //
+      // Em resposta não-2xx o supabase-js não popula `data`, e mostrar
+      // "tente de novo" esconde justamente o que resolve: "esta conta não tem
+      // conexão com o Mercado Livre", "a conexão expirou". Foi o que apareceu
+      // na terceira conta varrida, e custou um "não sei" que era evitável.
+      let motivo: string | undefined;
+
+      const contexto = (
+        error as { context?: { json?: () => Promise<{ error?: string }> } } | null
+      )?.context;
+
+      if (contexto?.json) {
+        try {
+          motivo = (await contexto.json())?.error;
+        } catch {
+          // segue com a mensagem genérica
+        }
+      }
+
+      setVarredura({ error: motivo ?? 'Não foi possível varrer agora. Tente de novo.' });
       return;
     }
 

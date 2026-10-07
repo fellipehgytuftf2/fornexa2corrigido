@@ -6,6 +6,12 @@
 //
 // POR QUE
 //
+// MEDIDO EM 06/10/2026: 125 vendas em três contas, nenhuma com mais de um
+// item. O Mercado Livre separa compra de produtos diferentes em vendas
+// distintas, agrupadas por envio — o modelo de um pedido por venda está certo,
+// e o item perdido descrito abaixo não acontece na prática. A varredura fica
+// para refazer a conta quando a dúvida voltar.
+//
 // O FORNEXA cria UM pedido por venda, lendo só `order_items[0]`. Se uma venda
 // tiver dois produtos diferentes, o segundo não existe aqui: não aparece para
 // o vendedor, não aparece para o fornecedor, e ninguém reclama de um pedido
