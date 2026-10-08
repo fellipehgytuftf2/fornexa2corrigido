@@ -26,6 +26,15 @@ interface DevolucaoDoFornecedor {
   comprador: string | null;
   /** O nome da conta do vendedor no ML, que é o destino na etiqueta. */
   conta_ml: string | null;
+  /**
+   * O código de hoje deste vendedor.
+   *
+   * O Mercado Livre gera um por vendedor e por dia, e ele libera todas as
+   * devoluções daquele vendedor naquele dia — por isso vem igual em várias
+   * linhas desta lista, e não é engano.
+   */
+  codigo_do_dia: string | null;
+  codigo_do_dia_em: string | null;
   /** O código que a equipe carimbou na separação. */
   codigo_interno: string | null;
   /** O pedido por trás da devolução — é nele que o reembolso é marcado. */
@@ -492,31 +501,45 @@ export default function DevolucoesFornecedor() {
               {esperando && (
                 <div
                   className={`mt-4 rounded-xl border p-4 ${
-                    devolucao.codigo_autorizacao
+                    devolucao.codigo_do_dia || devolucao.codigo_autorizacao
                       ? 'border-emerald-500/30 bg-emerald-500/10'
                       : 'border-amber-500/30 bg-amber-500/10'
                   }`}
                 >
-                  {devolucao.codigo_autorizacao ? (
+                  {/* O código do dia manda.
+                      O Mercado Livre gera um por vendedor e por dia, e ele
+                      libera todas as devoluções daquele vendedor naquele dia.
+                      O código guardado na devolução é do modelo antigo —
+                      continua aparecendo quando não há o de hoje, para não
+                      perder o que o vendedor já informou. */}
+                  {devolucao.codigo_do_dia || devolucao.codigo_autorizacao ? (
                     <>
                       <p className="text-xs text-emerald-300/80">
-                        Código de autorização — informe ao motorista
+                        {devolucao.codigo_do_dia
+                          ? 'Código de hoje deste vendedor — informe ao motorista'
+                          : 'Código informado nesta devolução — informe ao motorista'}
                       </p>
 
                       <p className="font-mono text-2xl font-bold tracking-widest text-emerald-200 mt-1">
-                        {devolucao.codigo_autorizacao}
+                        {devolucao.codigo_do_dia ?? devolucao.codigo_autorizacao}
                       </p>
+
+                      {devolucao.codigo_do_dia && (
+                        <p className="text-xs text-emerald-300/70 mt-1">
+                          Vale para todas as devoluções deste vendedor hoje.
+                        </p>
+                      )}
                     </>
                   ) : (
                     <>
                       <p className="text-sm font-semibold text-amber-200">
-                        O vendedor ainda não mandou o código
+                        O vendedor ainda não mandou o código de hoje
                       </p>
 
                       <p className="text-sm text-amber-200/80 mt-1 leading-relaxed">
-                        O Mercado Livre manda esse código a ele no dia da
-                        entrega. Sem o código, o motorista não entrega — e são
-                        duas tentativas.
+                        O Mercado Livre gera um código por dia para ele, e esse
+                        mesmo código libera todas as devoluções dele hoje. Sem
+                        ele o motorista não entrega — e são duas tentativas.
                       </p>
 
                       {devolucao.vendedor_whatsapp && (

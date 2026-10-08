@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import DevolucaoNoPedido, { Devolucao } from '../../components/dashboard/DevolucaoNoPedido';
+import CodigoDoDia from '../../components/dashboard/CodigoDoDia';
 import FlexTransportadora from '../../components/dashboard/FlexTransportadora';
 import ParadosNoCD from '../../components/dashboard/ParadosNoCD';
 import RepasseNoPedido from '../../components/dashboard/RepasseNoPedido';
@@ -918,6 +919,12 @@ export default function Orders() {
       {/* Registrar a devolução mora aqui, e não só dentro do pedido: achar o
           pedido certo no meio de cem pagos era o passo que fazia a pessoa
           desistir — e devolução tem relógio correndo. */}
+      {/* Primeiro o código do dia, depois o resto.
+          É a única coisa desta aba com relógio correndo: o motorista chega com
+          o pacote, pede o código na portaria, e são duas tentativas antes de o
+          produto se perder. Registrar devolução pode esperar; isto não. */}
+      {filtroRepasse === 'devolucoes' && <CodigoDoDia aoSalvar={loadOrders} />}
+
       {filtroRepasse === 'devolucoes' && (
         <div className="bg-white dark:bg-navy-800 rounded-xl border border-gray-200 dark:border-navy-700 p-5 shadow-sm">
           <p className="font-semibold text-navy-900 dark:text-white">
