@@ -9,7 +9,7 @@ interface DevolucaoDoFornecedor {
   rastreio: string | null;
   motivo: string;
   codigo_devolucao: string | null;
-  status: 'avisada' | 'recebida' | 'avariada' | 'nao_chegou' | 'revendida';
+  status: 'avisada' | 'recebida' | 'avariada' | 'nao_chegou' | 'revendida' | 'perdida';
   avisada_em: string;
   prazo_cd: string | null;
   /** O que libera o motorista na portaria. Vem do vendedor. */
@@ -77,6 +77,7 @@ const SITUACOES: Record<DevolucaoDoFornecedor['status'], string> = {
   avariada: 'Recebida com avaria',
   nao_chegou: 'Não chegou',
   revendida: 'Vendida de novo',
+  perdida: 'Perdida — não volta mais',
 };
 
 /**
@@ -223,7 +224,7 @@ export default function DevolucoesFornecedor() {
 
   const responder = async (
     devolucao: DevolucaoDoFornecedor,
-    situacao: 'recebida' | 'avariada' | 'nao_chegou'
+    situacao: 'recebida' | 'avariada' | 'nao_chegou' | 'perdida'
   ) => {
     setSalvandoId(devolucao.id);
     setErro('');
@@ -737,6 +738,22 @@ export default function DevolucoesFornecedor() {
                   >
                     Não chegou
                   </button>
+
+                  {/* Só depois da primeira tentativa.
+                      São duas antes de o Mercado Livre encerrar; oferecer
+                      "perdido" numa devolução que ainda nem teve motorista na
+                      porta convidaria a fechar cedo demais o que ainda podia
+                      chegar. */}
+                  {Number(devolucao.tentativas ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => responder(devolucao, 'perdida')}
+                      disabled={salvandoId === devolucao.id}
+                      className="inline-flex items-center justify-center rounded-xl border border-red-400/30 px-4 py-2.5 text-sm font-semibold text-red-200 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                    >
+                      Produto perdido
+                    </button>
+                  )}
                 </div>
               )}
             </li>
