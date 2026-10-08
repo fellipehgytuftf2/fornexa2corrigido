@@ -146,6 +146,17 @@ export default function DevolucaoNoPedido({
     setSalvandoCodigo(true);
     setErro("");
 
+    // Grava nos dois lugares.
+    //
+    // O código é do DIA, e vale para todas as devoluções deste vendedor hoje —
+    // foi assim que o fornecedor explicou, e é como o Portal passou a mostrar.
+    // Guardar só na devolução deixava as outras do mesmo dia parecendo
+    // pendentes. Guardar também nela mantém o histórico de qual código foi
+    // usado em qual pacote, que some se a pessoa trocar o código do dia.
+    await supabase.rpc("vendedor_define_codigo_do_dia", {
+      p_codigo: codigoAutorizacao,
+    });
+
     const { data, error } = await supabase.rpc("vendedor_define_codigo_devolucao", {
       p_devolucao: devolucao?.id,
       p_codigo: codigoAutorizacao,
@@ -279,18 +290,24 @@ export default function DevolucaoNoPedido({
               <p className="text-sm text-green-800 dark:text-green-300">
                 Código de autorização enviado ao fornecedor:{' '}
                 <strong className="font-mono">{devolucao.codigo_autorizacao}</strong>
+                <br />
+                <span className="text-xs">
+                  O código é do dia: o fornecedor vê o mesmo em todas as suas
+                  devoluções de hoje. Mudando o dia, mande o novo.
+                </span>
               </p>
             ) : (
               <>
                 <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-                  Cole aqui o código de autorização
+                  Cole aqui o código de autorização de hoje
                 </p>
 
                 <p className="text-xs text-amber-800 dark:text-amber-300/90 mt-1 leading-relaxed">
-                  O Mercado Livre te manda esse código no dia da entrega, por
-                  WhatsApp e no painel de vendas. Quem recebe o motorista é a
-                  equipe do fornecedor, e sem o código ele não entrega. São duas
-                  tentativas — na segunda, o produto se perde.
+                  O Mercado Livre te manda um código por dia, e ele vale para
+                  todas as suas devoluções de hoje — não precisa repetir em cada
+                  uma. Quem recebe o motorista é a equipe do fornecedor, e sem o
+                  código ele não entrega. São duas tentativas — na segunda, o
+                  produto se perde.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-2 mt-3">
