@@ -22,6 +22,10 @@ interface DevolucaoDoFornecedor {
   vendedor_whatsapp: string | null;
   /** O nome impresso na etiqueta de devolução do comprador. */
   quem_recebe: string | null;
+  /** Quem comprou: é o nome que vem impresso na etiqueta da devolução. */
+  comprador: string | null;
+  /** O nome da conta do vendedor no ML, que é o destino na etiqueta. */
+  conta_ml: string | null;
   /** O código que a equipe carimbou na separação. */
   codigo_interno: string | null;
   /** O pedido por trás da devolução — é nele que o reembolso é marcado. */
@@ -40,6 +44,10 @@ interface VendaEncontrada {
   vendedor: string | null;
   vendedor_whatsapp: string | null;
   quem_recebe: string | null;
+  /** Quem comprou — o nome que vem impresso na etiqueta da devolução. */
+  comprador: string | null;
+  /** A conta do vendedor no ML, que é o destino impresso na etiqueta. */
+  conta_ml: string | null;
   status: string;
   devolucao_id: string | null;
   devolucao_status: string | null;
@@ -251,8 +259,13 @@ export default function DevolucoesFornecedor() {
           Chegou um pacote e você não sabe de quem é?
         </p>
 
+        {/* A etiqueta de devolução não traz número de venda nem produto: traz
+            o nome de quem devolve. Dizer isso aqui evita o fornecedor procurar
+            na etiqueta um número que não existe. */}
         <p className="text-sm text-slate-400 mt-1 leading-relaxed">
-          Digite o número da venda impresso na etiqueta, ou o rastreio.
+          Procure pelo <strong className="text-white">nome do comprador</strong> impresso
+          na etiqueta — é o que a etiqueta de devolução traz. Número da venda, rastreio e
+          código interno também funcionam.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-2 mt-3">
@@ -263,7 +276,7 @@ export default function DevolucoesFornecedor() {
             onKeyDown={(evento) => {
               if (evento.key === 'Enter') buscarVenda();
             }}
-            placeholder="Ex: 2000018520550620"
+            placeholder="Nome do comprador, número da venda ou rastreio"
             className="flex-1 min-w-0 rounded-xl border border-white/10 bg-navy-900/60 px-4 py-2.5 text-sm font-mono text-white placeholder:text-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50"
           />
 
@@ -279,7 +292,8 @@ export default function DevolucoesFornecedor() {
 
         {encontradas !== null && encontradas.length === 0 && (
           <p className="text-sm text-amber-300 mt-3">
-            Nenhuma venda sua com esse número. Confira se o número está inteiro.
+            Nenhuma venda sua com isso. Tente o nome do comprador como está escrito na
+            etiqueta — basta parte dele.
           </p>
         )}
 
@@ -297,8 +311,22 @@ export default function DevolucoesFornecedor() {
               </div>
 
               <div>
-                <dt className="text-xs text-slate-500" title="O nome impresso na etiqueta da devolução — é do vendedor, não de quem recebe no galpão">Nome na etiqueta</dt>
-                <dd className="text-slate-200 break-words">{venda.quem_recebe || '—'}</dd>
+                <dt className="text-xs text-emerald-300/80">Comprador</dt>
+                <dd className="text-white font-semibold break-words">
+                  {venda.comprador || '—'}
+                </dd>
+              </div>
+
+              <div>
+                <dt
+                  className="text-xs text-slate-500"
+                  title="O nome que aparece como destino na etiqueta de devolução"
+                >
+                  Conta do vendedor no ML
+                </dt>
+                <dd className="text-slate-200 break-words">
+                  {venda.conta_ml || venda.quem_recebe || '—'}
+                </dd>
               </div>
 
               <div>
@@ -398,12 +426,30 @@ export default function DevolucoesFornecedor() {
                       </dd>
                     </div>
 
-                    {/* O nome impresso na etiqueta da devolução do comprador:
-                        é por ele que o pacote encontra o dono no galpão. */}
+                    {/* O comprador é a ÚNICA identificação que o pacote traz.
+                        A etiqueta de devolução não tem número de venda, nem
+                        produto, nem o rastreio da ida: tem o nome de quem
+                        devolve, o Pack ID e o nome da conta do vendedor como
+                        destino. Chegando dois pacotes no mesmo dia, é esse
+                        nome que diz qual é qual. */}
                     <div>
-                      <dt className="text-xs text-slate-500" title="O nome impresso na etiqueta da devolução — é do vendedor, não de quem recebe no galpão">Nome na etiqueta</dt>
+                      <dt className="text-xs text-emerald-300/80">
+                        Comprador (remetente na etiqueta)
+                      </dt>
+                      <dd className="text-white font-semibold break-words mt-0.5">
+                        {devolucao.comprador || '—'}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt
+                        className="text-xs text-slate-500"
+                        title="O nome que aparece como destino na etiqueta de devolução"
+                      >
+                        Conta do vendedor no ML
+                      </dt>
                       <dd className="text-slate-200 break-words mt-0.5">
-                        {devolucao.quem_recebe || '—'}
+                        {devolucao.conta_ml || devolucao.quem_recebe || '—'}
                       </dd>
                     </div>
 
