@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, PackageSearch, RotateCcw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -97,6 +97,51 @@ export default function DevolucoesFornecedor() {
   const [numeroBuscado, setNumeroBuscado] = useState("");
   const [encontradas, setEncontradas] = useState<VendaEncontrada[] | null>(null);
   const [buscando, setBuscando] = useState(false);
+
+  /**
+   * As devoluções separadas por vendedor.
+   *
+   * O código de autorização é um por vendedor e por dia. Numa lista corrida
+   * ele aparecia repetido em cartões soltos, e quem recebe pacotes de dois
+   * vendedores no mesmo dia tinha que conferir cartão a cartão de quem era
+   * cada código. Agrupado, o código fica uma vez no topo e vale para tudo que
+   * está abaixo dele.
+   *
+   * A ordem de dentro do grupo é a que veio do banco — mais recente primeiro.
+   */
+  const porVendedor = useMemo(() => {
+    const grupos = new Map<
+      string,
+      {
+        chave: string;
+        vendedor: string | null;
+        contaMl: string | null;
+        codigoDoDia: string | null;
+        itens: DevolucaoDoFornecedor[];
+      }
+    >();
+
+    devolucoes.forEach((devolucao) => {
+      const chave = `${devolucao.vendedor ?? '?'}|${devolucao.conta_ml ?? '?'}`;
+
+      const grupo = grupos.get(chave) ?? {
+        chave,
+        vendedor: devolucao.vendedor,
+        contaMl: devolucao.conta_ml,
+        codigoDoDia: devolucao.codigo_do_dia,
+        itens: [],
+      };
+
+      // O código vem igual em todas as linhas do mesmo vendedor; basta a
+      // primeira que tiver.
+      grupo.codigoDoDia = grupo.codigoDoDia ?? devolucao.codigo_do_dia;
+      grupo.itens.push(devolucao);
+
+      grupos.set(chave, grupo);
+    });
+
+    return [...grupos.values()];
+  }, [devolucoes]);
 
   const carregar = async () => {
     setCarregando(true);
@@ -374,8 +419,45 @@ export default function DevolucoesFornecedor() {
         ))}
       </div>
 
+      {/* Agrupado por vendedor, e não numa lista corrida.
+          O código é um por vendedor e por dia: numa lista misturada ele
+          aparecia repetido em cartões soltos, e quem recebe dois pacotes de
+          vendedores diferentes no mesmo dia precisava conferir linha a linha de
+          quem era cada código. Separado, o código fica uma vez no topo do
+          grupo e vale para tudo que está embaixo dele. */}
+      {porVendedor.map(({ chave, vendedor, contaMl, codigoDoDia, itens }) => (
+        <section key={chave} className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+            <div className="min-w-0">
+              <p className="font-semibold text-white truncate">{vendedor ?? 'Vendedor'}</p>
+
+              <p className="text-xs text-slate-400">
+                {contaMl ? `Conta no ML: ${contaMl} · ` : ''}
+                {itens.length === 1 ? '1 devolução' : `${itens.length} devoluções`}
+              </p>
+            </div>
+
+            {codigoDoDia ? (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2">
+                <p className="text-[11px] text-emerald-300/80">
+                  Código de hoje — vale para todas abaixo
+                </p>
+
+                <p className="font-mono text-xl font-bold tracking-widest text-emerald-200">
+                  {codigoDoDia}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2">
+                <p className="text-xs font-semibold text-amber-200">
+                  Sem código de hoje deste vendedor
+                </p>
+              </div>
+            )}
+          </div>
+
       <ul className="space-y-3">
-        {devolucoes.map((devolucao) => {
+        {itens.map((devolucao) => {
           const esperando = devolucao.status === 'avisada';
 
           return (
@@ -497,8 +579,12 @@ export default function DevolucoesFornecedor() {
 
               {/* O código de autorização é o que a portaria precisa ter na mão
                   quando o motorista chega. Fica em destaque, e grande: é para
-                  ser lido de longe, com o motorista esperando. */}
-              {esperando && (
+                  ser lido de longe, com o motorista esperando.
+                  Havendo código de hoje, ele já está no topo do grupo deste
+                  vendedor e aqui só repetiria — este bloco fica para o código
+                  antigo, colado numa devolução específica, e para o aviso de
+                  que ainda não há código nenhum. */}
+              {esperando && !devolucao.codigo_do_dia && (
                 <div
                   className={`mt-4 rounded-xl border p-4 ${
                     devolucao.codigo_do_dia || devolucao.codigo_autorizacao
@@ -657,6 +743,8 @@ export default function DevolucoesFornecedor() {
           );
         })}
       </ul>
+        </section>
+      ))}
     </div>
   );
 }
