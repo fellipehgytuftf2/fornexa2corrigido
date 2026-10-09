@@ -152,7 +152,12 @@ export function calcularVenda(
  */
 export function margemMinimaSemPrejuizo(
   custoDoFornecedor: number,
-  tipo: 'classico' | 'premium' = 'classico'
+  tipo: 'classico' | 'premium' = 'classico',
+  /**
+   * Frete que o vendedor banca. Zero para quem não tem frete grátis ligado —
+   * sem isso a resposta exigia 200% de margem de quem não paga frete nenhum.
+   */
+  freteCustomizado?: number
 ): number | null {
   const custo = Number(custoDoFornecedor) || 0;
 
@@ -163,7 +168,7 @@ export function margemMinimaSemPrejuizo(
   for (let margem = 1; margem <= 900; margem += 1) {
     const preco = custo * (1 + margem / 100);
 
-    if (calcularVenda(preco, custo, tipo).lucro > 0) {
+    if (calcularVenda(preco, custo, tipo, freteCustomizado).lucro > 0) {
       return margem;
     }
   }

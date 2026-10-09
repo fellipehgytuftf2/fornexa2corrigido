@@ -20,6 +20,7 @@ import DeclararOrigem from './DeclararOrigem';
 import { type PartesDoEndereco } from './EnderecoParaCopiar';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
+  LIMITE_FRETE_GRATIS,
   calcularVenda,
   margemMinimaSemPrejuizo,
 } from '../../lib/taxasDoMercadoLivre';
@@ -254,8 +255,38 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   // vendedor só descobria no extrato, agora vê em vermelho antes de publicar.
   const precoDeVenda = custoDoFornecedor * (1 + margem / 100);
 
-  const contaDaVenda = calcularVenda(precoDeVenda, custoDoFornecedor);
-  const margemMinima = margemMinimaSemPrejuizo(custoDoFornecedor);
+  /**
+   * Quem paga o frete deste anúncio.
+   *
+   * Acima de R$ 79 o Mercado Livre obriga frete grátis, e quem banca é o
+   * vendedor. Abaixo disso, depende da configuração da conta dele lá: o
+   * FORNEXA não define frete ao publicar, herda a preferência da conta.
+   *
+   * Isso importa porque a primeira versão desta conta descontava o frete
+   * medido de TODO mundo, inclusive de quem não tem frete grátis ligado e não
+   * paga nada. O resultado foi exigir 200% de margem em produto barato —
+   * número fora da realidade de quem vende sem frete grátis.
+   *
+   * A chave começa ligada só onde o frete é obrigatório. Quem tem frete grátis
+   * em produto barato liga e vê a conta de verdade; quem não tem, vê a dele.
+   */
+  const [vendedorPagaFrete, setVendedorPagaFrete] = useState(false);
+
+  const freteObrigatorio = precoDeVenda >= LIMITE_FRETE_GRATIS;
+  const bancaOFrete = freteObrigatorio || vendedorPagaFrete;
+
+  const contaDaVenda = calcularVenda(
+    precoDeVenda,
+    custoDoFornecedor,
+    'classico',
+    bancaOFrete ? undefined : 0
+  );
+
+  const margemMinima = margemMinimaSemPrejuizo(
+    custoDoFornecedor,
+    'classico',
+    bancaOFrete ? undefined : 0
+  );
 
 
 
@@ -916,14 +947,16 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                             assim, quase todas no prejuízo. O valor agora é a
                             mediana medida da faixa de preço, e o Financeiro
                             continua mostrando o real depois da venda. */}
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400">
-                            Frete (média da faixa)
-                          </dt>
-                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
-                            −{formatCurrency(contaDaVenda.frete)}
-                          </dd>
-                        </div>
+                        {bancaOFrete && (
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-gray-600 dark:text-slate-400">
+                              Frete (média da faixa)
+                            </dt>
+                            <dd className="text-red-600 dark:text-red-400 tabular-nums">
+                              −{formatCurrency(contaDaVenda.frete)}
+                            </dd>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-navy-600">
                           <dt className="font-medium text-navy-900 dark:text-white">
@@ -947,16 +980,43 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         Antes havia um chute de R$ 25 fixo aqui, que aparecia
                         como se fosse calculo. Avisar sem numero e honesto;
                         inventar um numero nao era. */}
-                    {contaDaVenda.temFreteGratis && (
+                    {/* Quem paga o frete muda a conta inteira, e só o vendedor
+                        sabe. Acima de R$ 79 o Mercado Livre obriga frete
+                        grátis; abaixo, depende da configuração da conta dele
+                        lá — o FORNEXA não define isso ao publicar. */}
+                    {freteObrigatorio ? (
                       <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                         <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                          <strong>O frete ainda vai sair daqui.</strong> Acima de
-                          R$ 79 o Mercado Livre exige frete grátis e você banca
-                          parte dele. Quanto, depende do peso e da região do
-                          comprador — só dá para saber depois da venda, e o
-                          Financeiro mostra o valor real.
+                          <strong>Acima de R$ 79 o frete é por sua conta.</strong> O
+                          Mercado Livre exige frete grátis nessa faixa. O valor
+                          descontado aqui é a mediana das vendas reais; o exato
+                          depende do peso e da região, e o Financeiro mostra depois.
                         </p>
                       </div>
+                    ) : (
+                      <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-navy-600 p-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={vendedorPagaFrete}
+                          onChange={(evento) => setVendedorPagaFrete(evento.target.checked)}
+                          className="mt-0.5 w-4 h-4 accent-black dark:accent-white"
+                        />
+
+                        <span className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed">
+                          <strong className="text-navy-900 dark:text-white">
+                            Meu anúncio tem frete grátis
+                          </strong>
+                          <br />
+                          Abaixo de R$ 79 o frete só sai do seu bolso se você tiver
+                          ligado frete grátis na sua conta do Mercado Livre. Marcando
+                          aqui, a conta desconta a mediana real medida —{' '}
+                          {formatCurrency(
+                            calcularVenda(precoDeVenda, custoDoFornecedor).frete
+                          )}{' '}
+                          nesta faixa de preço. É o que fez muitas vendas baratas
+                          fecharem no vermelho.
+                        </span>
+                      </label>
                     )}
                     <div className="bg-black dark:bg-white rounded-xl p-4">
                       <p className="text-xs text-white/70 dark:text-navy-700">
