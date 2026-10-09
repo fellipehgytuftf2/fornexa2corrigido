@@ -20,7 +20,6 @@ import DeclararOrigem from './DeclararOrigem';
 import { type PartesDoEndereco } from './EnderecoParaCopiar';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
-  COMISSAO_CLASSICO,
   calcularVenda,
   margemMinimaSemPrejuizo,
 } from '../../lib/taxasDoMercadoLivre';
@@ -457,7 +456,33 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
     setPublishedPermalink(publishResult.permalink ?? '');
   };
 
+  /**
+   * Publicar no vermelho exige confirmar.
+   *
+   * Em 09/10 medimos 135 vendas reais: a comissão nunca foi os 12% que a tela
+   * supunha, e o frete existe mesmo abaixo de R$ 79 — onde a tela dizia zero.
+   * Com a conta certa, 7 de cada 8 vendas da faixa de R$ 15 a 25 deram
+   * prejuízo, de R$ 4 a R$ 32 cada.
+   *
+   * Ninguém escolheu isso: o preço foi definido olhando um lucro que não
+   * existia. O aviso em vermelho já aparece ao lado da conta; a confirmação
+   * existe para que publicar no prejuízo seja decisão, e não distração.
+   */
   const handlePublishClick = () => {
+    if (contaDaVenda.lucro <= 0) {
+      const confirmado = window.confirm(
+        `Esta venda dá prejuízo de ${formatCurrency(Math.abs(contaDaVenda.lucro))} por unidade.\n\n` +
+          `Preço ${formatCurrency(precoDeVenda)} · custo ${formatCurrency(custoDoFornecedor)} · ` +
+          `taxa ${formatCurrency(contaDaVenda.comissao)} · frete ${formatCurrency(contaDaVenda.frete)}.\n\n` +
+          (margemMinima
+            ? `A partir de ${margemMinima}% de margem você para de perder dinheiro.\n\n`
+            : '') +
+          'Publicar mesmo assim?'
+      );
+
+      if (!confirmado) return;
+    }
+
     setFlowStage('publishing');
     handlePublish();
   };
@@ -871,13 +896,34 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
                         <div className="flex items-center justify-between gap-3">
                           <dt className="text-gray-600 dark:text-slate-400">
-                            Taxa Mercado Livre ({Math.round(COMISSAO_CLASSICO * 100)}%)
+                            Taxa Mercado Livre (
+                              {precoDeVenda > 0
+                                ? Math.round((contaDaVenda.comissao / precoDeVenda) * 100)
+                                : 0}
+                              %)
                           </dt>
                           <dd className="text-red-600 dark:text-red-400 tabular-nums">
                             −{formatCurrency(contaDaVenda.comissao)}
                           </dd>
                         </div>
 
+
+                        {/* O frete entra na conta.
+                            Ficava de fora por honestidade — ninguém sabe o
+                            peso antes da venda. Mas deixar ZERO na tela não
+                            era neutro: era afirmar que não há frete, e 108
+                            vendas das faixas mais baratas foram precificadas
+                            assim, quase todas no prejuízo. O valor agora é a
+                            mediana medida da faixa de preço, e o Financeiro
+                            continua mostrando o real depois da venda. */}
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-gray-600 dark:text-slate-400">
+                            Frete (média da faixa)
+                          </dt>
+                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
+                            −{formatCurrency(contaDaVenda.frete)}
+                          </dd>
+                        </div>
 
                         <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-navy-600">
                           <dt className="font-medium text-navy-900 dark:text-white">
@@ -935,7 +981,10 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </span>
 
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-white/80 dark:bg-navy-100 dark:text-navy-700">
-                          {Math.round(COMISSAO_CLASSICO * 100)}% de comissão
+                          {precoDeVenda > 0
+                            ? Math.round((contaDaVenda.comissao / precoDeVenda) * 100)
+                            : 0}
+                          % de comissão
                         </span>
 
                         {contaDaVenda.temFreteGratis && (
