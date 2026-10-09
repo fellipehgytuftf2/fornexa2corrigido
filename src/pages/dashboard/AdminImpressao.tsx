@@ -3,6 +3,7 @@ import PausasPorEstoque from '../../components/dashboard/PausasPorEstoque';
 import RemetenteTravado from '../../components/dashboard/RemetenteTravado';
 import SondaDeReclamacoes from '../../components/dashboard/SondaDeReclamacoes';
 import SondaDeVenda from '../../components/dashboard/SondaDeVenda';
+import SondaDeNotaFiscal from '../../components/dashboard/SondaDeNotaFiscal';
 
 export default function AdminImpressao() {
   return (
@@ -27,6 +28,10 @@ export default function AdminImpressao() {
           impedimento seria descoberto tarde — só no dia de uma reclamação
           real — então ela se pergunta antes. */}
       <SondaDeReclamacoes />
+
+      {/* Mesma família: o que falta para a caixa sair completa do galpão.
+          Aqui, o documento fiscal de quem é PJ. */}
+      <SondaDeNotaFiscal />
     </div>
   );
 }
