@@ -7,6 +7,7 @@ import {
   PackageSearch,
   Plus,
   Search,
+  X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -74,6 +75,9 @@ export default function EstoqueFornecedor() {
    */
   const [busca, setBusca] = useState('');
 
+  /** Mostrar só o que ainda não tem preço — a fila de trabalho dele. */
+  const [soSemPreco, setSoSemPreco] = useState(false);
+
   /** Cadastro de produto novo, fechado até alguém pedir. */
   const [cadastrando, setCadastrando] = useState(false);
   const [salvandoNovo, setSalvandoNovo] = useState(false);
@@ -126,11 +130,27 @@ export default function EstoqueFornecedor() {
       .toLowerCase()
       .trim();
 
-  const visiveis = busca.trim()
-    ? produtos.filter((produto) =>
-        simplificar(produto.nome).includes(simplificar(busca))
-      )
-    : produtos;
+  /**
+   * Quantos ainda esperam preço.
+   *
+   * Enquanto o login na loja não volta, a sincronização traz nome, foto e
+   * estoque — e nenhum preço. Produto assim fica fora do catálogo até alguém
+   * digitar o valor, e achá-los no meio de novecentos é o trabalho que o
+   * atalho abaixo elimina.
+   */
+  const semPreco = produtos.filter((produto) => Number(produto.preco) <= 0).length;
+
+  const visiveis = produtos.filter((produto) => {
+    if (soSemPreco && Number(produto.preco) > 0) {
+      return false;
+    }
+
+    if (!busca.trim()) {
+      return true;
+    }
+
+    return simplificar(produto.nome).includes(simplificar(busca));
+  });
 
   const carregar = async () => {
     setCarregando(true);
@@ -395,10 +415,43 @@ export default function EstoqueFornecedor() {
           <input
             value={busca}
             onChange={(evento) => setBusca(evento.target.value)}
+            onKeyDown={(evento) => {
+              if (evento.key === 'Escape') setBusca('');
+            }}
             placeholder="Buscar produto pelo nome"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.02] pl-9 pr-3 py-2.5 text-sm text-white placeholder:text-slate-500"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.02] pl-9 pr-10 py-2.5 text-sm text-white placeholder:text-slate-500"
           />
+
+          {/* Apagar letra por letra é o que ele estava fazendo entre uma busca
+              e outra, e são dezenas por dia. */}
+          {busca && (
+            <button
+              type="button"
+              onClick={() => setBusca('')}
+              aria-label="Limpar busca"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-white"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
+
+        {/* A fila de precificação, num clique. A lista já vem do mais novo
+            para o mais antigo, então o que entrou hoje fica no topo dela. */}
+        {semPreco > 0 && (
+          <button
+            type="button"
+            onClick={() => setSoSemPreco((ligado) => !ligado)}
+            aria-pressed={soSemPreco}
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+              soSemPreco
+                ? 'bg-amber-400 text-navy-900'
+                : 'border border-amber-400/30 text-amber-300 hover:bg-amber-400/10'
+            }`}
+          >
+            {soSemPreco ? 'Mostrar todos' : `Aguardando preço (${semPreco})`}
+          </button>
+        )}
 
         <button
           type="button"
