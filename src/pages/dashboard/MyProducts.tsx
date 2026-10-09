@@ -73,6 +73,19 @@ function enderecoDoAnuncio(produto: UserProduct): string | null {
   )}-_JM`;
 }
 
+/** Um anúncio que fechou vendas no vermelho, com os números reais. */
+interface VendaNoVermelho {
+  user_product_id: string;
+  produto: string;
+  vendas: number;
+  prejuizo_total: number;
+  prejuizo_medio: number;
+  preco_medio: number;
+  custo_medio: number;
+  taxa_media: number;
+  frete_medio: number;
+}
+
 export default function MyProducts() {
   const [products, setProducts] = useState<UserProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +95,20 @@ export default function MyProducts() {
    * Em teste: sobe desligada e só a conta admin enxerga, até o lançamento.
    */
   const { liberada: vendoADivulgacao } = useFuncionalidade('divulgar-no-facebook');
+
+  /**
+   * Os anúncios que estão vendendo no prejuízo, com números reais.
+   *
+   * Até 09/10 a conta de publicar supunha 12% de taxa e nenhum frete abaixo de
+   * R$ 79. Medindo as vendas, a taxa fica entre 15% e 19,5% e o frete existe em
+   * todas as faixas — e os anúncios publicados com a conta antiga continuam no
+   * ar, perdendo dinheiro a cada venda, sem ninguém perceber.
+   *
+   * O preço não se corrige por aqui: ele é definido na publicação e alterado no
+   * Mercado Livre. Então o card aponta o problema e o botão "Ver anúncio", que
+   * já existe, leva ao lugar onde a correção acontece.
+   */
+  const [noVermelho, setNoVermelho] = useState<Record<string, VendaNoVermelho>>({});
 
   /** O anúncio com o modal de divulgação aberto. */
   const [divulgando, setDivulgando] = useState<UserProduct | null>(null);
@@ -174,6 +201,25 @@ export default function MyProducts() {
 
   useEffect(() => {
     loadProducts();
+  }, []);
+
+  // O prejuízo é lido à parte dos anúncios: ele vem das vendas já apuradas
+  // pelo Mercado Livre, e a lista de anúncios não precisa esperar por isso
+  // para aparecer.
+  useEffect(() => {
+    const lerVermelho = async () => {
+      const { data } = await supabase.rpc('meus_anuncios_no_vermelho', { p_dias: 90 });
+
+      const porProduto: Record<string, VendaNoVermelho> = {};
+
+      ((data ?? []) as VendaNoVermelho[]).forEach((linha) => {
+        if (linha.user_product_id) porProduto[linha.user_product_id] = linha;
+      });
+
+      setNoVermelho(porProduto);
+    };
+
+    lerVermelho();
   }, []);
 
   const showSuccess = (message: string) => {
@@ -517,6 +563,43 @@ export default function MyProducts() {
                       Venda de verdade entra sozinha pelo webhook do Mercado
                       Livre. Se um dia fizer falta registrar venda de fora,
                       precisa ser um formulário pedindo o comprador real. */}
+                  {/* O prejuízo, dito no anúncio que o causa.
+                      Somado no Financeiro ele vira um número que não aponta
+                      para nada; aqui ele fica ao lado do botão que abre o
+                      anúncio no Mercado Livre, que é onde o preço se corrige. */}
+                  {noVermelho[product.id] && (
+                    <div className="mt-5 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
+                      <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                        Este anúncio está vendendo no prejuízo
+                      </p>
+
+                      <p className="text-sm text-red-800 dark:text-red-200 mt-1 leading-relaxed">
+                        {noVermelho[product.id].vendas === 1
+                          ? '1 venda apurada nos últimos 90 dias, com perda de '
+                          : `${noVermelho[product.id].vendas} vendas apuradas nos últimos 90 dias, com perda de `}
+                        <strong>
+                          R$ {Math.abs(noVermelho[product.id].prejuizo_medio).toFixed(2).replace('.', ',')}
+                        </strong>{' '}
+                        por venda.
+                      </p>
+
+                      <p className="text-xs text-red-700 dark:text-red-300/90 mt-2 leading-relaxed">
+                        Preço médio R${' '}
+                        {noVermelho[product.id].preco_medio.toFixed(2).replace('.', ',')} · custo R${' '}
+                        {noVermelho[product.id].custo_medio.toFixed(2).replace('.', ',')} · taxa do
+                        Mercado Livre R${' '}
+                        {noVermelho[product.id].taxa_media.toFixed(2).replace('.', ',')} · frete R${' '}
+                        {noVermelho[product.id].frete_medio.toFixed(2).replace('.', ',')}.
+                      </p>
+
+                      <p className="text-xs text-red-700 dark:text-red-300/90 mt-2 leading-relaxed">
+                        O preço se corrige no Mercado Livre, em "Ver anúncio". Se o frete
+                        grátis estiver ligado num produto barato, é ele que está comendo a
+                        margem.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
 
                     {/* Sem isto, o vendedor via o anúncio listado aqui e tinha
