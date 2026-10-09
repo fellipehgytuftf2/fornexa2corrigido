@@ -14,6 +14,10 @@
  *   R$ 123 – 146           7       15,5%           R$ 18,60
  *   R$ 326 – 1.210         5       16,0%           R$ 24,45
  *
+ * Entre R$ 150 e R$ 326 não houve nenhuma venda: esse pedaço usa o medido da
+ * faixa de baixo, que é o vizinho mais próximo. Quando aparecerem vendas ali,
+ * vale refazer a medição e trocar o número por dado.
+ *
  * Duas conclusões, e as duas doem:
  *
  * 1. A comissão nunca foi 12%. Fica entre 15% e 19,5%, e é PIOR no produto
@@ -61,6 +65,15 @@ export const FAIXAS_DE_CUSTO: FaixaDeCusto[] = [
   { ate: 75, comissao: 0.158, frete: 13.85 },
   { ate: 100, comissao: 0.148, frete: 14.45 },
   { ate: 150, comissao: 0.155, frete: 18.6 },
+
+  // De R$ 150 a R$ 300 não há venda medida: o pedaço seguinte da amostra
+  // começa em R$ 326. Em vez de empurrar o anúncio de R$ 180 para os números
+  // de um de R$ 1.200 — produto maior, mais pesado, frete de R$ 24 —, esta
+  // faixa repete o medido mais próximo, que é o da faixa de baixo.
+  //
+  // É extrapolação dos dois jeitos; esta erra menos, e erra para perto.
+  { ate: 300, comissao: 0.155, frete: 18.6 },
+
   { ate: Infinity, comissao: 0.16, frete: 24.45 },
 ];
 
