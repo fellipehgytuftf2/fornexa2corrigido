@@ -5,6 +5,7 @@ import RemetenteTravado from '../../components/dashboard/RemetenteTravado';
 import SondaDeReclamacoes from '../../components/dashboard/SondaDeReclamacoes';
 import SondaDeVenda from '../../components/dashboard/SondaDeVenda';
 import SondaDeNotaFiscal from '../../components/dashboard/SondaDeNotaFiscal';
+import VendasNoVermelho from '../../components/dashboard/VendasNoVermelho';
 
 /**
  * As ferramentas de saúde operacional, uma por vez.
@@ -35,6 +36,11 @@ const ABAS = [
     id: 'remetente',
     titulo: 'Remetente travado',
     descricao: 'Etiqueta parada pelo endereço de origem',
+  },
+  {
+    id: 'vermelho',
+    titulo: 'Vendas no vermelho',
+    descricao: 'Produtos que perdem dinheiro a cada venda',
   },
   {
     id: 'pedido',
@@ -87,6 +93,7 @@ export default function AdminImpressao() {
       {aba === 'impressao' && <ImpressaoDasContas />}
       {aba === 'estoque' && <PausasPorEstoque />}
       {aba === 'remetente' && <RemetenteTravado />}
+      {aba === 'vermelho' && <VendasNoVermelho />}
       {aba === 'pedido' && <SondaDeVenda />}
       {aba === 'reclamacoes' && <SondaDeReclamacoes />}
       {aba === 'nota' && <SondaDeNotaFiscal />}
