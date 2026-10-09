@@ -670,6 +670,36 @@ Deno.serve(async (req: Request) => {
     let customerAddress = "Endereço não disponível via sincronização automática";
     let customerPhone = "Não informado";
 
+    /**
+     * Os custos reais do Mercado Livre: comissão e frete.
+     *
+     * Isto existia só no `ml-sync-orders`, que roda quando o vendedor abre a
+     * tela de Pedidos. O webhook é o caminho NORMAL de entrada da venda, e
+     * gravava o pedido sem nenhum dos dois. Quem não abria a tela ficava com
+     * `lucro_liquido` calculado sobre comissão e frete zero — lucro bruto
+     * mostrado como se fosse líquido.
+     *
+     * Em 09/10/2026 eram 71 pedidos pagos nessa situação, incluindo do mesmo
+     * dia. Um deles: venda de R$ 9,80, custo R$ 5,00, "lucro" de R$ 7,60 numa
+     * venda que, com comissão e frete, dá prejuízo.
+     *
+     * `sale_fee` vem por unidade em cada item; o frete só aparece em
+     * `/shipments/{id}/costs`, em `senders[].cost` — o objeto do envio não
+     * diz quanto o VENDEDOR paga.
+     */
+    let taxaMarketplace: number | null = null;
+    let custoFrete: number | null = null;
+
+    const itensDaVenda = Array.isArray(mlOrder?.order_items) ? mlOrder.order_items : [];
+
+    if (itensDaVenda.length > 0) {
+      taxaMarketplace = itensDaVenda.reduce(
+        (soma: number, item: Record<string, unknown>) =>
+          soma + Number(item?.sale_fee ?? 0) * Number(item?.quantity ?? 1),
+        0
+      );
+    }
+
     const shippingId = mlOrder?.shipping?.id;
 
     if (shippingId) {
@@ -685,6 +715,32 @@ Deno.serve(async (req: Request) => {
         mlShipmentSubstatus = shipmentData?.substatus ?? null;
         mlLogisticType =
           shipmentData?.logistic_type ?? shipmentData?.logistic?.type ?? null;
+
+        // Uma chamada a mais por venda nova, e nunca derruba o webhook:
+        // custo é informação contábil, não operacional. Falhar aqui não pode
+        // impedir o pedido de chegar ao fornecedor.
+        try {
+          const custosResposta = await fetch(
+            `https://api.mercadolibre.com/shipments/${shippingId}/costs`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+
+          if (custosResposta.ok) {
+            const custos = await custosResposta.json();
+            const remetentes = Array.isArray(custos?.senders) ? custos.senders : [];
+
+            custoFrete = remetentes.reduce(
+              (soma: number, r: Record<string, unknown>) => soma + Number(r?.cost ?? 0),
+              0
+            );
+          } else if (custosResposta.status === 404) {
+            // Envio por conta do comprador não gera custo para o vendedor.
+            // Zero é resposta legítima, diferente de "não perguntamos".
+            custoFrete = 0;
+          }
+        } catch (erroCusto) {
+          console.error("Falha ao buscar custo de frete:", erroCusto);
+        }
 
         const receiverAddress = shipmentData?.receiver_address;
         if (receiverAddress) {
@@ -739,6 +795,13 @@ Deno.serve(async (req: Request) => {
           ml_shipment_id: mlShipmentId,
           ml_shipment_substatus: mlShipmentSubstatus,
           ml_logistic_type: mlLogisticType,
+          // Só sobrescreve o que foi medido agora: null aqui não apaga o
+          // que o ml-sync-orders já tinha apurado.
+          ...(taxaMarketplace !== null ? { taxa_marketplace: taxaMarketplace } : {}),
+          ...(custoFrete !== null ? { custo_frete: custoFrete } : {}),
+          ...(taxaMarketplace !== null || custoFrete !== null
+            ? { custos_apurados_em: new Date().toISOString() }
+            : {}),
           ml_shipment_visto_em: mlShipmentSubstatus ? new Date().toISOString() : null,
           ml_order_status: mlOrderStatus,
           ml_order_status_detail: mlOrderStatusDetail,
@@ -781,6 +844,12 @@ Deno.serve(async (req: Request) => {
         ml_shipment_id: mlShipmentId,
         ml_shipment_substatus: mlShipmentSubstatus,
         ml_logistic_type: mlLogisticType,
+        taxa_marketplace: taxaMarketplace,
+        custo_frete: custoFrete,
+        custos_apurados_em:
+          taxaMarketplace !== null || custoFrete !== null
+            ? new Date().toISOString()
+            : null,
         ml_shipment_visto_em: mlShipmentSubstatus ? new Date().toISOString() : null,
         ml_order_status: mlOrderStatus,
         ml_order_status_detail: mlOrderStatusDetail,
