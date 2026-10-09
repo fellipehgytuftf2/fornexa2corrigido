@@ -275,11 +275,54 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const freteObrigatorio = precoDeVenda >= LIMITE_FRETE_GRATIS;
   const bancaOFrete = freteObrigatorio || vendedorPagaFrete;
 
+  /**
+   * A comissão exata, perguntada ao Mercado Livre.
+   *
+   * As faixas medidas das vendas reais foram um avanço sobre os 12% fixos, mas
+   * continuam sendo média: punem quem vende numa categoria barata e enganam
+   * quem vende numa cara. O Mercado Livre responde o valor exato por preço em
+   * `/sites/MLB/listing_prices` — exige token, então passa pela função
+   * `ml-taxa-do-anuncio`.
+   *
+   * Nulo enquanto não responde, ou quando a conta não está conectada. Aí vale
+   * a estimativa, que é o que havia antes e não é pior do que era.
+   */
+  const [taxaReal, setTaxaReal] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!(precoDeVenda > 0)) {
+      setTaxaReal(null);
+      return;
+    }
+
+    // Espera a pessoa parar de arrastar o controle. Sem isso seria uma
+    // chamada por pixel de movimento.
+    const relogio = setTimeout(async () => {
+      const { data } = await supabase.functions.invoke('ml-taxa-do-anuncio', {
+        body: { preco: Number(precoDeVenda.toFixed(2)) },
+      });
+
+      const tipos = (data as { tipos?: { listing_type_id: string; taxa: number }[] } | null)
+        ?.tipos;
+
+      // `gold_special` é o clássico, que é como o FORNEXA publica quando o
+      // grátis não está disponível. Sem ele, o primeiro tipo pago serve.
+      const classico =
+        tipos?.find((t) => t.listing_type_id === 'gold_special') ??
+        tipos?.find((t) => t.taxa > 0);
+
+      setTaxaReal(classico?.taxa ?? null);
+    }, 400);
+
+    return () => clearTimeout(relogio);
+  }, [precoDeVenda]);
+
   const contaDaVenda = calcularVenda(
     precoDeVenda,
     custoDoFornecedor,
     'classico',
-    bancaOFrete ? undefined : 0
+    bancaOFrete ? undefined : 0,
+    taxaReal ?? undefined
   );
 
   const margemMinima = margemMinimaSemPrejuizo(
@@ -932,6 +975,14 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                                 ? Math.round((contaDaVenda.comissao / precoDeVenda) * 100)
                                 : 0}
                               %)
+                            {/* Dizer de onde veio o número muda como ele é
+                                lido: "informada" é o Mercado Livre falando,
+                                "estimada" é a nossa média das vendas. */}
+                            <span className="block text-[11px] text-gray-400 dark:text-slate-500">
+                              {taxaReal !== null
+                                ? 'informada pelo Mercado Livre'
+                                : 'estimada pelas suas vendas'}
+                            </span>
                           </dt>
                           <dd className="text-red-600 dark:text-red-400 tabular-nums">
                             −{formatCurrency(contaDaVenda.comissao)}

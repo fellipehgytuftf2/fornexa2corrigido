@@ -126,7 +126,15 @@ export function calcularVenda(
   custoDoFornecedor: number,
   tipo: 'classico' | 'premium' = 'classico',
   /** Frete que o vendedor banca. Ausente = o medido para a faixa. */
-  freteCustomizado?: number
+  freteCustomizado?: number,
+  /**
+   * A comissão em reais que o Mercado Livre respondeu para este preço.
+   *
+   * Quando vem, manda: é o número deles, não a nossa média. A estimativa por
+   * faixa continua como reserva, para quando a conta não está conectada ou a
+   * API não responde.
+   */
+  comissaoReal?: number
 ): ContaDaVenda {
   const preco = Number(precoDeVenda) || 0;
   const custo = Number(custoDoFornecedor) || 0;
@@ -137,7 +145,7 @@ export function calcularVenda(
   // número fixo: a diferença entre os dois é constante, a base não.
   const taxa = faixa.comissao + (tipo === 'premium' ? COMISSAO_PREMIUM - COMISSAO_CLASSICO : 0);
 
-  const comissao = preco * taxa;
+  const comissao = comissaoReal ?? preco * taxa;
   const frete = freteCustomizado ?? faixa.frete;
 
   const lucro = preco - custo - comissao - frete;
