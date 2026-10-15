@@ -208,6 +208,35 @@ const foiCancelado = (order: SupplierOrder) =>
   order.cancelado_no_marketplace || order.status === 'cancelled';
 
 /**
+ * O que o Mercado Livre ainda não liberou, e o nome disso em português.
+ *
+ * A liberação tem dois donos. O FORNEXA responde pelo pagamento; o Mercado
+ * Livre, por documento fiscal e janela de coleta.
+ */
+const TRAVADO_NO_ML: Record<string, string> = {
+  invoice_pending: 'Falta a DC-e',
+  waiting_for_carrier_authorization: 'Aguardando a transportadora',
+  buffered: 'Mercado Livre segurando',
+  stale: 'Envio parado no Mercado Livre',
+  delivery_failed: 'Entrega falhou',
+  fraudulent: 'Bloqueado por suspeita de fraude',
+};
+
+/**
+ * Dá para despachar este agora?
+ *
+ * É a pergunta que o fornecedor faz ao correr a lista, e agora ela também
+ * decide a ORDEM — por isso saiu de dentro do desenho do cartão e virou
+ * função. Em dois lugares, a mesma conta precisa ser a mesma conta: selo
+ * verde num cartão que a ordenação tratou como travado seria pior que a
+ * bagunça que isto veio resolver.
+ */
+const prontoParaDespachar = (order: SupplierOrder) =>
+  Boolean(order.etiqueta_disponivel) &&
+  !order.cancelado_no_marketplace &&
+  !(order.ml_shipment_substatus && TRAVADO_NO_ML[order.ml_shipment_substatus]);
+
+/**
  * As abas que ficam na fileira de baixo, no fim da sequência.
  *
  * A fileira de baixo conta a vida do pedido em ordem: aguardando o vendedor,
@@ -1361,7 +1390,32 @@ export default function SupplierPortal() {
       porEnvio.set(chave, [...(porEnvio.get(chave) ?? []), pedido]);
     });
 
-    return [...porEnvio.entries()].map(([chave, pedidos]) => ({ chave, pedidos }));
+    const montados = [...porEnvio.entries()].map(([chave, pedidos]) => ({ chave, pedidos }));
+
+    /**
+     * Pronto para despachar sobe. O mais antigo pronto sobe mais ainda.
+     *
+     * A lista vinha por data da venda, e o Mercado Livre segura pedido por
+     * horas — às vezes por um dia. Quando ele solta, o pedido continua lá
+     * embaixo, onde a data o colocou: "se a gente não ficar rolando tudinho,
+     * procurando lá pra baixo, acaba não imprimindo aquele pedido".
+     *
+     * Então o que dá para despachar agora vem primeiro. E, entre os prontos, o
+     * mais velho na frente: é o que já esperou e o que corre risco de passar
+     * do prazo. O resto segue como estava, mais recente primeiro, porque ali a
+     * ordem não decide nada — nenhum deles pode ser despachado.
+     */
+    return montados.sort((a, b) => {
+      const prontoA = prontoParaDespachar(a.pedidos[0]);
+      const prontoB = prontoParaDespachar(b.pedidos[0]);
+
+      if (prontoA !== prontoB) return prontoA ? -1 : 1;
+
+      const dataA = new Date(a.pedidos[0].created_at).getTime();
+      const dataB = new Date(b.pedidos[0].created_at).getTime();
+
+      return prontoA ? dataA - dataB : dataB - dataA;
+    });
   }, [visibleOrders]);
   const contagemPorFase = useMemo(() => {
     const contagem = { aguardando: 0, conferir: 0, confirmados: 0, reembolsados: 0 };
@@ -1784,17 +1838,8 @@ export default function SupplierPortal() {
                  * "pronto" em pedido que o ML estava segurando — e um selo que
                  * às vezes mente faz o fornecedor voltar a clicar em todos.
                  */
-                const travadoNoMl: Record<string, string> = {
-                  invoice_pending: 'Falta a DC-e',
-                  waiting_for_carrier_authorization: 'Aguardando a transportadora',
-                  buffered: 'Mercado Livre segurando',
-                  stale: 'Envio parado no Mercado Livre',
-                  delivery_failed: 'Entrega falhou',
-                  fraudulent: 'Bloqueado por suspeita de fraude',
-                };
-
                 let pendenciaNoMl = order.ml_shipment_substatus
-                  ? travadoNoMl[order.ml_shipment_substatus] ?? null
+                  ? TRAVADO_NO_ML[order.ml_shipment_substatus] ?? null
                   : null;
 
                 // "Segurando" sem data manda o fornecedor voltar de hora em
@@ -1819,10 +1864,9 @@ export default function SupplierPortal() {
                       })}`;
                 }
 
-                const pronto =
-                  order.etiqueta_disponivel &&
-                  !order.cancelado_no_marketplace &&
-                  !pendenciaNoMl;
+                // A mesma conta que ordena a lista, para selo e posição nunca
+                // discordarem.
+                const pronto = prontoParaDespachar(order);
 
                 const pendencia = order.cancelado_no_marketplace
                   ? null
