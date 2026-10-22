@@ -840,8 +840,118 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    /** O que cada caminho respondeu, para a falha nunca mais ser muda. */
+    const tentativasDeCategoria: Array<Record<string, unknown>> = [];
+
+
     /**
-     * Terceira tentativa: a categoria dos anúncios parecidos.
+     * Terceira tentativa: a categoria do MESMO produto, já publicado.
+     *
+     * Esta é a que não depende de o Mercado Livre manter endereço de busca
+     * no ar. O catálogo é compartilhado: quando um vendedor publica o Furador
+     * de Coco, fica gravado o número do anúncio dele. Outro vendedor
+     * publicando o mesmo produto precisa da mesma categoria — basta ler a do
+     * anúncio que já existe.
+     *
+     * Em 22/10 isso virou a saída principal: `domain_discovery` passou a
+     * responder vazio, e busca e árvore de categorias passaram a responder
+     * 403 para a aplicação. O que sobrou de pé foi `/items/{id}`, que é
+     * justamente o que esta tentativa usa.
+     */
+    if (!categoryId && body.catalog_product_id) {
+      const { data: irmaos } = await supabase
+        .from('user_products')
+        .select('ml_item_id')
+        .eq('catalog_product_id', body.catalog_product_id)
+        .not('ml_item_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      for (const irmao of irmaos ?? []) {
+        const resposta = await fetch(
+          `https://api.mercadolibre.com/items/${irmao.ml_item_id}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        );
+
+        const texto = await resposta.text();
+
+        tentativasDeCategoria.push({
+          caminho: `items/${irmao.ml_item_id}`,
+          http: resposta.status,
+          corpo: texto.slice(0, 200),
+        });
+
+        if (!resposta.ok) continue;
+
+        try {
+          const anuncio = JSON.parse(texto);
+
+          if (typeof anuncio?.category_id === 'string' && anuncio.category_id) {
+            categoryId = anuncio.category_id;
+
+            // O que foi aprendido aqui serve ao próximo produto da mesma
+            // categoria do catálogo, inclusive um que ninguém publicou.
+            if (body.announcement_category) {
+              await supabase.rpc('aprender_categoria_do_ml', {
+                p_categoria: body.announcement_category,
+                p_ml_category_id: categoryId,
+              });
+            }
+
+            await supabase.from('log_integracao_ml').insert({
+              contexto: 'ml-publish-product',
+              mensagem: 'Categoria veio de anúncio já publicado do mesmo produto',
+              detalhes: {
+                termo_buscado: termoDeBusca,
+                categoria: categoryId,
+                anuncio_base: irmao.ml_item_id,
+              },
+            });
+
+            break;
+          }
+        } catch {
+          // Resposta ilegível: tenta o próximo irmão.
+        }
+      }
+    }
+
+    /**
+     * Quarta tentativa: a outra forma do mesmo endereço.
+     *
+     * `/sites/MLB/domain_discovery/search` responde 200 e devolve `[]` desde
+     * 22/10. A forma `/domain_discovery/search?site_id=MLB` responde 403 sem
+     * token — ou seja, existe e é outra porta para a mesma pergunta. Vale
+     * tentar antes de recorrer à concorrência.
+     */
+
+
+    if (!categoryId) {
+      const resposta = await fetch(
+        `https://api.mercadolibre.com/domain_discovery/search?site_id=MLB&q=${encodeURIComponent(
+          termoDeBusca
+        )}&limit=1`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const texto = await resposta.text();
+
+      tentativasDeCategoria.push({
+        caminho: 'domain_discovery?site_id',
+        http: resposta.status,
+        corpo: texto.slice(0, 300),
+      });
+
+      try {
+        const lido = JSON.parse(texto);
+        categoryId = Array.isArray(lido) ? lido?.[0]?.category_id : undefined;
+      } catch {
+        // Resposta ilegível: segue para a próxima tentativa.
+      }
+    }
+
+    /**
+     * Quarta tentativa: a categoria dos anúncios parecidos.
      *
      * Em 22/10/2026 o `domain_discovery` passou a responder `[]` para tudo —
      * inclusive para "celular", com e sem token. Não foi o nome do produto:
@@ -860,8 +970,23 @@ Deno.serve(async (req: Request) => {
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
 
+      const textoDaBusca = await buscaResposta.text();
+
+      tentativasDeCategoria.push({
+        caminho: 'sites/MLB/search',
+        http: buscaResposta.status,
+        corpo: textoDaBusca.slice(0, 300),
+      });
+
       if (buscaResposta.ok) {
-        const busca = await buscaResposta.json().catch(() => null);
+        const busca = (() => {
+          try {
+            return JSON.parse(textoDaBusca);
+          } catch {
+            return null;
+          }
+        })();
+
         const encontrados = Array.isArray(busca?.results) ? busca.results : [];
 
         const votos = new Map<string, number>();
@@ -892,12 +1017,54 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    /**
+     * Última tentativa: a categoria aprendida para esta categoria do catálogo.
+     *
+     * Serve ao produto que ninguém publicou ainda — o caso que as tentativas
+     * anteriores não cobrem, e que é justamente o produto novo. "Utilidades P
+     * Lar" vira a categoria do Mercado Livre que os outros produtos de
+     * Utilidades usaram.
+     *
+     * É aproximado: dentro de uma categoria do catálogo cabe panela e cabe
+     * vassoura, que lá são categorias diferentes. O vendedor ajusta no Mercado
+     * Livre se quiser — e aproximado publicando é melhor que exato sem
+     * publicar.
+     */
+    if (!categoryId && body.announcement_category) {
+      const { data: aprendida } = await supabase
+        .from('categorias_do_ml')
+        .select('ml_category_id, anuncios')
+        .eq('categoria', body.announcement_category)
+        .maybeSingle();
+
+      if (aprendida?.ml_category_id) {
+        categoryId = aprendida.ml_category_id;
+
+        await supabase.from('log_integracao_ml').insert({
+          contexto: 'ml-publish-product',
+          mensagem: 'Categoria veio do aprendizado por categoria do catálogo',
+          detalhes: {
+            termo_buscado: termoDeBusca,
+            categoria_do_catalogo: body.announcement_category,
+            categoria: categoryId,
+            anuncios_que_sustentam: aprendida.anuncios,
+          },
+        });
+      }
+    }
+
     if (!categoryId) {
       console.error("Falha ao identificar categoria do Mercado Livre:", domainData);
       await supabase.from("log_integracao_ml").insert({
         contexto: "ml-publish-product",
         mensagem: "Falha ao identificar categoria do Mercado Livre",
-        detalhes: { resposta: domainData, termo_buscado: termoDeBusca },
+        // O que CADA caminho respondeu. Sem isso a falha volta a ser muda, e
+        // foi o silêncio que fez a primeira correção parecer não ter saído.
+        detalhes: {
+          resposta: domainData,
+          termo_buscado: termoDeBusca,
+          tentativas: tentativasDeCategoria,
+        },
       });
       return new Response(
         JSON.stringify({
