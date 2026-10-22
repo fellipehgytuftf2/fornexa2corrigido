@@ -6,6 +6,7 @@ import SondaDeReclamacoes from '../../components/dashboard/SondaDeReclamacoes';
 import SondaDeVenda from '../../components/dashboard/SondaDeVenda';
 import SondaDeNotaFiscal from '../../components/dashboard/SondaDeNotaFiscal';
 import VendasNoVermelho from '../../components/dashboard/VendasNoVermelho';
+import CategoriasDoMl from '../../components/dashboard/CategoriasDoMl';
 
 /**
  * As ferramentas de saúde operacional, uma por vez.
@@ -46,6 +47,11 @@ const ABAS = [
     id: 'pedido',
     titulo: 'Onde está este pedido',
     descricao: 'Quando o vendedor diz que o pedido sumiu',
+  },
+  {
+    id: 'categorias',
+    titulo: 'Categorias do ML',
+    descricao: 'Aprender a categoria de cada gaveta do catálogo',
   },
   {
     id: 'reclamacoes',
@@ -95,6 +101,7 @@ export default function AdminImpressao() {
       {aba === 'remetente' && <RemetenteTravado />}
       {aba === 'vermelho' && <VendasNoVermelho />}
       {aba === 'pedido' && <SondaDeVenda />}
+      {aba === 'categorias' && <CategoriasDoMl />}
       {aba === 'reclamacoes' && <SondaDeReclamacoes />}
       {aba === 'nota' && <SondaDeNotaFiscal />}
     </div>
