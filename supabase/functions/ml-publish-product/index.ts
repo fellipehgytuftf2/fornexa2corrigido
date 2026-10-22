@@ -840,6 +840,58 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    /**
+     * Terceira tentativa: a categoria dos anúncios parecidos.
+     *
+     * Em 22/10/2026 o `domain_discovery` passou a responder `[]` para tudo —
+     * inclusive para "celular", com e sem token. Não foi o nome do produto:
+     * todos os vendedores pararam de publicar no mesmo dia.
+     *
+     * A busca comum do Mercado Livre continua de pé e devolve `category_id`
+     * em cada resultado. A categoria mais repetida entre os primeiros
+     * anúncios de "luva anti corte" é a categoria de luva anti corte — é o
+     * mesmo raciocínio que o vendedor faria olhando a concorrência.
+     */
+    if (!categoryId) {
+      const buscaResposta = await fetch(
+        `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(
+          termoDeBusca
+        )}&limit=20`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      if (buscaResposta.ok) {
+        const busca = await buscaResposta.json().catch(() => null);
+        const encontrados = Array.isArray(busca?.results) ? busca.results : [];
+
+        const votos = new Map<string, number>();
+
+        for (const anuncio of encontrados) {
+          const categoria = anuncio?.category_id;
+          if (typeof categoria === "string" && categoria) {
+            votos.set(categoria, (votos.get(categoria) ?? 0) + 1);
+          }
+        }
+
+        const vencedora = [...votos.entries()].sort((a, b) => b[1] - a[1])[0];
+
+        if (vencedora) {
+          categoryId = vencedora[0];
+
+          await supabase.from("log_integracao_ml").insert({
+            contexto: "ml-publish-product",
+            mensagem: "Categoria veio da busca, não do domain_discovery",
+            detalhes: {
+              termo_buscado: termoDeBusca,
+              categoria: categoryId,
+              votos: vencedora[1],
+              anuncios_olhados: encontrados.length,
+            },
+          });
+        }
+      }
+    }
+
     if (!categoryId) {
       console.error("Falha ao identificar categoria do Mercado Livre:", domainData);
       await supabase.from("log_integracao_ml").insert({
