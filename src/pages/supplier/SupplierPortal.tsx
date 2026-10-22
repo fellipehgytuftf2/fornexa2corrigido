@@ -1115,6 +1115,36 @@ export default function SupplierPortal() {
     await loadOrders();
   };
 
+  /**
+   * Libera a etiqueta que a trava de endereço barrou.
+   *
+   * Sem confirmação e sem explicação longa: quem clica está com a cidade de
+   * origem na frente, escrita no próprio cartão, e já decidiu. O banco só
+   * aceita em pedido dele que foi realmente barrado.
+   */
+  const liberarRemetente = async (order: SupplierOrder) => {
+    setActionId(order.id);
+    setErroNoPedido(null);
+
+    const { data, error } = await supabase.rpc('fornecedor_libera_remetente', {
+      p_pedido_id: order.id,
+    });
+
+    setActionId(null);
+
+    const resposta = data as { ok?: boolean; erro?: string } | null;
+
+    if (error || !resposta?.ok) {
+      avisarNoPedido(
+        order.id,
+        error?.message ?? resposta?.erro ?? 'Não foi possível liberar a etiqueta.'
+      );
+      return;
+    }
+
+    await loadOrders();
+  };
+
   const marcarReembolso = async (order: SupplierOrder, reembolsado: boolean) => {
     setActionId(order.id);
     setErroNoPedido(null);
@@ -2689,6 +2719,24 @@ export default function SupplierPortal() {
                           funcionava". */}
                       {!order.cancelado_no_marketplace && (
                       <div className="mt-5 flex flex-wrap gap-2">
+                        {/* A trava de endereço, liberada por quem está no
+                            galpão. Antes isso ia por WhatsApp para o dono
+                            liberar no painel de admin — duas pessoas e uma
+                            espera para uma decisão que se toma olhando a
+                            cidade de origem, que já está escrita no cartão. */}
+                        {order.etiqueta_barrada && (
+                          <button
+                            onClick={() => liberarRemetente(order)}
+                            disabled={isBusy}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-200 transition-colors hover:bg-amber-500/20 disabled:opacity-50"
+                          >
+                            {isBusy ? (
+                              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                            ) : null}
+                            Liberar etiqueta
+                          </button>
+                        )}
+
                         {order.etiqueta_disponivel ? (
                           <button
                             onClick={() => baixarEtiqueta(order)}
