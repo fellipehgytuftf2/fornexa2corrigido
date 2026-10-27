@@ -14,19 +14,27 @@ import { ArrowLeft, Package } from 'lucide-react';
  * `state: { semAnimacao: true }` e já encontra a folha aberta — a animação é
  * da chegada à página, não de cada troca de formulário.
  *
- * Os estilos (folha, curva, tempos e a trilha) estão em src/index.css,
- * na seção "Tela de acesso".
+ * O formulário fica numa caixa branca dentro da folha. A cada erro a página
+ * aumenta `tremer` e a caixa treme; com `sucesso`, a logo pulsa em amarelo
+ * enquanto o "Tudo certo!" aparece (ver SucessoAcesso).
+ *
+ * Os estilos (folha, curva, tempos, trilha e animações do formulário) estão
+ * em src/index.css, nas seções "Tela de acesso" e "Animações do formulário".
  */
 
 const PREFERE_MENOS_MOVIMENTO =
   typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-function Marca() {
+function Marca({ brilhando }: { brilhando: boolean }) {
   return (
     <div>
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 min-[900px]:w-[52px] min-[900px]:h-[52px] shrink-0 rounded-[10px] min-[900px]:rounded-xl overflow-hidden bg-navy-900">
+        <div
+          className={`w-12 h-12 min-[900px]:w-[52px] min-[900px]:h-[52px] shrink-0 rounded-[10px] min-[900px]:rounded-xl overflow-hidden bg-navy-900 ${
+            brilhando ? 'acesso-brilho' : ''
+          }`}
+        >
           <img
             src="/fornexa-logo.jpeg"
             alt=""
@@ -95,7 +103,15 @@ function TrilhaDoPedido() {
   );
 }
 
-export default function TelaDeAcesso({ children }: { children: ReactNode }) {
+interface TelaDeAcessoProps {
+  children: ReactNode;
+  /** Contador de erros: cada vez que aumenta, a caixa do formulário treme. */
+  tremer?: number;
+  /** Deu certo: a logo pulsa enquanto a página mostra o "Tudo certo!". */
+  sucesso?: boolean;
+}
+
+export default function TelaDeAcesso({ children, tremer = 0, sucesso = false }: TelaDeAcessoProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -127,7 +143,7 @@ export default function TelaDeAcesso({ children }: { children: ReactNode }) {
           className="inline-block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-4 focus-visible:ring-offset-navy-950"
           aria-label="FORNEXA — página inicial"
         >
-          <Marca />
+          <Marca brilhando={sucesso} />
         </Link>
       </div>
 
@@ -146,8 +162,8 @@ export default function TelaDeAcesso({ children }: { children: ReactNode }) {
           />
         </svg>
 
-        <main className="acesso-conteudo px-8 pb-8 min-[900px]:px-6 min-[900px]:pb-10">
-          <div className="mx-auto w-full max-w-[420px] flex flex-col gap-[18px]">
+        <main className="acesso-conteudo px-5 pb-8 min-[900px]:px-6 min-[900px]:pb-10">
+          <div className="mx-auto w-full max-w-[420px] flex flex-col gap-3">
             <Link
               to="/"
               aria-label="Voltar para o início"
@@ -156,7 +172,13 @@ export default function TelaDeAcesso({ children }: { children: ReactNode }) {
               <ArrowLeft className="w-[22px] h-[22px]" aria-hidden="true" />
             </Link>
 
-            {children}
+            <div
+              className={`rounded-2xl border border-[#E1E6E9] bg-white p-6 min-[900px]:p-9 shadow-[0_1px_2px_rgba(6,21,30,0.04),0_12px_32px_-12px_rgba(6,21,30,0.12)] flex flex-col gap-[18px] ${
+                tremer === 0 ? '' : tremer % 2 ? 'acesso-treme-a' : 'acesso-treme-b'
+              }`}
+            >
+              {children}
+            </div>
           </div>
         </main>
       </div>

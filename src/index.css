@@ -472,3 +472,52 @@ body {
     animation: none !important;
   }
 }
+
+/* Animações do formulário de acesso (vindas da opção C) */
+@keyframes acesso-treme { 0%, 100% { transform: translateX(0) } 20% { transform: translateX(-8px) } 40% { transform: translateX(7px) } 60% { transform: translateX(-5px) } 80% { transform: translateX(3px) } }
+/* Duas cópias iguais: alternar entre elas faz o tremor rodar de novo a cada erro */
+@keyframes acesso-treme-b { 0%, 100% { transform: translateX(0) } 20% { transform: translateX(-8px) } 40% { transform: translateX(7px) } 60% { transform: translateX(-5px) } 80% { transform: translateX(3px) } }
+@keyframes acesso-pop { 0% { transform: scale(0.6); opacity: 0 } 60% { transform: scale(1.08); opacity: 1 } 100% { transform: scale(1) } }
+@keyframes acesso-aviso { from { opacity: 0; transform: translateY(-6px) scale(0.98) } to { opacity: 1; transform: none } }
+@keyframes acesso-check { from { stroke-dashoffset: 24 } to { stroke-dashoffset: 0 } }
+@keyframes acesso-barra { from { width: 0 } to { width: 100% } }
+@keyframes acesso-brilho { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 211, 0, 0) } 50% { box-shadow: 0 0 0 10px rgba(255, 211, 0, 0.16) } }
+
+.acesso-treme-a { animation: acesso-treme 0.45s ease; }
+.acesso-treme-b { animation: acesso-treme-b 0.45s ease; }
+.acesso-aviso { animation: acesso-aviso 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.acesso-pop { animation: acesso-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1.2) both; }
+.acesso-check { stroke-dasharray: 24; animation: acesso-check 0.4s 0.1s ease-out both; }
+.acesso-barra { animation-name: acesso-barra; animation-timing-function: ease-in-out; animation-fill-mode: both; }
+.acesso-brilho { animation: acesso-brilho 1.2s ease-in-out 2; }
+
+.acesso-botao { transition: transform 0.15s ease, background-color 0.2s ease; }
+.acesso-botao:not(:disabled):hover { transform: translateY(-1px); }
+.acesso-botao:not(:disabled):active { transform: translateY(1px) scale(0.99); }
+
+@media (prefers-reduced-motion: reduce) {
+  .acesso-treme-a,
+  .acesso-treme-b,
+  .acesso-aviso,
+  .acesso-pop,
+  .acesso-check,
+  .acesso-barra,
+  .acesso-brilho {
+    animation: none !important;
+  }
+
+  .acesso-check {
+    stroke-dashoffset: 0;
+  }
+
+  .acesso-barra {
+    width: 100%;
+  }
+
+  .acesso-botao,
+  .acesso-botao:hover,
+  .acesso-botao:active {
+    transition: none;
+    transform: none;
+  }
+}

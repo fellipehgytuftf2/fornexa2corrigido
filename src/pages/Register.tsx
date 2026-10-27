@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import TelaDeAcesso from '../components/auth/TelaDeAcesso';
+import SucessoAcesso from '../components/auth/SucessoAcesso';
 import {
+  avisoErroAcesso,
   botaoAcesso,
   campoAcesso,
   linkTrocaAcesso,
@@ -21,6 +23,13 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  // Cada erro faz a caixa tremer — também quando o texto se repete.
+  const [tentativa, setTentativa] = useState(0);
+  const [tremer, setTremer] = useState(0);
+
+  useEffect(() => {
+    if (errorMessage) setTremer((vezes) => vezes + 1);
+  }, [errorMessage, tentativa]);
 
   const handleRegister = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -141,131 +150,136 @@ export default function Register() {
     }, 700);
   };
 
+  // A barrinha do "Tudo certo!" enche no mesmo tempo que handleRegister
+  // espera para trocar de tela: 700ms quando já entra, 2500ms quando ainda
+  // precisa confirmar o e-mail.
+  const duracaoSucesso = successMessage === 'Conta criada com sucesso.' ? 700 : 2500;
+
   return (
-    <TelaDeAcesso>
-      <h1 className={tituloAcesso}>Criar conta</h1>
+    <TelaDeAcesso tremer={tremer} sucesso={Boolean(successMessage)}>
+      {successMessage ? (
+        <SucessoAcesso texto={successMessage} duracaoMs={duracaoSucesso} />
+      ) : (
+        <>
+          <h1 className={tituloAcesso}>Criar conta</h1>
 
-      <form onSubmit={handleRegister} noValidate className="flex flex-col gap-4">
-        {errorMessage && (
-          <div
-            role="alert"
-            className="flex items-start gap-3 rounded-[14px] border border-red-200 bg-red-50 px-4 py-3.5"
+          <form
+            onSubmit={(event) => {
+              setTentativa((vezes) => vezes + 1);
+              handleRegister(event);
+            }}
+            noValidate
+            className="flex flex-col gap-4"
           >
-            <AlertCircle
-              className="w-[18px] h-[18px] text-red-600 shrink-0 mt-0.5"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-red-700">{errorMessage}</p>
-          </div>
-        )}
+            {errorMessage && (
+              <div role="alert" className={avisoErroAcesso}>
+                <AlertCircle
+                  className="w-[18px] h-[18px] text-red-600 shrink-0 mt-0.5"
+                  aria-hidden="true"
+                />
+                <p className="text-sm text-red-700">{errorMessage}</p>
+              </div>
+            )}
 
-        {successMessage && (
-          <div
-            role="status"
-            className="flex items-start gap-3 rounded-[14px] border border-green-200 bg-green-50 px-4 py-3.5"
-          >
-            <CheckCircle
-              className="w-[18px] h-[18px] text-green-700 shrink-0 mt-0.5"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-green-800">{successMessage}</p>
-          </div>
-        )}
+            <div>
+              <label htmlFor="register-name" className={rotuloAcesso}>
+                Nome
+              </label>
 
-        <div>
-          <label htmlFor="register-name" className={rotuloAcesso}>
-            Nome
-          </label>
+              <input
+                id="register-name"
+                name="name"
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Seu nome"
+                aria-invalid={Boolean(errorMessage)}
+                className={campoAcesso}
+                disabled={loading}
+              />
+            </div>
 
-          <input
-            id="register-name"
-            name="name"
-            type="text"
-            autoComplete="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Seu nome"
-            className={campoAcesso}
-            disabled={loading}
-          />
-        </div>
+            <div>
+              <label htmlFor="register-email" className={rotuloAcesso}>
+                E-mail
+              </label>
 
-        <div>
-          <label htmlFor="register-email" className={rotuloAcesso}>
-            E-mail
-          </label>
+              <input
+                id="register-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="seuemail@exemplo.com"
+                aria-invalid={Boolean(errorMessage)}
+                className={campoAcesso}
+                disabled={loading}
+              />
+            </div>
 
-          <input
-            id="register-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            inputMode="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="seuemail@exemplo.com"
-            className={campoAcesso}
-            disabled={loading}
-          />
-        </div>
+            <div>
+              <label htmlFor="register-password" className={rotuloAcesso}>
+                Senha
+              </label>
 
-        <div>
-          <label htmlFor="register-password" className={rotuloAcesso}>
-            Senha
-          </label>
+              <div className="relative">
+                <input
+                  id="register-password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Mínimo 8 caracteres"
+                  aria-describedby="register-password-dica"
+                  aria-invalid={Boolean(errorMessage)}
+                  className={`${campoAcesso} pr-14`}
+                  disabled={loading}
+                />
 
-          <div className="relative">
-            <input
-              id="register-password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Mínimo 8 caracteres"
-              aria-describedby="register-password-dica"
-              className={`${campoAcesso} pr-14`}
-              disabled={loading}
-            />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-[#5B6770] transition-colors hover:text-[#06151E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#06151E]/40"
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-[18px] h-[18px]" aria-hidden="true" />
+                  ) : (
+                    <Eye className="w-[18px] h-[18px]" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-[#5B6770] transition-colors hover:text-[#06151E] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#06151E]/40"
-              disabled={loading}
-            >
-              {showPassword ? (
-                <EyeOff className="w-[18px] h-[18px]" aria-hidden="true" />
+              <p id="register-password-dica" className="text-xs text-[#5B6770] mt-2">
+                Use uma senha com pelo menos 8 caracteres.
+              </p>
+            </div>
+
+            <button type="submit" disabled={loading} className={botaoAcesso}>
+              {loading ? (
+                <>
+                  <Loader2 className="w-[18px] h-[18px] animate-spin" aria-hidden="true" />
+                  Criando conta...
+                </>
               ) : (
-                <Eye className="w-[18px] h-[18px]" aria-hidden="true" />
+                'Criar conta'
               )}
             </button>
-          </div>
+          </form>
 
-          <p id="register-password-dica" className="text-xs text-[#5B6770] mt-2">
-            Use uma senha com pelo menos 8 caracteres.
+          <p className="text-center text-sm text-[#5B6770]">
+            Já tem uma conta?{' '}
+            <Link to="/login" state={{ semAnimacao: true }} className={linkTrocaAcesso}>
+              Entrar
+            </Link>
           </p>
-        </div>
-
-        <button type="submit" disabled={loading} className={botaoAcesso}>
-          {loading ? (
-            <>
-              <Loader2 className="w-[18px] h-[18px] animate-spin" aria-hidden="true" />
-              Criando conta...
-            </>
-          ) : (
-            'Criar conta'
-          )}
-        </button>
-      </form>
-
-      <p className="text-center text-sm text-[#5B6770]">
-        Já tem uma conta?{' '}
-        <Link to="/login" state={{ semAnimacao: true }} className={linkTrocaAcesso}>
-          Entrar
-        </Link>
-      </p>
+        </>
+      )}
     </TelaDeAcesso>
   );
 }
