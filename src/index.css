@@ -233,3 +233,19 @@ body {
     opacity: 1;
   }
 }
+/* O brilho atrás do cartão Premium.
+   Desfoque de 140px num círculo de 450px, animado para sempre — a mesma conta
+   que travou o hero no celular. Abaixo de 1024px ele simplesmente não existe:
+   num telefone ele fica atrás do cartão e quase não se vê, mas o aparelho
+   refaz o desfoque a cada quadro enquanto a pessoa rola. */
+@media (max-width: 1023px) {
+  .premium-card::before {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .premium-card::before {
+    animation: none !important;
+  }
+}
