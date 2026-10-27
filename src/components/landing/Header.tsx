@@ -38,6 +38,15 @@ const ROLAGEM_PARA_ENCOLHER = 80;
  * 3. `transition-all`, que anima tudo que mudar de classe, inclusive sombra e
  *    cor de borda. Trocado por transições nomeadas: largura, espaçamento,
  *    desfoque.
+ *
+ * E depois de tudo isso ela ainda travava ao clicar nos links — que disparam
+ * rolagem suave. O culpado era o `backdrop-blur`: a barra desfocava o que
+ * passava atrás dela, e atrás dela passa o brilho do hero, que já é um
+ * desfoque de 130px animado. A cada quadro da rolagem o navegador refazia os
+ * dois, com a barra mudando de largura no meio.
+ *
+ * O fundo agora é quase opaco, sem desfoque. Perde-se o vidro; ganha-se uma
+ * página que rola.
  */
 export default function Header() {
   const [compacta, setCompacta] = useState(false);
@@ -117,10 +126,10 @@ export default function Header() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 px-3 pointer-events-none">
       <header
-        className={`pointer-events-auto mt-3 mx-auto w-[96%] rounded-2xl border bg-navy-900/80 shadow-lg shadow-black/20 [transition:max-width_350ms_ease-out,padding_350ms_ease-out] ${
+        className={`pointer-events-auto mt-3 mx-auto w-[96%] rounded-2xl border bg-navy-900/95 shadow-lg shadow-black/20 [transition:max-width_350ms_ease-out,padding_350ms_ease-out] ${
           compacta
-            ? 'max-w-[840px] border-white/20 backdrop-blur-xl px-4 py-2'
-            : 'max-w-[1400px] border-white/10 backdrop-blur-md px-5 py-3.5'
+            ? 'max-w-[840px] border-white/20 px-4 py-2'
+            : 'max-w-[1400px] border-white/10 px-5 py-3.5'
         }`}
       >
         <nav className="flex items-center justify-between gap-4">
@@ -204,7 +213,7 @@ export default function Header() {
           largura, e o celular travava. Aqui ele é um painel próprio: a barra
           não se mexe quando ele aparece. */}
       {menuAberto && (
-        <div className="pointer-events-auto md:hidden mx-auto mt-2 w-[96%] max-w-[840px] rounded-2xl border border-white/15 bg-navy-900/95 backdrop-blur-xl p-2 shadow-lg shadow-black/30">
+        <div className="pointer-events-auto md:hidden mx-auto mt-2 w-[96%] max-w-[840px] rounded-2xl border border-white/15 bg-navy-900/98 p-2 shadow-lg shadow-black/30">
           {SECOES.map((secao) => (
             <a
               key={secao.id}
