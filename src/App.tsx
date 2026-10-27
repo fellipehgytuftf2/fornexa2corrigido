@@ -8,6 +8,7 @@ import SupplierLogin from './pages/SupplierLogin';
 import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Assinar from './pages/Assinar';
+import Obrigado from './pages/Obrigado';
 const SupplierPortal = lazy(() => import('./pages/supplier/SupplierPortal'));
 
 const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
@@ -309,6 +310,7 @@ function App() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/obrigado" element={<Obrigado />} />
 
         {/* Recuperação de senha, comum a vendedor e fornecedor */}
         <Route path="/esqueci-senha" element={<EsqueciSenha />} />
