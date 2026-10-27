@@ -15,10 +15,12 @@ export default function FinalCTA() {
         </p>
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-3 bg-white text-black px-10 py-4 rounded-lg text-base font-semibold hover:bg-slate-100 transition-colors btn-transition shadow-lg"
+          className="btn-fnx btn-fnx-primario inline-flex items-center px-10 py-4 text-base font-semibold"
         >
-          Acessar agora
-          <ArrowRight className="w-5 h-5" />
+          <span className="inline-flex items-center gap-3">
+            Acessar agora
+            <ArrowRight className="w-5 h-5" />
+          </span>
         </Link>
       </div>
     </section>

@@ -39,9 +39,9 @@ export default function Benefits() {
           {benefits.map((benefit) => (
             <div
               key={benefit.title}
-              className="bg-navy-700 rounded-xl border border-navy-600 p-8 hover:border-white/20 transition-colors"
+              className="bg-navy-700 rounded-[20px] border border-navy-600 p-8 hover:border-white/20 transition-colors"
             >
-              <div className="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center mb-5">
+              <div className="w-12 h-12 bg-white/10 rounded-[16px] flex items-center justify-center mb-5">
                 <benefit.icon className="w-6 h-6 text-white" />
               </div>
               <h3 className="text-white font-semibold text-lg mb-3">{benefit.title}</h3>

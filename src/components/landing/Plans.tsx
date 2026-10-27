@@ -41,7 +41,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
 
         <div className="grid md:grid-cols-2 gap-6 items-stretch justify-items-center">
           {/* Basic plan */}
-          <div className="bg-navy-700 rounded-2xl border border-navy-600 p-10 w-full max-w-sm h-full flex flex-col">
+          <div className="bg-navy-700 rounded-[28px] border border-navy-600 p-10 w-full max-w-sm h-full flex flex-col">
             <h3 className="text-white font-semibold text-xl mb-3">{basico.nome}</h3>
             <div className="mb-8">
               <span className="text-white text-4xl font-bold">{basico.preco}</span>
@@ -59,16 +59,16 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
             <div className="mt-auto">
               <a
                 href={linkBasico || '/register'}
-                className="block w-full py-3 rounded-lg border border-slate-600 text-white font-medium hover:bg-slate-800 transition-colors text-center"
+                className="btn-fnx btn-fnx-secundario flex w-full items-center justify-center py-3 font-medium"
               >
-                {basico.chamada}
+                <span>{basico.chamada}</span>
               </a>
             </div>
           </div>
 
           {/* Premium plan */}
           <div className="relative w-full max-w-sm premium-card h-full">
-            <div className="relative bg-navy-700 rounded-2xl border-2 border-gold p-10 h-full flex flex-col">
+            <div className="relative bg-navy-700 rounded-[28px] border-2 border-gold p-10 h-full flex flex-col">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold text-black text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1">
                 {premium.destaque}
               </div>
@@ -92,9 +92,9 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
               <div className="mt-auto">
                 <a
                   href={linkPremium || '/register'}
-                  className="block w-full py-3 rounded-lg bg-white text-black font-semibold hover:bg-slate-100 transition-colors text-center"
+                  className="btn-fnx btn-fnx-primario flex w-full items-center justify-center py-3 font-semibold"
                 >
-                  {premium.chamada}
+                  <span>{premium.chamada}</span>
                 </a>
               </div>
             </div>
@@ -115,8 +115,8 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
           {/* Era um `motion.div` que nascia com opacidade 0 e só aparecia ao
               entrar na tela. No celular o cartão ficava em branco até o
               framer-motion rodar. HTML comum aparece de primeira. */}
-          <div className="bg-gradient-to-br from-navy-600 to-navy-800 rounded-xl border border-navy-500 p-6 flex gap-5 items-start">
-            <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+          <div className="bg-gradient-to-br from-navy-600 to-navy-800 rounded-[20px] border border-navy-500 p-6 flex gap-5 items-start">
+            <div className="w-12 h-12 rounded-[16px] bg-white/10 flex items-center justify-center flex-shrink-0">
               <Headphones className="w-5 h-5 text-white" />
             </div>
             <div>

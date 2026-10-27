@@ -140,17 +140,22 @@ export default function Header() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 px-3 pointer-events-none">
       <header
-        className={`pointer-events-auto mt-3 mx-auto w-[96%] rounded-2xl border bg-navy-900 shadow-lg shadow-black/20 [transition:max-width_350ms_ease-out,padding_350ms_ease-out] ${
+        // O fundo translúcido com desfoque fica SÓ do tablet para cima.
+        // Desfocar o que passa atrás da barra é a conta que travou a landing
+        // no celular em 27/10, e no telefone a barra ocupa a largura inteira
+        // da tela: o desfoque seria caro e quase invisível. Lá embaixo o
+        // fundo é sólido.
+        className={`pointer-events-auto mt-3 mx-auto w-[96%] rounded-full border bg-navy-900 shadow-lg shadow-black/20 md:bg-navy-900/75 md:backdrop-blur-xl [transition:max-width_300ms_ease-out,padding_300ms_ease-out] ${
           compacta
-            ? 'max-w-[840px] border-white/20 px-4 py-2'
-            : 'max-w-[1400px] border-white/10 px-5 py-3.5'
+            ? 'max-w-[760px] border-white/20 px-4 py-2'
+            : 'max-w-[1040px] border-white/10 px-5 py-2.5'
         }`}
       >
         <nav className="flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5 group shrink-0">
             <div
-              className={`rounded-md overflow-hidden bg-navy-900 flex items-center justify-center [transition:width_300ms_ease-out,height_300ms_ease-out] ${
-                compacta ? 'w-8 h-8' : 'w-10 h-10'
+              className={`rounded-[10px] overflow-hidden bg-navy-900 flex items-center justify-center [transition:width_300ms_ease-out,height_300ms_ease-out] ${
+                compacta ? 'w-7 h-7' : 'w-8 h-8'
               }`}
             >
               <img
@@ -203,22 +208,37 @@ export default function Header() {
 
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-1.5 bg-gold text-navy-900 rounded-lg px-5 py-2.5 text-sm font-semibold hover:bg-gold-hover transition-colors shadow-[0_0_20px_rgba(255,200,0,0.25)]"
+              className="btn-fnx btn-fnx-primario inline-flex items-center h-10 px-5 text-sm font-semibold"
             >
-              Assinar agora
-              <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+              <span className="inline-flex items-center gap-1.5">
+                Assinar agora
+                <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+              </span>
             </Link>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMenuAberto((aberto) => !aberto)}
-            aria-label={menuAberto ? 'Fechar menu' : 'Abrir menu'}
-            aria-expanded={menuAberto}
-            className="md:hidden text-white p-1.5"
-          >
-            {menuAberto ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          {/* No celular, "Assinar agora" vira um círculo amarelo com a seta:
+              o texto não cabe ao lado do logo numa tela estreita, e o botão
+              principal não pode ficar escondido dentro do menu. */}
+          <div className="flex md:hidden items-center gap-1.5 shrink-0">
+            <Link
+              to="/dashboard"
+              aria-label="Assinar agora"
+              className="btn-fnx btn-fnx-primario inline-flex items-center justify-center w-11 h-11"
+            >
+              <ArrowUpRight className="w-5 h-5" aria-hidden="true" />
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setMenuAberto((aberto) => !aberto)}
+              aria-label={menuAberto ? 'Fechar menu' : 'Abrir menu'}
+              aria-expanded={menuAberto}
+              className="text-white p-2"
+            >
+              {menuAberto ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </nav>
       </header>
 
@@ -227,13 +247,13 @@ export default function Header() {
           largura, e o celular travava. Aqui ele é um painel próprio: a barra
           não se mexe quando ele aparece. */}
       {menuAberto && (
-        <div className="pointer-events-auto md:hidden mx-auto mt-2 w-[96%] max-w-[840px] rounded-2xl border border-white/15 bg-navy-900 p-2 shadow-lg shadow-black/30">
+        <div className="pointer-events-auto md:hidden mx-auto mt-2 w-[96%] max-w-[840px] rounded-[28px] border border-white/15 bg-navy-900 p-2 shadow-lg shadow-black/30">
           {SECOES.map((secao) => (
             <a
               key={secao.id}
               href={`#${secao.id}`}
               onClick={() => setMenuAberto(false)}
-              className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-white/5"
+              className="block px-4 py-2.5 rounded-full text-sm font-medium text-slate-200 hover:bg-white/5"
             >
               {secao.nome}
             </a>
@@ -242,7 +262,7 @@ export default function Header() {
           <Link
             to="/dashboard"
             onClick={() => setMenuAberto(false)}
-            className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-200 hover:bg-white/5"
+            className="block px-4 py-2.5 rounded-full text-sm font-medium text-slate-200 hover:bg-white/5"
           >
             Login
           </Link>
@@ -250,10 +270,12 @@ export default function Header() {
           <Link
             to="/dashboard"
             onClick={() => setMenuAberto(false)}
-            className="mt-1 flex items-center justify-center gap-1.5 bg-gold text-navy-900 rounded-lg px-4 py-2.5 text-sm font-semibold"
+            className="btn-fnx btn-fnx-primario mt-1 flex items-center justify-center w-full h-11 px-4 text-sm font-semibold"
           >
-            Assinar agora
-            <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1.5">
+              Assinar agora
+              <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+            </span>
           </Link>
         </div>
       )}

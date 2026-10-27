@@ -266,3 +266,88 @@ body {
     scroll-behavior: auto;
   }
 }
+
+/* ============================================================
+   FORNEXA — botões em pílula, com preenchimento branco
+   ============================================================
+
+   O branco entra pela esquerda num `::before` que só muda de `transform`:
+   escala no eixo X de 0 a 1. Escala e opacidade são as duas únicas coisas que
+   o navegador resolve sozinho, sem refazer o layout — é o que torna o efeito
+   barato o bastante para rodar num telefone.
+
+   O `::before` precisa ficar ATRÁS do texto. Um pseudo-elemento posicionado é
+   pintado depois do texto do próprio elemento, então ele cobriria a palavra.
+   Por isso o conteúdo de cada botão vai dentro de um `<span>`, que volta para
+   cima pelo `z-index` abaixo.
+
+   No computador o branco entra ao passar o mouse; no celular, ao tocar — é
+   para isso que serve o `@media (hover: hover)`, que separa os dois. */
+.btn-fnx {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+  isolation: isolate;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.btn-fnx::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  border-radius: inherit;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 400ms ease-out;
+  z-index: 0;
+}
+
+.btn-fnx > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (hover: hover) {
+  .btn-fnx:hover::before {
+    transform: scaleX(1);
+  }
+
+  .btn-fnx:hover {
+    color: #06151e;
+  }
+}
+
+.btn-fnx:active::before {
+  transform: scaleX(1);
+}
+
+.btn-fnx:active {
+  color: #06151e;
+  transform: translateY(2px);
+}
+
+/* Primário: amarelo com volume. A sombra sólida embaixo é a "espessura" do
+   botão, e é ela que some ao clicar — por isso ele parece afundar. */
+.btn-fnx-primario {
+  background-image: linear-gradient(180deg, #ffdd4d 0%, #ffd300 60%, #f2c700 100%);
+  color: #06151e;
+  box-shadow: 0 4px 0 #b89a00, 0 8px 24px rgba(255, 211, 0, 0.3);
+}
+
+.btn-fnx-primario:active {
+  box-shadow: 0 2px 0 #b89a00, 0 4px 14px rgba(255, 211, 0, 0.25);
+}
+
+/* Secundário: só a borda, para não competir com o primário. */
+.btn-fnx-secundario {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-fnx,
+  .btn-fnx::before {
+    transition: none !important;
+  }
+}

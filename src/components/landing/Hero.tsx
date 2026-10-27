@@ -118,18 +118,23 @@ export default function Hero() {
               className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center animate-fade-in"
               style={{ animationDelay: '0.2s' }}
             >
+              {/* No celular os dois ocupam a linha inteira, empilhados: dedo
+                  acerta botão largo, e lado a lado numa tela estreita cada um
+                  ficaria pequeno demais para o texto que carrega. */}
               <Link
                 to="/dashboard"
-                className="bg-gold text-navy-900 px-8 py-4 rounded-xl text-base font-semibold hover:bg-gold-hover transition-all btn-transition flex items-center gap-2 shadow-lg hover:shadow-xl"
+                className="btn-fnx btn-fnx-primario w-full sm:w-auto flex items-center justify-center px-8 py-4 text-base font-semibold"
               >
-                Começar agora
-                <span>→</span>
+                <span className="inline-flex items-center gap-2">
+                  Começar agora
+                  <span>→</span>
+                </span>
               </Link>
               <a
                 href="#planos"
-                className="text-white border border-slate-700 px-8 py-4 rounded-xl text-base font-medium hover:border-slate-500 hover:bg-slate-800/50 transition-all btn-transition"
+                className="btn-fnx btn-fnx-secundario w-full sm:w-auto flex items-center justify-center px-8 py-4 text-base font-medium"
               >
-                Ver planos
+                <span>Ver planos</span>
               </a>
             </div>
 
