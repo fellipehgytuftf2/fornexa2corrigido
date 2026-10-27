@@ -72,15 +72,15 @@ export default function Hero() {
                 ocupava: título alto é o que a primeira tela precisa, e
                 superlativo sem prova atrás não convence ninguém. */}
             <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold text-white leading-[1.1] tracking-tight mb-5 animate-slide-up">
-              Conecte-se aos melhores fornecedores e escale suas vendas{' '}
-              <span className="text-gold drop-shadow-lg">em poucos minutos.</span>
+              Venda sem ter estoque.{' '}
+              <span className="text-gold drop-shadow-lg">Fornecedores cuidam do resto.</span>
             </h1>
             <p
               className="text-base md:text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 mb-8 font-normal leading-relaxed animate-fade-in"
               style={{ animationDelay: '0.1s' }}
             >
-              Automatize sua integração com fornecedores, publique produtos direto no
-              marketplace e deixe a FORNEXA cuidar do resto.
+              Escolha o produto e anuncie. O resto — estoque, preço, pedido — a FORNEXA
+              resolve sozinha.
             </p>
 
             {/* Indicadores — acima do CTA */}
