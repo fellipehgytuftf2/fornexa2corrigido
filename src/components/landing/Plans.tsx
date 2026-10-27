@@ -29,7 +29,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
   const linkPremium = montarCheckout(premium);
 
   return (
-    <section id="planos" className="bg-navy-900 py-24">
+    <section id="planos" className="bg-navy-900 py-24 scroll-mt-28">
       <div className="max-w-3xl mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-white text-4xl font-bold mb-4">Escolha seu plano</h2>
