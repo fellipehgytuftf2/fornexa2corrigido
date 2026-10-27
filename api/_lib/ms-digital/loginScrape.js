@@ -46,11 +46,18 @@ async function lancarNavegador() {
     import("puppeteer-core"),
     import("@sparticuz/chromium"),
   ]);
+  // O chromium v131 so extraia as bibliotecas de sistema do Chrome (libnss3 e
+  // companhia) em Node 20 e 22. Este projeto roda em Node 24, entao o Chrome
+  // nunca abria na Vercel -- "Failed to launch the browser process" -- e toda
+  // rodada caia no feed publico, sem preco de custo. A v153 reconhece Node 20+.
+  //
+  // Da v132 em diante 'chromium.defaultViewport' e 'chromium.headless' nao
+  // existem mais: o modo passa a ser a string "shell", e o viewport ja e
+  // definido logo abaixo com page.setViewport.
   return puppeteer.launch({
-    args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
+    args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
     executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
+    headless: "shell",
   });
 }
 
