@@ -21,7 +21,7 @@ const benefits = [
 
 export default function Benefits() {
   return (
-    <section id="beneficios" className="bg-navy-900 py-24 scroll-mt-28">
+    <section className="bg-navy-900 py-24">
       <div className="max-w-6xl mx-auto px-6">
         <div className="grid md:grid-cols-3 gap-6">
           {benefits.map((benefit, index) => (

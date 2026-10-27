@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 
 export default function FinalCTA() {
   return (
-    <section id="comecar" className="bg-navy-900 py-24 scroll-mt-28">
+    <section className="bg-navy-900 py-24">
       <div className="max-w-3xl mx-auto px-6 text-center">
         <h2 className="text-white text-4xl md:text-5xl font-bold mb-4">
           Cada dia sem a FORNEXA é{' '}

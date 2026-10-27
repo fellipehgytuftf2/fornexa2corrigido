@@ -74,9 +74,14 @@ export default function Hero() {
         <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.35fr] gap-10 lg:gap-8 items-center">
           {/* Coluna esquerda — badge, texto, indicadores, CTA e prova social */}
           <div className="text-center lg:text-left">
-            {/* O selo "a plataforma nº 1" saiu daqui, e com ele o espaço que
-                ocupava: título alto é o que a primeira tela precisa, e
-                superlativo sem prova atrás não convence ninguém. */}
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 bg-navy-800/70 border border-navy-600 rounded-full px-4 py-1.5 mb-6 animate-fade-in">
+              <Star className="w-3.5 h-3.5 text-gold fill-gold" />
+              <span className="text-slate-300 text-xs sm:text-sm font-medium">
+                A plataforma nº 1 para dropshipping
+              </span>
+            </div>
+
             <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold text-white leading-[1.1] tracking-tight mb-5 animate-slide-up">
               Conecte-se aos melhores fornecedores e escale suas vendas{' '}
               <span className="text-gold drop-shadow-lg">em poucos minutos.</span>
