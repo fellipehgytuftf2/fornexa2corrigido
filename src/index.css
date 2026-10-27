@@ -10,12 +10,19 @@
 
 html {
   scroll-behavior: smooth;
+
+  /* A cor de fundo mora aqui, e não só nas telas.
+     Sem isto, rolar além do conteúdo — ou o efeito elástico do iPhone —
+     mostra o branco do navegador, e parece que a página quebrou. Foi o que
+     aconteceu na landing em 27/10: a barra no lugar e tudo branco embaixo. */
+  background-color: #06151e;
 }
 
 body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: #06151e;
 }
 
 /* Custom scrollbar */
