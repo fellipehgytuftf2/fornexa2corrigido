@@ -11,7 +11,6 @@ import { Link } from 'react-router-dom';
 const SECOES = [
   { id: 'beneficios', nome: 'Como funciona' },
   { id: 'planos', nome: 'Planos' },
-  { id: 'comecar', nome: 'Começar' },
 ];
 
 /** Depois disto a barra encolhe. Abaixo, ela volta ao tamanho cheio. */
@@ -206,28 +205,30 @@ export default function Header() {
               Login
             </Link>
 
-            <Link
-              to="/dashboard"
+            {/* Leva aos planos, não ao painel: quem ainda não escolheu plano
+                não tem o que fazer lá dentro. */}
+            <a
+              href="#planos"
               className="btn-fnx btn-fnx-primario inline-flex items-center h-10 px-5 text-sm font-semibold"
             >
               <span className="inline-flex items-center gap-1.5">
                 Assinar agora
                 <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
               </span>
-            </Link>
+            </a>
           </div>
 
           {/* No celular, "Assinar agora" vira um círculo amarelo com a seta:
               o texto não cabe ao lado do logo numa tela estreita, e o botão
               principal não pode ficar escondido dentro do menu. */}
           <div className="flex md:hidden items-center gap-1.5 shrink-0">
-            <Link
-              to="/dashboard"
+            <a
+              href="#planos"
               aria-label="Assinar agora"
               className="btn-fnx btn-fnx-primario inline-flex items-center justify-center w-11 h-11"
             >
               <ArrowUpRight className="w-5 h-5" aria-hidden="true" />
-            </Link>
+            </a>
 
             <button
               type="button"
@@ -267,8 +268,8 @@ export default function Header() {
             Login
           </Link>
 
-          <Link
-            to="/dashboard"
+          <a
+            href="#planos"
             onClick={() => setMenuAberto(false)}
             className="btn-fnx btn-fnx-primario mt-1 flex items-center justify-center w-full h-11 px-4 text-sm font-semibold"
           >
@@ -276,7 +277,7 @@ export default function Header() {
               Assinar agora
               <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
             </span>
-          </Link>
+          </a>
         </div>
       )}
     </div>

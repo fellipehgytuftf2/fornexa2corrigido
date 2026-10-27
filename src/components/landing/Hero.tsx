@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { Users, Package, Link2, Star } from 'lucide-react';
 import { useFuncionalidade } from '../../lib/funcionalidades';
 
@@ -121,20 +120,20 @@ export default function Hero() {
               {/* No celular os dois ocupam a linha inteira, empilhados: dedo
                   acerta botão largo, e lado a lado numa tela estreita cada um
                   ficaria pequeno demais para o texto que carrega. */}
-              <Link
-                to="/dashboard"
+              <a
+                href="#planos"
                 className="btn-fnx btn-fnx-primario w-full sm:w-auto flex items-center justify-center px-8 py-4 text-base font-semibold"
               >
                 <span className="inline-flex items-center gap-2">
                   Começar agora
                   <span>→</span>
                 </span>
-              </Link>
+              </a>
               <a
-                href="#planos"
+                href="#beneficios"
                 className="btn-fnx btn-fnx-secundario w-full sm:w-auto flex items-center justify-center px-8 py-4 text-base font-medium"
               >
-                <span>Ver planos</span>
+                <span>Como funciona</span>
               </a>
             </div>
 
