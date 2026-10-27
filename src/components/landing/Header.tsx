@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 const SECOES = [
   { id: 'beneficios', nome: 'Como funciona' },
   { id: 'planos', nome: 'Planos' },
+  { id: 'faq', nome: 'FAQ' },
 ];
 
 /** Depois disto a barra encolhe. Abaixo, ela volta ao tamanho cheio. */

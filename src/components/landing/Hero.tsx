@@ -1,4 +1,5 @@
 import { Users, Package, Link2, Star } from 'lucide-react';
+import NumeroQueSobe from './NumeroQueSobe';
 import { useFuncionalidade } from '../../lib/funcionalidades';
 
 export default function Hero() {
@@ -79,7 +80,7 @@ export default function Hero() {
               className="text-base md:text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 mb-8 font-normal leading-relaxed animate-fade-in"
               style={{ animationDelay: '0.1s' }}
             >
-              Escolha o produto e anuncie. O resto — estoque, preço, pedido — a FORNEXA
+              Escolha o produto e anuncie. O resto (estoque, preço e pedido) a FORNEXA
               resolve sozinha.
             </p>
 
@@ -91,7 +92,7 @@ export default function Hero() {
               <div className="flex items-center gap-2.5">
                 <Users className="w-5 h-5 text-gold" />
                 <div className="text-left">
-                  <p className="text-white text-sm font-semibold leading-none">+500</p>
+                  <p className="text-white text-sm font-semibold leading-none">+<NumeroQueSobe valor={500} /></p>
                   <p className="text-slate-500 text-xs mt-1">vendedores ativos</p>
                 </div>
               </div>
@@ -99,7 +100,7 @@ export default function Hero() {
               <div className="flex items-center gap-2.5">
                 <Package className="w-5 h-5 text-gold" />
                 <div className="text-left">
-                  <p className="text-white text-sm font-semibold leading-none">+750</p>
+                  <p className="text-white text-sm font-semibold leading-none">+<NumeroQueSobe valor={750} /></p>
                   <p className="text-slate-500 text-xs mt-1">produtos disponíveis</p>
                 </div>
               </div>
