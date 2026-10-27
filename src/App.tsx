@@ -1,5 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
@@ -8,29 +8,34 @@ import SupplierLogin from './pages/SupplierLogin';
 import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Assinar from './pages/Assinar';
-import SupplierPortal from './pages/supplier/SupplierPortal';
+const SupplierPortal = lazy(() => import('./pages/supplier/SupplierPortal'));
 
-import DashboardLayout from './layouts/DashboardLayout';
-import Dashboard from './pages/dashboard/Dashboard';
-import Catalog from './pages/dashboard/Catalog';
-import Suppliers from './pages/dashboard/Suppliers';
-import MyProducts from './pages/dashboard/MyProducts';
-import Orders from './pages/dashboard/Orders';
-import TopVendedores from './pages/dashboard/TopVendedores';
-import Financial from './pages/dashboard/Financial';
-import Integrations from './pages/dashboard/Integrations';
-import AdminCatalogo from './pages/dashboard/AdminCatalogo';
-import AdminAvisos from './pages/dashboard/AdminAvisos';
-import AdminImpressao from './pages/dashboard/AdminImpressao';
-import AdminContas from './pages/dashboard/AdminContas';
-import { DesempenhoDosAfiliados, PedidosDeAfiliado } from './components/dashboard/AfiliadosAdmin';
-import AdminRepasses from './pages/dashboard/AdminRepasses';
-import AdminKanban from './pages/dashboard/AdminKanban';
-import Tickets from './pages/dashboard/Tickets';
-import Suporte from './pages/dashboard/Suporte';
-import Tools from './pages/dashboard/Tools';
-import Tutorials from './pages/dashboard/Tutorials';
-import Settings from './pages/dashboard/Settings';
+const DashboardLayout = lazy(() => import('./layouts/DashboardLayout'));
+const Dashboard = lazy(() => import('./pages/dashboard/Dashboard'));
+const Catalog = lazy(() => import('./pages/dashboard/Catalog'));
+const Suppliers = lazy(() => import('./pages/dashboard/Suppliers'));
+const MyProducts = lazy(() => import('./pages/dashboard/MyProducts'));
+const Orders = lazy(() => import('./pages/dashboard/Orders'));
+const TopVendedores = lazy(() => import('./pages/dashboard/TopVendedores'));
+const Financial = lazy(() => import('./pages/dashboard/Financial'));
+const Integrations = lazy(() => import('./pages/dashboard/Integrations'));
+const AdminCatalogo = lazy(() => import('./pages/dashboard/AdminCatalogo'));
+const AdminAvisos = lazy(() => import('./pages/dashboard/AdminAvisos'));
+const AdminImpressao = lazy(() => import('./pages/dashboard/AdminImpressao'));
+const AdminContas = lazy(() => import('./pages/dashboard/AdminContas'));
+const DesempenhoDosAfiliados = lazy(() =>
+  import('./components/dashboard/AfiliadosAdmin').then((m) => ({ default: m.DesempenhoDosAfiliados }))
+);
+const PedidosDeAfiliado = lazy(() =>
+  import('./components/dashboard/AfiliadosAdmin').then((m) => ({ default: m.PedidosDeAfiliado }))
+);
+const AdminRepasses = lazy(() => import('./pages/dashboard/AdminRepasses'));
+const AdminKanban = lazy(() => import('./pages/dashboard/AdminKanban'));
+const Tickets = lazy(() => import('./pages/dashboard/Tickets'));
+const Suporte = lazy(() => import('./pages/dashboard/Suporte'));
+const Tools = lazy(() => import('./pages/dashboard/Tools'));
+const Tutorials = lazy(() => import('./pages/dashboard/Tutorials'));
+const Settings = lazy(() => import('./pages/dashboard/Settings'));
 
 import { supabase } from './lib/supabase';
 import { fetchSupplierAccount } from './lib/supplierAuth';
@@ -292,6 +297,13 @@ function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
+      {/* O painel e o Portal só são baixados quando alguém entra neles.
+          Antes vinha tudo num arquivo só de 1,6 MB: quem abria a landing no
+          celular baixava junto os gráficos do financeiro, o kanban do admin e
+          o Portal do Fornecedor — e o telefone ficava sem responder até
+          terminar de processar. Era isso o "trava e depois de um tempo
+          funciona". */}
+      <Suspense fallback={<SessionLoading label="Carregando..." />}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
 
@@ -363,6 +375,7 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
       </BrowserRouter>
     </ToastProvider>
   );

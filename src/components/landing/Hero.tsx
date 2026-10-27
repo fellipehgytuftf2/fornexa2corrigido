@@ -54,7 +54,7 @@ export default function Hero() {
       <div className="absolute inset-0 grid-pattern opacity-50" />
 
       {/* Glow suave central (mantido do design original) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl" />
+      <div className="brilho-do-hero absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-3xl" />
 
       {/* O corte no fim do hero.
           As duas camadas acima — a grade e o brilho — terminam junto com a
@@ -179,8 +179,11 @@ export default function Hero() {
             <div className="relative animate-float">
               {/* Ambient Blue Glow — atrás da imagem, difuso, saindo pelas
                   laterais e por baixo */}
+              {/* Marcado como brilho do hero: no celular ele some junto com o
+                  outro. Desfoque de 130px animado é o que mais pesa na
+                  página, e no telefone a conta não cabe. */}
               <div
-                className="absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-glow-pulse z-0"
+                className="brilho-do-hero absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-glow-pulse z-0"
                 style={{
                   width: '85%',
                   height: '80%',
