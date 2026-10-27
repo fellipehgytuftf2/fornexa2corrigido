@@ -126,7 +126,7 @@ export default function Header() {
   return (
     <div className="fixed inset-x-0 top-0 z-50 px-3 pointer-events-none">
       <header
-        className={`pointer-events-auto mt-3 mx-auto w-[96%] rounded-2xl border bg-navy-900/95 shadow-lg shadow-black/20 [transition:max-width_350ms_ease-out,padding_350ms_ease-out] ${
+        className={`pointer-events-auto mt-3 mx-auto w-[96%] rounded-2xl border bg-navy-900 shadow-lg shadow-black/20 [transition:max-width_350ms_ease-out,padding_350ms_ease-out] ${
           compacta
             ? 'max-w-[840px] border-white/20 px-4 py-2'
             : 'max-w-[1400px] border-white/10 px-5 py-3.5'
@@ -213,7 +213,7 @@ export default function Header() {
           largura, e o celular travava. Aqui ele é um painel próprio: a barra
           não se mexe quando ele aparece. */}
       {menuAberto && (
-        <div className="pointer-events-auto md:hidden mx-auto mt-2 w-[96%] max-w-[840px] rounded-2xl border border-white/15 bg-navy-900/98 p-2 shadow-lg shadow-black/30">
+        <div className="pointer-events-auto md:hidden mx-auto mt-2 w-[96%] max-w-[840px] rounded-2xl border border-white/15 bg-navy-900 p-2 shadow-lg shadow-black/30">
           {SECOES.map((secao) => (
             <a
               key={secao.id}
