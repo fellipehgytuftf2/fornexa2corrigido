@@ -28,11 +28,6 @@ export default function Hero() {
   /** Qualquer uma das duas ligadas quer dizer: esta pessoa está testando. */
   const testandoALanding = vendoAImagemNova || vendoAImagemNoMobile;
 
-  const handleScrollToPlans = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    document.getElementById('planos')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
     <section
       // O corte reto no fim do hero vinha daqui.
@@ -132,7 +127,6 @@ export default function Hero() {
               </Link>
               <a
                 href="#planos"
-                onClick={handleScrollToPlans}
                 className="text-white border border-slate-700 px-8 py-4 rounded-xl text-base font-medium hover:border-slate-500 hover:bg-slate-800/50 transition-all btn-transition"
               >
                 Ver planos

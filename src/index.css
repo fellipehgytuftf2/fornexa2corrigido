@@ -249,3 +249,20 @@ body {
     animation: none !important;
   }
 }
+
+/* ============================================================
+   CELULAR: o link da barra salta, não desliza
+   ============================================================
+
+   Clicar em "Como funciona" ou "Planos" rolava suavemente até a seção. No
+   computador é bonito. No celular o navegador tem que pintar cada quadro de
+   uma viagem de milhares de pixels — e não dá conta: a seção chega cortada no
+   meio, ou a tela fica preta até a rolagem parar e ele finalmente pintar.
+
+   Saltando direto, ele pinta uma vez só, no destino. Perde-se o deslize;
+   ganha-se a página aparecendo na hora do clique. */
+@media (max-width: 1023px) {
+  html {
+    scroll-behavior: auto;
+  }
+}
