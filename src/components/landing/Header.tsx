@@ -74,6 +74,27 @@ export default function Header() {
 
     let agendado = false;
 
+    /**
+     * Onde cada seção começa, medido fora da rolagem.
+     *
+     * Perguntar `offsetTop` obriga o navegador a recalcular o layout da
+     * página inteira na hora. Dentro do ouvinte de rolagem isso acontecia a
+     * cada quadro, com três seções — e era por isso que rolar rápido fazia a
+     * página engasgar.
+     *
+     * As posições só mudam quando a janela muda de tamanho ou quando algo
+     * termina de carregar. É quando elas são medidas de novo, e nunca durante
+     * a rolagem.
+     */
+    let posicoes: { id: string; topo: number }[] = [];
+
+    const remedir = () => {
+      posicoes = SECOES.map((secao) => ({
+        id: secao.id,
+        topo: document.getElementById(secao.id)?.offsetTop ?? Number.POSITIVE_INFINITY,
+      }));
+    };
+
     const medir = () => {
       agendado = false;
 
@@ -81,19 +102,14 @@ export default function Header() {
 
       setCompacta(posicao > ROLAGEM_PARA_ENCOLHER);
 
-      // Qual seção está sendo lida: a última cujo topo já passou do meio da
-      // tela. É a mesma resposta que um observador daria, numa conta que roda
-      // junto com a que já estamos fazendo.
+      // A seção sendo lida é a última cujo topo já passou do meio da tela.
+      // Aqui só se comparam números já medidos: nenhuma pergunta ao layout.
       const meio = posicao + window.innerHeight / 2;
 
       let atual: string | null = null;
 
-      for (const secao of SECOES) {
-        const elemento = document.getElementById(secao.id);
-
-        if (elemento && elemento.offsetTop <= meio) {
-          atual = secao.id;
-        }
+      for (const secao of posicoes) {
+        if (secao.topo <= meio) atual = secao.id;
       }
 
       setSecaoVisivel(atual);
@@ -106,10 +122,18 @@ export default function Header() {
       requestAnimationFrame(medir);
     };
 
+    remedir();
     medir();
-    window.addEventListener('scroll', aoRolar, { passive: true });
 
-    return () => window.removeEventListener('scroll', aoRolar);
+    window.addEventListener('scroll', aoRolar, { passive: true });
+    window.addEventListener('resize', remedir);
+    window.addEventListener('load', remedir);
+
+    return () => {
+      window.removeEventListener('scroll', aoRolar);
+      window.removeEventListener('resize', remedir);
+      window.removeEventListener('load', remedir);
+    };
   }, []);
 
 

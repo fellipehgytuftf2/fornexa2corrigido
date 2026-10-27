@@ -221,6 +221,9 @@ export default function Hero() {
                 style={{
                   filter: 'drop-shadow(0 40px 100px rgba(30,123,168,0.35))',
                 }}
+                // Decodificar fora da linha principal: um PNG grande decodificado
+                // em primeiro plano trava a rolagem enquanto o navegador o abre.
+                decoding="async"
                 draggable={false}
               />
             </div>
