@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import Header from '../components/landing/Header';
 import Hero from '../components/landing/Hero';
+import FornexaMotion from '../components/landing/FornexaMotion';
 import Benefits from '../components/landing/Benefits';
 import Plans from '../components/landing/Plans';
 import FinalCTA from '../components/landing/FinalCTA';
@@ -15,6 +16,7 @@ export default function LandingPage() {
       <Header />
       <main>
         <Hero />
+        <FornexaMotion />
         <Benefits />
         <Plans codigoAfiliado={codigoAfiliado} />
         <FinalCTA />

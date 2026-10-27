@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fornexa – Animação (celular)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap">
+<style>
+/* Layout: palco em pé 400x720 escalado para a largura do celular, três cenas em sequência e controles abaixo */
+:root{
+  --bg:#06151e;
+  --panel:#0b2230;
+  --raise:#0f2b3a;
+  --ink:#ffffff;
+  --muted:#8fa6b3;
+  --gold:#ffd300;
+  --line:rgba(255,255,255,.08);
+  --f:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 36px}
+.wrap{max-width:400px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+.stage{position:relative;width:100%;max-width:100%;aspect-ratio:400/720;border-radius:34px;overflow:hidden;background:var(--bg);border:1px solid rgba(255,255,255,.12);box-shadow:0 0 0 7px #0b1b24,0 30px 80px -30px rgba(30,120,160,.6)}
+.canvas{position:absolute;left:0;top:0;width:400px;height:720px;transform-origin:0 0;transform:scale(var(--s,1))}
+.layer{position:absolute;inset:0;opacity:0}
+.layer svg{display:block}
+
+/* Cena 1: app no celular */
+#s1{background:var(--panel)}
+.appbar{position:absolute;left:20px;right:20px;top:26px;display:flex;align-items:center;justify-content:space-between}
+.brandrow{display:flex;align-items:center;gap:8px;font-weight:900;font-size:16px;letter-spacing:-.2px}
+.chip{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;color:var(--gold);background:rgba(255,211,0,.1);border:1px solid rgba(255,211,0,.35);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--gold)}
+.head{position:absolute;left:20px;right:20px;top:86px}
+.head h2{margin:0;font-size:22px;font-weight:800;letter-spacing:-.4px;line-height:1.15}
+.head p{margin:6px 0 0;font-size:13px;color:var(--muted)}
+.cards{position:absolute;left:20px;right:20px;top:170px;display:flex;flex-direction:column;gap:12px}
+.card{position:relative;display:grid;grid-template-columns:92px 1fr;gap:14px;align-items:center;background:var(--raise);border:1px solid var(--line);border-radius:14px;padding:10px;transition:transform .4s cubic-bezier(.2,.8,.2,1),opacity .4s,border-color .3s,box-shadow .4s}
+.img{width:92px;height:92px;border-radius:10px;background:linear-gradient(160deg,#f4f7f9,#dbe4ea);display:grid;place-items:center}
+.img svg{width:64px;height:64px}
+.card h3{margin:0 0 3px;font-size:15px;font-weight:700}
+.card p{margin:0;font-size:12px;color:var(--muted)}
+.tag{display:inline-block;margin-top:8px;font-size:11px;font-weight:600;color:var(--gold);background:rgba(255,211,0,.08);border:1px solid rgba(255,211,0,.3);padding:3px 7px;border-radius:6px}
+.badge{position:absolute;top:-10px;right:10px;background:var(--gold);color:var(--bg);font-size:11px;font-weight:800;padding:5px 9px;border-radius:7px;opacity:0;transform:scale(.5);transition:opacity .3s,transform .4s cubic-bezier(.3,1.6,.5,1)}
+.card.sel{border-color:var(--gold);transform:translateY(-4px);box-shadow:0 0 0 4px rgba(255,211,0,.15),0 18px 34px rgba(0,0,0,.4)}
+.card.sel .badge{opacity:1;transform:scale(1)}
+.card.dim{opacity:.32}
+.send{position:absolute;left:20px;right:20px;bottom:92px;text-align:center;transform:translateY(24px);opacity:0;background:var(--gold);color:var(--bg);font-size:15px;font-weight:800;padding:16px 10px;border-radius:12px;white-space:nowrap;box-shadow:0 12px 30px rgba(255,211,0,.35);transition:opacity .35s,transform .45s cubic-bezier(.3,1.5,.5,1)}
+.send.on{opacity:1;transform:translateY(0)}
+.send.press{transform:scale(.96)}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:72px;border-top:1px solid var(--line);background:#081b25;display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:8px}
+.tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:10px;font-weight:600;color:#7d97a4}
+.tab svg{width:20px;height:20px}
+.tab.on{color:var(--gold)}
+#finger{position:absolute;left:0;top:0;width:38px;height:38px;margin:-19px 0 0 -19px;border-radius:50%;background:rgba(255,255,255,.35);border:2px solid rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.4);pointer-events:none}
+#ripple{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2px solid var(--gold);opacity:0;pointer-events:none}
+
+/* Cena 2: fornecedor (vertical) */
+#s2{background:radial-gradient(ellipse at 50% 55%,#103a4e 0%,#06151e 70%)}
+.logo2{position:absolute;left:50%;top:44px;transform:translateX(-50%)}
+.title2{position:absolute;left:24px;right:24px;top:100px;text-align:center;font-size:26px;font-weight:800;letter-spacing:-.5px;line-height:1.15;text-wrap:balance}
+.title2 b{color:var(--gold);font-weight:800}
+.title2 span{display:inline-block;transition:opacity .3s,transform .35s}
+.title2.swap span{opacity:0;transform:translateY(8px)}
+.node{position:absolute;left:140px;width:120px;height:120px;border-radius:28px;background:linear-gradient(160deg,#143a4d,#0a2130);border:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:0 20px 40px rgba(0,0,0,.4);transition:border-color .4s,box-shadow .4s}
+.node svg{width:52px;height:52px}
+.node small{font-size:12px;font-weight:600;color:var(--muted)}
+.node.glow{border-color:var(--gold);box-shadow:0 0 0 7px rgba(255,211,0,.12),0 0 50px rgba(255,211,0,.35)}
+#nStore{top:212px}#nSup{top:482px}
+.link{position:absolute;left:199px;top:332px;width:2px;height:150px;background:linear-gradient(180deg,rgba(255,211,0,.15),rgba(255,211,0,.7),rgba(255,211,0,.15))}
+#pdot{position:absolute;left:192px;width:16px;height:16px;margin-top:-8px;border-radius:50%;background:var(--gold);box-shadow:0 0 18px 4px rgba(255,211,0,.6);opacity:0}
+.ok{position:absolute;top:-11px;right:-11px;width:28px;height:28px;border-radius:50%;background:var(--gold);color:var(--bg);display:grid;place-items:center;font-weight:900;font-size:14px;opacity:0;transform:scale(.4);transition:opacity .3s,transform .45s cubic-bezier(.3,1.6,.5,1)}
+.node.done .ok{opacity:1;transform:scale(1)}
+#pkg2{position:absolute;left:165px;top:372px;width:70px;height:70px;opacity:0}
+.sub2{position:absolute;left:28px;right:28px;top:650px;text-align:center;font-size:14px;line-height:1.4;color:var(--muted);text-wrap:balance}
+
+/* Controles */
+.controls{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{flex:1;font:700 14px/1 var(--f);color:var(--bg);background:var(--gold);border:0;border-radius:12px;padding:13px 16px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid rgba(255,255,255,.14)}
+.step{flex:1;font:600 12px/1 var(--f);color:var(--muted);background:#0b2230;border:1px solid var(--line);border-radius:999px;padding:9px 6px;cursor:pointer;white-space:nowrap}
+.step.on{color:var(--bg);background:var(--gold);border-color:var(--gold)}
+.btn:focus-visible,.step:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>
+html,body{margin:0;padding:0!important;width:100%;height:100%;overflow:hidden;background:#06151e}
+.wrap{max-width:none!important;gap:0!important;height:100%}
+.controls{display:none!important}
+.stage{border:0!important;border-radius:0!important;box-shadow:none!important;aspect-ratio:auto!important;width:100%!important;height:100%!important}
+</style>
+</head>
+<body>
+
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="cube" viewBox="0 0 40 40">
+      <path d="M22 4 L36 11 L22 18 L8 11 Z" fill="#ffe14d"/>
+      <path d="M8 11 L22 18 V34 L8 27 Z" fill="#ffd300"/>
+      <path d="M22 18 L36 11 V27 L22 34 Z" fill="#c9a500"/>
+      <path d="M1 16 H6 M0 21 H6 M2 26 H6" stroke="#ffd300" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <div class="stage" id="stage" role="img" aria-label="Animação em três cenas no celular: escolha do produto no catálogo Fornexa, pedido enviado ao fornecedor e entrega ao cliente.">
+    <div class="canvas" id="canvas">
+
+      <!-- CENA 1 -->
+      <div class="layer" id="s1">
+        <div class="appbar">
+          <div class="brandrow"><svg width="26" height="26"><use href="#cube"/></svg>FORNEXA</div>
+          <span class="chip">Catálogo atualizado</span>
+        </div>
+        <div class="head"><h2>Oportunidades para sua loja</h2><p>Produtos selecionados e fornecedores verificados</p></div>
+        <div class="cards">
+          <div class="card" id="c1">
+            <span class="badge">✓ Selecionado</span>
+            <div class="img"><svg viewBox="0 0 96 96"><circle cx="40" cy="48" r="26" fill="#1d3f52"/><circle cx="40" cy="48" r="19" fill="#2c5770"/><rect x="62" y="44" width="30" height="8" rx="4" fill="#ffd300" transform="rotate(-18 62 48)"/><circle cx="34" cy="42" r="5" fill="#fff" opacity=".25"/></svg></div>
+            <div><h3>Utilidades domésticas</h3><p>Itens com demanda recorrente</p><span class="tag">Fornecedor verificado</span></div>
+          </div>
+          <div class="card" id="c2">
+            <span class="badge">✓ Selecionado</span>
+            <div class="img"><svg viewBox="0 0 96 96"><path d="M20 58V48a28 28 0 0 1 56 0v10" fill="none" stroke="#1d3f52" stroke-width="7" stroke-linecap="round"/><rect x="12" y="50" width="20" height="30" rx="8" fill="#1d3f52"/><rect x="64" y="50" width="20" height="30" rx="8" fill="#1d3f52"/><rect x="17" y="56" width="10" height="18" rx="4" fill="#ffd300"/><rect x="69" y="56" width="10" height="18" rx="4" fill="#ffd300"/></svg></div>
+            <div><h3>Eletrônicos e acessórios</h3><p>Produtos para ampliar seu mix</p><span class="tag">Pronto para vender</span></div>
+          </div>
+          <div class="card" id="c3">
+            <span class="badge">✓ Selecionado</span>
+            <div class="img"><svg viewBox="0 0 96 96"><rect x="38" y="10" width="20" height="14" rx="3" fill="#1d3f52"/><rect x="34" y="22" width="28" height="8" rx="2" fill="#2c5770"/><rect x="26" y="30" width="44" height="56" rx="12" fill="#ffd300"/><rect x="34" y="46" width="28" height="26" rx="5" fill="#fff" opacity=".85"/><path d="M48 50c-4 6-6 9-6 12a6 6 0 0 0 12 0c0-3-2-6-6-12z" fill="#2c7fb8"/></svg></div>
+            <div><h3>Beleza e cuidados</h3><p>Novas oportunidades de catálogo</p><span class="tag">Catálogo atualizado</span></div>
+          </div>
+        </div>
+        <div class="send" id="send">✓ Produto enviado ao fornecedor</div>
+        <nav class="tabbar">
+          <div class="tab"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 7.5 8 2.5l6 5V14H2z"/></svg>Início</div>
+          <div class="tab on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Catálogo</div>
+          <div class="tab"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1.5 14 4.5v7L8 14.5 2 11.5v-7zM2 4.5l6 3 6-3M8 7.5v7"/></svg>Pedidos</div>
+          <div class="tab"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M7 6v4l3-2z" fill="currentColor"/></svg>Curso</div>
+        </nav>
+        <div id="ripple"></div>
+        <div id="finger"></div>
+      </div>
+
+      <!-- CENA 2 -->
+      <div class="layer" id="s2">
+        <svg class="logo2" width="40" height="40"><use href="#cube"/></svg>
+        <div class="title2" id="title2"><span id="t2text">Fornecedor <b>verificado</b></span></div>
+        <div class="link"></div>
+        <div class="node" id="nStore">
+          <svg viewBox="0 0 60 60"><path d="M6 12h8l6 28h26l6-20H17" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="23" cy="48" r="4.5" fill="#ffd300"/><circle cx="43" cy="48" r="4.5" fill="#ffd300"/></svg>
+          <small>Sua loja</small>
+        </div>
+        <div class="node" id="nSup">
+          <span class="ok">✓</span>
+          <svg viewBox="0 0 60 60"><rect x="40" y="8" width="8" height="18" rx="2" fill="#5f7e8c"/><path d="M6 52V30l12 8v-8l12 8v-8l12 8V22h10v30z" fill="#ffd300"/><rect x="12" y="42" width="6" height="6" rx="1" fill="#06151e"/><rect x="24" y="42" width="6" height="6" rx="1" fill="#06151e"/><rect x="36" y="42" width="6" height="6" rx="1" fill="#06151e"/></svg>
+          <small>Fornecedor</small>
+        </div>
+        <div id="pdot"></div>
+        <svg id="pkg2" viewBox="0 0 40 40"><path d="M20 3 L36 11 L20 19 L4 11 Z" fill="#ffe14d"/><path d="M4 11 L20 19 V37 L4 29 Z" fill="#ffd300"/><path d="M20 19 L36 11 V29 L20 37 Z" fill="#c9a500"/><path d="M12 7 L28 15 V20" fill="none" stroke="#06151e" stroke-opacity=".35" stroke-width="2"/></svg>
+        <div class="sub2" id="sub2">A Fornexa conecta sua loja ao fornecedor certo</div>
+      </div>
+
+      <!-- CENA 3 -->
+      <div class="layer" id="s3">
+        <svg width="400" height="720" viewBox="0 0 400 720">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0e2a38"/><stop offset="1" stop-color="#06151e"/></linearGradient>
+            <radialGradient id="haze" cx=".6" cy=".55" r=".7"><stop offset="0" stop-color="#1b5a73" stop-opacity=".45"/><stop offset="1" stop-color="#1b5a73" stop-opacity="0"/></radialGradient>
+            <pattern id="dots" width="16" height="20" patternUnits="userSpaceOnUse"><circle cx="8" cy="10" r="1.7" fill="#ffd300" opacity=".45"/></pattern>
+            <radialGradient id="sunG"><stop offset="0" stop-color="#fff6c2"/><stop offset=".3" stop-color="#ffd300" stop-opacity=".5"/><stop offset="1" stop-color="#ffd300" stop-opacity="0"/></radialGradient>
+            <linearGradient id="goldG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe14d"/><stop offset="1" stop-color="#ffc800"/></linearGradient>
+            <linearGradient id="goldL" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff0a0"/><stop offset="1" stop-color="#ffd84a"/></linearGradient>
+            <linearGradient id="beamG" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff6c8" stop-opacity=".6"/><stop offset="1" stop-color="#fff6c8" stop-opacity="0"/></linearGradient>
+            <filter id="blur14" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="14"/></filter>
+            <filter id="blur5" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+          </defs>
+          <rect width="400" height="720" fill="url(#sky)"/>
+          <rect width="400" height="720" fill="url(#haze)"/>
+          <circle id="sun" cx="320" cy="290" r="56" fill="url(#sunG)"/>
+
+          <!-- mundo em escala 0.62; chão em y=520 da tela -->
+          <g transform="translate(0,211.2) scale(.62)">
+            <g id="cityBack"></g>
+            <g id="cityFront"></g>
+            <g id="house">
+              <rect x="755" y="345" width="212" height="153" rx="10" fill="#0f2c3b" stroke="rgba(255,211,0,.2)"/>
+              <ellipse id="doorGlow" cx="863" cy="455" rx="70" ry="60" fill="#ffd300" filter="url(#blur14)" opacity="0"/>
+              <rect x="742" y="327" width="238" height="15" rx="7.5" fill="url(#goldG)"/>
+              <rect class="win3" x="775" y="378" width="40" height="36" rx="6" fill="#ffe680" opacity=".5"/>
+              <rect class="win3" x="907" y="378" width="40" height="36" rx="6" fill="#ffe680" opacity=".5"/>
+              <rect id="door" x="835" y="408" width="56" height="90" rx="5" fill="url(#goldG)" opacity=".7"/>
+            </g>
+            <rect x="-10" y="498" width="680" height="340" fill="#071820"/>
+            <line x1="-10" y1="499" x2="670" y2="499" stroke="#ffd300" stroke-opacity=".55" stroke-width="3"/>
+            <g id="dashes"></g>
+
+            <g id="truck" transform="translate(16,394)">
+              <ellipse cx="160" cy="128" rx="175" ry="9" fill="#000" opacity=".6" filter="url(#blur5)"/>
+              <polygon id="beam" points="300,92 470,76 470,124" fill="url(#beamG)" opacity=".45"/>
+              <rect x="0" y="0" width="212" height="102" rx="16" fill="url(#goldG)"/>
+              <rect x=".5" y=".5" width="211" height="101" rx="15.5" fill="none" stroke="#fff6cc" stroke-opacity=".4"/>
+              <rect x="16" y="30" width="40" height="40" rx="10" fill="#06151e"/>
+              <use href="#cube" x="18" y="32" width="36" height="36"/>
+              <text x="68" y="42" font-family="Inter, system-ui, sans-serif" font-weight="700" font-size="9" letter-spacing="1.4" fill="#0b3243">ENTREGA EXPRESSA</text>
+              <text x="68" y="70" font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="24" letter-spacing="-.3" fill="#06151e">FORNEXA</text>
+              <path d="M206 30 H262 C284 30 300 50 304 72 L306 94 Q306 102 298 102 H206 Z" fill="url(#goldL)"/>
+              <path d="M238 40 H262 C276 40 286 52 289 66 H238 Q234 66 234 62 V44 Q234 40 238 40 Z" fill="#06151e"/>
+              <rect x="299" y="86" width="10" height="8" rx="3" fill="#fffbe6"/>
+              <g transform="translate(52,104)"><circle r="21" fill="#04101a"/><circle r="12" fill="#1d3f52"/><g class="spin"><rect x="-2" y="-10" width="4" height="20" rx="2" fill="#ffd300"/><rect x="-10" y="-2" width="20" height="4" rx="2" fill="#ffd300" opacity=".55"/></g><circle r="3" fill="#fff6c2"/></g>
+              <g transform="translate(104,104)"><circle r="21" fill="#04101a"/><circle r="12" fill="#1d3f52"/><g class="spin"><rect x="-2" y="-10" width="4" height="20" rx="2" fill="#ffd300"/><rect x="-10" y="-2" width="20" height="4" rx="2" fill="#ffd300" opacity=".55"/></g><circle r="3" fill="#fff6c2"/></g>
+              <g transform="translate(256,104)"><circle r="21" fill="#04101a"/><circle r="12" fill="#1d3f52"/><g class="spin"><rect x="-2" y="-10" width="4" height="20" rx="2" fill="#ffd300"/><rect x="-10" y="-2" width="20" height="4" rx="2" fill="#ffd300" opacity=".55"/></g><circle r="3" fill="#fff6c2"/></g>
+            </g>
+
+            <g id="pkg3" opacity="0">
+              <path d="M0 -17 L16 -9 L0 -1 L-16 -9 Z" fill="#ffe14d"/><path d="M-16 -9 L0 -1 V17 L-16 9 Z" fill="#ffd300"/><path d="M0 -1 L16 -9 V9 L0 17 Z" fill="#c9a500"/>
+            </g>
+          </g>
+
+          <g id="card" opacity="0">
+            <rect x="0" y="6" width="330" height="80" rx="12" fill="#ffd300" opacity=".3" filter="url(#blur14)"/>
+            <rect x="0" y="0" width="330" height="80" rx="12" fill="url(#goldG)"/>
+            <text x="22" y="34" font-family="Inter, system-ui, sans-serif" font-weight="800" font-size="17" fill="#06151e">Cliente satisfeito</text>
+            <g id="stars"></g>
+            <text x="22" y="60" font-family="Inter, system-ui, sans-serif" font-weight="500" font-size="13" fill="#0b3243">Entrega concluída com sucesso</text>
+          </g>
+
+          <g id="pill">
+            <rect id="pillBg" x="0" y="0" width="240" height="44" rx="22" fill="#0b2230" stroke="rgba(255,255,255,.12)"/>
+            <circle id="pillDot" cx="23" cy="22" r="5" fill="#ffd300"/>
+            <text id="pillText" x="38" y="28" font-family="Inter, system-ui, sans-serif" font-weight="700" font-size="15" fill="#ffffff">Em rota de entrega</text>
+          </g>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="row">
+      <button class="step" type="button" data-at="0">1 · Catálogo</button>
+      <button class="step" type="button" data-at="6.6">2 · Fornecedor</button>
+      <button class="step" type="button" data-at="12.6">3 · Entrega</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="replay" type="button">Repetir</button>
+      <button class="btn ghost" id="toggle" type="button">Pausar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const NS="http://www.w3.org/2000/svg";
+  const $=id=>document.getElementById(id);
+  const mk=(tag,attrs,parent)=>{const el=document.createElementNS(NS,tag);for(const k in attrs)el.setAttribute(k,attrs[k]);parent&&parent.appendChild(el);return el;};
+  const clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
+  const lerp=(a,b,k)=>a+(b-a)*k;
+  const easeIO=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+  const easeOutQ=k=>1-(1-k)*(1-k);
+  const backOut=k=>1+2.7*Math.pow(k-1,3)+1.7*Math.pow(k-1,2);
+  const fade=(t,a,b,inD=.5,outD=.5)=>clamp((t-a)/inD)*(1-clamp((t-(b-outD))/outD));
+
+  const W=400;
+  const stage=$("stage"), canvas=$("canvas");
+  const fit=()=>canvas.style.setProperty("--s",stage.clientWidth/W);
+  new ResizeObserver(fit).observe(stage); fit();
+
+  const SPEED=1.2, CYCLE=21;
+  const S1=[0,6.6], S2=[6.6,12.6], S3=[12.6,21];
+
+  /* ---------- CENA 1 ---------- */
+  const s1=$("s1"), cards=[$("c1"),$("c2"),$("c3")], send=$("send"), finger=$("finger"), rip=$("ripple");
+  const rel=el=>{const s=stage.clientWidth/W,r=el.getBoundingClientRect(),o=stage.getBoundingClientRect();return {x:(r.left-o.left+r.width/2)/s,y:(r.top-o.top+r.height/2)/s};};
+  function scene1(t){
+    s1.style.opacity=fade(t,S1[0],S1[1],.5,.6);
+    cards[0].classList.toggle("sel",t>2.55);
+    cards[1].classList.toggle("dim",t>2.75); cards[2].classList.toggle("dim",t>2.75);
+    send.classList.toggle("on",t>3.3);
+    send.classList.toggle("press",t>4.75&&t<4.95);
+    const start={x:330,y:640}, c1=rel(cards[0]), b=rel(send);
+    let p;
+    if(t<.8)p=start;
+    else if(t<2.4)p={x:lerp(start.x,c1.x,easeIO((t-.8)/1.6)),y:lerp(start.y,c1.y,easeIO((t-.8)/1.6))};
+    else if(t<3.8)p=c1;
+    else if(t<4.6)p={x:lerp(c1.x,b.x,easeIO((t-3.8)/.8)),y:lerp(c1.y,b.y,easeIO((t-3.8)/.8))};
+    else p=b;
+    const pressed=(t>2.45&&t<2.65)||(t>4.75&&t<4.95);
+    const vis = t<5.6 ? clamp((t-.7)/.3) : 1-clamp((t-5.6)/.3);
+    finger.style.opacity=vis;
+    finger.style.transform=`translate(${p.x}px,${p.y}px) scale(${pressed?.78:1})`;
+    const rk = t>2.45&&t<3.1 ? (t-2.45)/.65 : t>4.75&&t<5.4 ? (t-4.75)/.65 : -1;
+    if(rk>=0){rip.style.left=p.x+"px";rip.style.top=p.y+"px";rip.style.opacity=1-rk;rip.style.transform=`scale(${.4+rk*1.5})`;}
+    else rip.style.opacity=0;
+  }
+
+  /* ---------- CENA 2 ---------- */
+  const s2=$("s2"), t2=$("title2"), t2text=$("t2text"), nStore=$("nStore"), nSup=$("nSup"), pdot=$("pdot"), pkg2=$("pkg2"), sub2=$("sub2");
+  const T2=[["Fornecedor ","verificado","A Fornexa conecta sua loja ao fornecedor certo"],["Pedido ","recebido","O fornecedor recebe o pedido na hora"],["Embalando e ","despachando","Seu cliente recebe sem você tocar no estoque"]];
+  let t2State=-1;
+  function scene2(t){
+    s2.style.opacity=fade(t,S2[0],S2[1],.5,.6);
+    const lt=t-S2[0];
+    const st= lt<1.7?0 : lt<3.4?1 : 2;
+    if(st!==t2State){
+      t2State=st;
+      t2.classList.add("swap");
+      setTimeout(()=>{t2text.innerHTML=T2[st][0]+"<b>"+T2[st][1]+"</b>";sub2.textContent=T2[st][2];t2.classList.remove("swap");},180);
+    }
+    nSup.classList.toggle("glow", st===0 && lt>.4);
+    nStore.classList.toggle("glow", st===1 && lt<2.2);
+    nSup.classList.toggle("done", st===2);
+    const dk=clamp((lt-1.9)/1.3);
+    pdot.style.opacity = lt>1.8&&lt<3.4 ? 1 : 0;
+    pdot.style.top = lerp(332,482,easeIO(dk))+"px";
+    const bk=clamp((lt-3.5)/.5);
+    pkg2.style.opacity=bk;
+    const bob=Math.sin(lt*3)*4*bk;
+    pkg2.style.transform=`translateY(${(1-bk)*24+bob}px) scale(${.5+.5*backOut(bk)})`;
+  }
+
+  /* ---------- CENA 3 (mundo em escala 0.62) ---------- */
+  const s3=$("s3");
+  const D=1100, SHIFT=-375; // casa termina com a porta em x≈488 do mundo
+  const VIEW=W/.62;
+  let seed=7; const rnd=()=>(seed=(seed*9301+49297)%233280)/233280;
+  const back=$("cityBack"), front=$("cityFront");
+  for(let x=-20;x<VIEW+D*.5+200;){const w=70+rnd()*60,h=140+rnd()*190;
+    mk("rect",{x,y:498-h,width:w,height:h,fill:"#0a2130"},back);
+    mk("rect",{x:x+6,y:498-h+8,width:w-12,height:h-8,fill:"url(#dots)"},back);
+    x+=w+4+rnd()*16;}
+  const houseL=755+SHIFT+D-50, houseR=980+SHIFT+D+10;
+  for(let x=10;x<VIEW+D+200;){const w=100+rnd()*60,h=78+rnd()*70;
+    if(!(x+w>houseL&&x<houseR)){
+      mk("rect",{x,y:498-h,width:w,height:h,rx:8,fill:"#123344","fill-opacity":".92",stroke:"rgba(255,255,255,.08)"},front);
+      mk("rect",{x:x+8,y:498-h+10,width:w-16,height:h-10,fill:"url(#dots)",opacity:".9"},front);
+    }
+    x+=w+60+rnd()*140;}
+  const dashes=$("dashes");
+  for(let x=-10;x<VIEW+140;x+=120)mk("rect",{x,y:574,width:56,height:6,rx:1,fill:"#ffd300","fill-opacity":".8"},dashes);
+  const stars=$("stars");
+  const starPts=(cx,cy,R,r)=>{let p=[];for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rad=i%2?r:R;p.push((cx+Math.cos(a)*rad).toFixed(1)+","+(cy+Math.sin(a)*rad).toFixed(1));}return p.join(" ");};
+  const starEls=[];for(let i=0;i<5;i++)starEls.push(mk("polygon",{points:starPts(204+i*24,28,10,4.4),fill:"none",stroke:"#06151e","stroke-width":"1.6","stroke-linejoin":"round"},stars));
+
+  const truck=$("truck"), beam=$("beam"), house=$("house"), door=$("door"), doorGlow=$("doorGlow"), sun=$("sun"), card=$("card"), pkg3=$("pkg3");
+  const spins=[...document.querySelectorAll(".spin")], wins3=[...document.querySelectorAll(".win3")];
+  const pill=$("pill"), pillBg=$("pillBg"), pillDot=$("pillDot"), pillText=$("pillText");
+  let pillState=-1;
+  function layoutPill(){const w=Math.ceil(pillText.getComputedTextLength())+54;pillBg.setAttribute("width",w);pill.setAttribute("transform",`translate(${200-w/2},64)`);}
+  function setPill(s){if(s===pillState)return;pillState=s;pillText.textContent=s?"✓ Pedido entregue":"Em rota de entrega";layoutPill();}
+
+  function scene3(t){
+    s3.style.opacity=fade(t,S3[0],S3[1],.5,.6);
+    const lt=t-S3[0];
+    const mk3=clamp(lt/4.6), off=D*easeOutQ(mk3);
+    const moving=mk3<1;
+    back.setAttribute("transform",`translate(${(-off*.5).toFixed(1)},0)`);
+    front.setAttribute("transform",`translate(${(-off).toFixed(1)},0)`);
+    house.setAttribute("transform",`translate(${(SHIFT+D-off).toFixed(1)},0)`);
+    dashes.setAttribute("transform",`translate(${(-(off%120)).toFixed(1)},0)`);
+    const bob=moving?Math.sin(lt*24)*1.2*(1-mk3):0;
+    truck.setAttribute("transform",`translate(16,${(394+bob).toFixed(1)})`);
+    const rot=(off/21)*180/Math.PI;
+    spins.forEach(s=>s.setAttribute("transform",`rotate(${rot.toFixed(1)})`));
+
+    const pk=clamp((lt-4.9)/.8);
+    if(pk>0&&pk<1){
+      const x=lerp(130,488,easeIO(pk)), y=lerp(380,470,pk)-Math.sin(pk*Math.PI)*150;
+      pkg3.setAttribute("transform",`translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${(pk*360).toFixed(0)})`);
+      pkg3.setAttribute("opacity",1);
+    } else pkg3.setAttribute("opacity",0);
+
+    const a=clamp((lt-5.7)/.5);
+    beam.setAttribute("opacity",(.45+.4*a).toFixed(2));
+    doorGlow.setAttribute("opacity",(.85*a).toFixed(2));
+    door.setAttribute("opacity",(.7+.3*a).toFixed(2));
+    wins3.forEach(w=>w.setAttribute("opacity",(.5+.4*a).toFixed(2)));
+    setPill(lt>5.7?1:0);
+    pillDot.setAttribute("opacity",pillState?1:(.55+.45*Math.abs(Math.sin(t*4))).toFixed(2));
+
+    const c=clamp((lt-6.0)/.5), sc=.82+.18*backOut(c);
+    card.setAttribute("opacity",c.toFixed(2));
+    card.setAttribute("transform",`translate(200,${(170+(1-c)*14).toFixed(1)}) scale(${(sc*1.04).toFixed(3)}) translate(-165,-40)`);
+    starEls.forEach((st,i)=>st.setAttribute("fill",lt>6.35+i*.18?"#06151e":"none"));
+    sun.setAttribute("r",(54+Math.sin(t*1.3)*4).toFixed(1));
+  }
+
+  /* ---------- Loop ---------- */
+  const steps=[...document.querySelectorAll(".step")];
+  function render(t){
+    scene1(t); scene2(t); scene3(t);
+    const sc=t<S1[1]?0:t<S2[1]?1:2;
+    steps.forEach((b,i)=>b.classList.toggle("on",i===sc));
+  }
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let t=reduce?19.4:.8, playing=!reduce, last=null;
+  const toggle=$("toggle"); toggle.textContent=playing?"Pausar":"Continuar";
+  function frame(now){
+    if(last!==null&&playing)t=(t+Math.min(.1,(now-last)/1000)*SPEED)%CYCLE;
+    last=now; render(t); requestAnimationFrame(frame);
+  }
+  $("replay").addEventListener("click",()=>{t=0;playing=true;toggle.textContent="Pausar";});
+  toggle.addEventListener("click",()=>{playing=!playing;toggle.textContent=playing?"Pausar":"Continuar";});
+  steps.forEach(b=>b.addEventListener("click",()=>{t=parseFloat(b.dataset.at);}));
+
+  setPill(0); render(t);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(layoutPill);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
