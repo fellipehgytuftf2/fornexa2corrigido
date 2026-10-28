@@ -72,12 +72,12 @@ export default function Hero() {
             {/* O selo "a plataforma nº 1" saiu daqui, e com ele o espaço que
                 ocupava: título alto é o que a primeira tela precisa, e
                 superlativo sem prova atrás não convence ninguém. */}
-            <h1 className="text-4xl md:text-5xl lg:text-[4.75rem] xl:text-[5.5rem] font-bold text-white leading-[1.1] tracking-tight mb-6 lg:mb-8 animate-slide-up">
+            <h1 className="text-4xl md:text-5xl lg:text-[3.75rem] xl:text-[4.25rem] font-bold text-white leading-[1.1] tracking-tight mb-6 lg:mb-8 animate-slide-up">
               Venda sem ter estoque.{' '}
               <span className="text-gold drop-shadow-lg md:block">Fornecedores cuidam do resto.</span>
             </h1>
             <p
-              className="text-base md:text-lg lg:text-2xl text-slate-400 max-w-xl lg:max-w-3xl mx-auto mb-8 lg:mb-10 font-normal leading-relaxed animate-fade-in"
+              className="text-base md:text-lg lg:text-xl text-slate-400 max-w-xl lg:max-w-2xl mx-auto mb-8 lg:mb-10 font-normal leading-relaxed animate-fade-in"
               style={{ animationDelay: '0.1s' }}
             >
               Escolha o produto e anuncie. O resto (estoque, preço e pedido) a FORNEXA
@@ -123,7 +123,7 @@ export default function Hero() {
                   ficaria pequeno demais para o texto que carrega. */}
               <a
                 href="#planos"
-                className="btn-fnx btn-fnx-primario w-full sm:w-auto flex items-center justify-center px-8 py-4 lg:px-10 lg:py-5 text-base lg:text-lg font-semibold"
+                className="btn-fnx btn-fnx-primario w-full sm:w-auto flex items-center justify-center px-8 py-4 lg:px-9 lg:py-4 text-base lg:text-lg font-semibold"
               >
                 <span className="inline-flex items-center gap-2">
                   Começar agora
@@ -132,7 +132,7 @@ export default function Hero() {
               </a>
               <a
                 href="#beneficios"
-                className="btn-fnx btn-fnx-secundario w-full sm:w-auto flex items-center justify-center px-8 py-4 lg:px-10 lg:py-5 text-base lg:text-lg font-medium"
+                className="btn-fnx btn-fnx-secundario w-full sm:w-auto flex items-center justify-center px-8 py-4 lg:px-9 lg:py-4 text-base lg:text-lg font-medium"
               >
                 <span>Como funciona</span>
               </a>
