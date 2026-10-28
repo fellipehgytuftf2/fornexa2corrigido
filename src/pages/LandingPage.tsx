@@ -3,6 +3,7 @@ import Header from '../components/landing/Header';
 import Hero from '../components/landing/Hero';
 import FornexaMotion from '../components/landing/FornexaMotion';
 import Benefits from '../components/landing/Benefits';
+import ZoomMonitor from '../components/landing/ZoomMonitor';
 import Plans from '../components/landing/Plans';
 import FAQ from '../components/landing/FAQ';
 import FinalCTA from '../components/landing/FinalCTA';
@@ -19,6 +20,7 @@ export default function LandingPage() {
         <Hero />
         <FornexaMotion />
         <Benefits />
+        <ZoomMonitor />
         <Plans codigoAfiliado={codigoAfiliado} />
         <FAQ />
         <FinalCTA />

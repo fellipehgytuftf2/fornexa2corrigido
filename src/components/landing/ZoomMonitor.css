@@ -1,0 +1,47 @@
+/* Zoom no monitor — estilos só desta seção (prefixo .zm) */
+/* Cor de PLANOS: bg-navy-900 = #06151E (tailwind.config.js) */
+.zm { --zm-planos: #06151E; position: relative; height: 240vh; background: var(--zm-planos); }
+@media (max-width: 767px) { .zm { height: 170vh; } }
+.zm-sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; background: var(--zm-planos); }
+
+/* Imagem e tela desenhada no MESMO contêiner, em %; cobre a viewport centrada no monitor */
+.zm-scene { --w: max(100vw, 152.86vh); position: absolute; left: 50%; top: 50%; width: var(--w); aspect-ratio: 1550 / 1014;
+            margin-left: calc(var(--w) * -0.5036); margin-top: calc(var(--w) * -0.3271); }
+.zm-zoom { position: absolute; inset: 0; transform-origin: 50.36% 57.1%; }
+.zm-photo { position: absolute; inset: 0; }
+.zm-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.zm-tint { position: absolute; inset: 0; pointer-events: none;
+           background: radial-gradient(ellipse at 50.4% 57%, rgba(6,21,30,0) 45%, rgba(6,21,30,.78) 100%), linear-gradient(rgba(6,21,30,.28), rgba(6,21,30,.28)); }
+.zm-screen { position: absolute; border-radius: 3px; overflow: hidden; }
+.zm-screen-base, .zm-screen-final { position: absolute; inset: 0; }
+.zm-screen-base { background: #012035; }        /* azul da tela da foto / fundo da logo */
+.zm-screen-final { background: var(--zm-planos); opacity: 0; }
+/* Logo vetorial (mesma do cabeçalho). Estática: dentro da tela, sem JS ou com movimento reduzido. */
+.zm-logo-static { position: absolute; left: 27.04%; top: 18.6%; width: 38.11%; height: auto; max-width: none; display: block; }
+.zm[data-js] .zm-logo-static { display: none; }
+/* Animada: fora do contêiner que escala, desenhada grande e reduzida (sempre nítida) */
+.zm-logo-live { position: absolute; left: 0; top: 0; height: auto; max-width: none; transform-origin: 0 0; opacity: 0; display: none; pointer-events: none; }
+.zm[data-js] .zm-logo-live { display: block; }
+
+.zm-hint { position: absolute; left: 0; right: 0; bottom: 28px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #D6D6D6; font-size: .875rem; pointer-events: none; }
+.zm-hint svg { width: 18px; height: 18px; }
+
+/* Sem JS: imagem estática com a logo */
+.zm:not([data-js]) { height: auto; }
+.zm:not([data-js]) .zm-sticky { position: relative; }
+.zm:not([data-js]) .zm-screen { opacity: 1; }
+.zm:not([data-js]) .zm-hint { display: none; }
+
+/* Reveal de PLANOS (só com JS) */
+[data-zm-reveal] { opacity: 0; transform: translateY(24px); transition: opacity .4s ease, transform .4s ease; }
+[data-zm-reveal].is-in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .zm { height: auto !important; }
+  .zm-sticky { position: relative !important; }
+  .zm-zoom { transform: none !important; }
+  .zm-screen { opacity: 1 !important; }
+  .zm-screen-final, .zm-hint, .zm-logo-live { display: none !important; }
+  .zm[data-js] .zm-logo-static { display: block !important; }
+  [data-zm-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
