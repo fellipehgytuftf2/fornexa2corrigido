@@ -79,7 +79,7 @@ export default function ZoomMonitor() {
       const cy = r.top - st.top + (r.height * (SCREEN.top + SCREEN.height / 2)) / 100;
       const s = Math.max(vw / sw, vh / sh) * 1.02;
       // maior escala em que a logo ainda aparece (p = 0.7)
-      const sMax = Math.pow(s, easeInOut(0.7 / 0.8));
+      const sMax = Math.pow(s, easeInOut(0.78 / 0.92));
       const base = Math.min(LOGO.w * sw * sMax, LOGO_MAX);
       logo.style.width = `${base}px`;
       geo = { s, dx: vw / 2 - cx, dy: vh / 2 - cy, cx, cy, sw, sh, base };
@@ -89,17 +89,17 @@ export default function ZoomMonitor() {
       return total > 0 ? clamp(-sec.getBoundingClientRect().top / total, 0, 1) : 0;
     };
     const apply = (p: number) => {
-      const z = easeInOut(range(p, 0, 0.8));
+      const z = easeInOut(range(p, 0, 0.92));
       zoom.style.transform = `translate3d(${geo.dx * z}px,${geo.dy * z}px,0) scale(${Math.pow(geo.s, z)})`;
-      hint.style.opacity = String(1 - range(p, 0, 0.15));
+      hint.style.opacity = String(1 - range(p, 0, 0.12));
       screen.style.opacity = '1'; // tela nítida desde o início (cobre a logo borrada da foto)
       const S = Math.pow(geo.s, z);
       const lx = geo.cx + geo.dx * z + S * (LOGO.x - 0.5) * geo.sw;
       const ly = geo.cy + geo.dy * z + S * (LOGO.y - 0.5) * geo.sh;
       logo.style.transform = `translate3d(${lx}px,${ly}px,0) scale(${(S * LOGO.w * geo.sw) / geo.base})`;
-      logo.style.opacity = String(1 - range(p, 0.45, 0.7));
-      finalC.style.opacity = String(range(p, 0.35, 0.8));
-      const out = range(p, 0.7, 0.8);
+      logo.style.opacity = String(1 - range(p, 0.5, 0.78));
+      finalC.style.opacity = String(range(p, 0.35, 0.9));
+      const out = range(p, 0.8, 0.9);
       photo.style.opacity = tint.style.opacity = String(1 - out);
     };
 
