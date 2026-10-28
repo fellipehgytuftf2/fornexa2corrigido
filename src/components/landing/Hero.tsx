@@ -41,7 +41,7 @@ export default function Hero() {
       // Com `overflow-x-clip`, os brilhos vazam para baixo e morrem aos poucos
       // sobre a seção seguinte, como brilho faz. O eixo horizontal continua
       // travado — sem isso um brilho largo criaria rolagem lateral no celular.
-      className={`relative flex items-center justify-center pt-28 pb-24 lg:pt-32 lg:pb-28 bg-navy-900 ${
+      className={`relative flex items-center justify-center pt-28 pb-24 lg:pt-32 lg:pb-28 lg:min-h-screen bg-navy-900 ${
         testandoALanding ? 'overflow-x-clip' : 'overflow-hidden'
       }`}
     >
@@ -66,18 +66,18 @@ export default function Hero() {
       )}
 
       <div className="relative z-10 max-w-[1500px] mx-auto px-4 lg:px-6 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.35fr] gap-10 lg:gap-8 items-center">
-          {/* Coluna esquerda — badge, texto, indicadores, CTA e prova social */}
-          <div className="text-center lg:text-left">
+        <div className="flex justify-center">
+          {/* Texto centralizado — sem a imagem ao lado */}
+          <div className="text-center max-w-7xl">
             {/* O selo "a plataforma nº 1" saiu daqui, e com ele o espaço que
                 ocupava: título alto é o que a primeira tela precisa, e
                 superlativo sem prova atrás não convence ninguém. */}
-            <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-bold text-white leading-[1.1] tracking-tight mb-5 animate-slide-up">
+            <h1 className="text-4xl md:text-5xl lg:text-[4.75rem] xl:text-[5.5rem] font-bold text-white leading-[1.1] tracking-tight mb-6 lg:mb-8 animate-slide-up">
               Venda sem ter estoque.{' '}
-              <span className="text-gold drop-shadow-lg">Fornecedores cuidam do resto.</span>
+              <span className="text-gold drop-shadow-lg md:block">Fornecedores cuidam do resto.</span>
             </h1>
             <p
-              className="text-base md:text-lg text-slate-400 max-w-xl mx-auto lg:mx-0 mb-8 font-normal leading-relaxed animate-fade-in"
+              className="text-base md:text-lg lg:text-2xl text-slate-400 max-w-xl lg:max-w-3xl mx-auto mb-8 lg:mb-10 font-normal leading-relaxed animate-fade-in"
               style={{ animationDelay: '0.1s' }}
             >
               Escolha o produto e anuncie. O resto (estoque, preço e pedido) a FORNEXA
@@ -86,36 +86,36 @@ export default function Hero() {
 
             {/* Indicadores — acima do CTA */}
             <div
-              className="flex flex-wrap gap-x-8 gap-y-4 justify-center lg:justify-start mb-8 animate-fade-in"
+              className="flex flex-wrap gap-x-8 lg:gap-x-12 gap-y-4 justify-center mb-8 lg:mb-10 animate-fade-in"
               style={{ animationDelay: '0.15s' }}
             >
               <div className="flex items-center gap-2.5">
-                <Users className="w-5 h-5 text-gold" />
+                <Users className="w-5 h-5 lg:w-6 lg:h-6 text-gold" />
                 <div className="text-left">
-                  <p className="text-white text-sm font-semibold leading-none">+<NumeroQueSobe valor={500} /></p>
-                  <p className="text-slate-500 text-xs mt-1">vendedores ativos</p>
+                  <p className="text-white text-sm lg:text-base font-semibold leading-none">+<NumeroQueSobe valor={500} /></p>
+                  <p className="text-slate-500 text-xs lg:text-sm mt-1">vendedores ativos</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2.5">
-                <Package className="w-5 h-5 text-gold" />
+                <Package className="w-5 h-5 lg:w-6 lg:h-6 text-gold" />
                 <div className="text-left">
-                  <p className="text-white text-sm font-semibold leading-none">+<NumeroQueSobe valor={750} /></p>
-                  <p className="text-slate-500 text-xs mt-1">produtos disponíveis</p>
+                  <p className="text-white text-sm lg:text-base font-semibold leading-none">+<NumeroQueSobe valor={750} /></p>
+                  <p className="text-slate-500 text-xs lg:text-sm mt-1">produtos disponíveis</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2.5">
-                <Link2 className="w-5 h-5 text-gold" />
+                <Link2 className="w-5 h-5 lg:w-6 lg:h-6 text-gold" />
                 <div className="text-left">
-                  <p className="text-white text-sm font-semibold leading-none">Integrado</p>
-                  <p className="text-slate-500 text-xs mt-1">com Mercado Livre</p>
+                  <p className="text-white text-sm lg:text-base font-semibold leading-none">Integrado</p>
+                  <p className="text-slate-500 text-xs lg:text-sm mt-1">com Mercado Livre</p>
                 </div>
               </div>
             </div>
 
             <div
-              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center animate-fade-in"
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in"
               style={{ animationDelay: '0.2s' }}
             >
               {/* No celular os dois ocupam a linha inteira, empilhados: dedo
@@ -123,7 +123,7 @@ export default function Hero() {
                   ficaria pequeno demais para o texto que carrega. */}
               <a
                 href="#planos"
-                className="btn-fnx btn-fnx-primario w-full sm:w-auto flex items-center justify-center px-8 py-4 text-base font-semibold"
+                className="btn-fnx btn-fnx-primario w-full sm:w-auto flex items-center justify-center px-8 py-4 lg:px-10 lg:py-5 text-base lg:text-lg font-semibold"
               >
                 <span className="inline-flex items-center gap-2">
                   Começar agora
@@ -132,7 +132,7 @@ export default function Hero() {
               </a>
               <a
                 href="#beneficios"
-                className="btn-fnx btn-fnx-secundario w-full sm:w-auto flex items-center justify-center px-8 py-4 text-base font-medium"
+                className="btn-fnx btn-fnx-secundario w-full sm:w-auto flex items-center justify-center px-8 py-4 lg:px-10 lg:py-5 text-base lg:text-lg font-medium"
               >
                 <span>Como funciona</span>
               </a>
@@ -143,9 +143,7 @@ export default function Hero() {
                 frase é o fecho do argumento, e separar o selo do produto que
                 ele aprova enfraquece os dois. */}
             <div
-              className={`items-center gap-2 justify-center lg:justify-start mt-6 animate-fade-in ${
-                vendoAImagemNoMobile ? 'hidden lg:flex' : 'flex'
-              }`}
+              className="flex items-center gap-2 justify-center mt-6 animate-fade-in"
               style={{ animationDelay: '0.25s' }}
             >
               <div className="flex items-center gap-0.5">
@@ -153,96 +151,12 @@ export default function Hero() {
                   <Star key={i} className="w-4 h-4 text-gold fill-gold" />
                 ))}
               </div>
-              <span className="text-slate-500 text-sm">
+              <span className="text-slate-500 text-sm lg:text-base">
                 Aprovado por vendedores de todo o Brasil
               </span>
             </div>
           </div>
 
-          {/* Coluna direita — mockup do Dashboard.
-              A imagem "projeto-remover-fundo.png" já tem fundo transparente
-              (PNG com canal alpha real) e já vem com a inclinação/perspectiva
-              pronta. Por isso aqui NÃO tem borda, NÃO tem rotate/transform,
-              e NÃO tem retângulo de fundo — só a imagem flutuando de verdade
-              sobre o glow, sem nenhuma caixa ao redor. */}
-          {/* No celular a imagem some desde sempre, e é meio hero a menos:
-              quem chega por anúncio vê só texto e botão, sem nunca ver o
-              produto. Em teste, ela aparece — abaixo do texto, que é onde cabe
-              numa coluna só. */}
-          <div
-            className={`relative ${
-              vendoAImagemNoMobile ? 'block' : 'hidden'
-            } lg:block animate-fade-in`}
-            style={{ animationDelay: '0.15s' }}
-          >
-            <div className="relative animate-float">
-              {/* Ambient Blue Glow — atrás da imagem, difuso, saindo pelas
-                  laterais e por baixo */}
-              {/* Marcado como brilho do hero: no celular ele some junto com o
-                  outro. Desfoque de 130px animado é o que mais pesa na
-                  página, e no telefone a conta não cabe. */}
-              <div
-                className="brilho-do-hero absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 pointer-events-none animate-glow-pulse z-0"
-                style={{
-                  width: '85%',
-                  height: '80%',
-                  background:
-                    'radial-gradient(circle, #4CCBFF 0%, #2FA7FF 35%, #1E7BA8 55%, transparent 75%)',
-                  filter: 'blur(130px)',
-                  opacity: 0.65,
-                }}
-              />
-
-              {/* A própria imagem, sem caixa/borda ao redor — o recorte
-                  transparente é o que dá a forma ao mockup */}
-              <img
-                src={
-                  vendoAImagemNova
-                    ? '/hero-macbook-caixas.png'
-                    : '/projeto-remover-fundo.png'
-                }
-                alt={
-                  vendoAImagemNova
-                    ? 'Catálogo FORNEXA no notebook, ao lado de caixas da Shopee e do Mercado Livre'
-                    : 'Catálogo FORNEXA — produtos prontos para anunciar'
-                }
-                // O conjunto novo nasce menor dentro do próprio PNG: o notebook
-                // divide o quadro com as duas caixas, e sobra ar em volta. A
-                // escala cresce a partir do centro, que é o único jeito de
-                // ganhar presença sem avançar sobre o texto à esquerda nem
-                // sobre a borda da tela à direita.
-                // A escala só entra do notebook para cima: no celular a coluna
-                // já é a tela inteira, e crescer ali só empurraria a imagem
-                // para fora pelas laterais.
-                className={`relative z-10 w-full h-auto block select-none ${
-                  vendoAImagemNova ? 'lg:scale-[1.12] xl:scale-[1.22]' : ''
-                }`}
-                style={{
-                  filter: 'drop-shadow(0 40px 100px rgba(30,123,168,0.35))',
-                }}
-                // Decodificar fora da linha principal: um PNG grande decodificado
-                // em primeiro plano trava a rolagem enquanto o navegador o abre.
-                decoding="async"
-                draggable={false}
-              />
-            </div>
-
-            {/* A prova social, aqui, só no celular com a imagem ligada. No
-                computador ela continua embaixo dos botões, do outro lado. */}
-            {vendoAImagemNoMobile && (
-              <div className="flex items-center justify-center gap-2 mt-2 lg:hidden">
-                <div className="flex items-center gap-0.5">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="w-4 h-4 text-gold fill-gold" />
-                  ))}
-                </div>
-
-                <span className="text-slate-500 text-sm">
-                  Aprovado por vendedores de todo o Brasil
-                </span>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </section>
