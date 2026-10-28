@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -138,6 +138,10 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     [product.image, ...(product.images ?? [])].filter(Boolean)
   );
   const [enviandoFoto, setEnviandoFoto] = useState(false);
+  /** O cartão que rola. Usado para levar a pessoa de volta ao topo quando a
+   *  publicação é recusada e o motivo aparece lá em cima. */
+  const cartaoDoModal = useRef<HTMLDivElement>(null);
+
   const [erroFoto, setErroFoto] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [flowStage, setFlowStage] = useState<'idle' | 'publishing' | 'success'>('idle');
@@ -564,6 +568,19 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
   const handlePublishingDone = () => {
     if (publishError) {
       setFlowStage('idle');
+
+      // A recusa volta para o formulário, e o formulário continua rolado onde
+      // a pessoa estava quando clicou em publicar: lá embaixo, no botão. O
+      // motivo da recusa aparece em vermelho no topo do cartão — ou seja,
+      // fora da tela. Dava a impressão de que a publicação sumiu sem dizer
+      // nada.
+      //
+      // O salto é instantâneo, e não suave: a faixa vermelha é a primeira
+      // coisa que tem que ser lida, não uma viagem para assistir.
+      requestAnimationFrame(() => {
+        cartaoDoModal.current?.scrollTo({ top: 0 });
+      });
+
       return;
     }
 
@@ -596,6 +613,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
           Descontando a folga, ele nunca passa do que cabe. */}
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div
+          ref={cartaoDoModal}
           className="bg-white dark:bg-navy-800 rounded-2xl w-full max-w-6xl max-h-[calc(100vh-2rem)] overflow-y-auto shadow-2xl animate-fade-in"
           onClick={(e) => e.stopPropagation()}
         >
