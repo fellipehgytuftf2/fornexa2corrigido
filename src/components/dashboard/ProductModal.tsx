@@ -9,6 +9,7 @@ import {
   Link2,
   Truck,
   Sparkles,
+  Eye,
   Rocket,
   RotateCcw,
   Upload,
@@ -571,9 +572,11 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
       if (!confirmado) return;
     }
 
-    // Primeiro a prévia: o vendedor vê o anúncio como o comprador vai ver, e
-    // só publica quando confirma lá.
-    setFlowStage('preview');
+    // Publicar publica. A prévia virou um botão à parte, logo abaixo: ela era
+    // uma parada obrigatória no meio do caminho, e obrigar quem já sabe o que
+    // está publicando a confirmar duas vezes só atrasa.
+    setFlowStage('publishing');
+    handlePublish();
   };
 
   const confirmarPublicacao = () => {
@@ -1211,6 +1214,22 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         >
                           <Rocket className="w-4 h-4" />
                           Publicar Produto
+                        </button>
+                      )}
+
+                      {/* A prévia deixou de ser passagem obrigatória.
+                          Ela nasceu no meio do caminho entre o botão e a
+                          publicação, e quem já conhece o anúncio tinha que
+                          passar por ela toda vez. Agora é escolha: quem quer
+                          conferir antes, clica aqui. */}
+                      {mercadoLivreConnected && hasLinkedSupplier && (
+                        <button
+                          onClick={() => setFlowStage('preview')}
+                          disabled={publishing || loadingRequiredData}
+                          className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white font-medium hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          Ver prévia
                         </button>
                       )}
 

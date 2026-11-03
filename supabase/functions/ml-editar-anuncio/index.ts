@@ -76,9 +76,26 @@ function limparParaTextoPuro(texto: string): string {
  */
 function traduzirRecusa(corpo: Record<string, unknown> | null, status: number): string {
   const causas = Array.isArray(corpo?.cause) ? (corpo?.cause as Array<Record<string, unknown>>) : [];
-  const textos = [String(corpo?.message ?? ''), ...causas.map((causa) => String(causa?.message ?? causa?.code ?? ''))]
+
+  // 'error' entra junto com 'message' porque é lá que o Mercado Livre escreve
+  // o motivo de verdade. Em 03/11 uma recusa de título chegou como
+  // message: "BODY_INVALID_FIELDS", cause: 374 (um número, não uma lista) e
+  // error: "You cannot modify the title if the item has a family_name" --
+  // lendo só os dois primeiros, o vendedor recebia a sigla e mais nada.
+  const textos = [
+    String(corpo?.message ?? ''),
+    String(corpo?.error ?? ''),
+    ...causas.map((causa) => String(causa?.message ?? causa?.code ?? '')),
+  ]
     .join(' ')
     .toLowerCase();
+
+  // Precisa vir antes da regra de título abaixo: as duas falam de título, mas
+  // o motivo é outro, e mandar o vendedor procurar uma venda que não existe
+  // só faz ele perder tempo.
+  if (/family_name|family name/.test(textos)) {
+    return 'Este anúncio está ligado a uma ficha técnica do Mercado Livre, e o título é o da ficha. O Mercado Livre não deixa mudá-lo. Preço, descrição, fotos e pausa continuam valendo.';
+  }
 
   if (/title/.test(textos) && /sold|vend|modif/.test(textos)) {
     return 'O Mercado Livre não deixa mudar o título de um anúncio que já vendeu.';
