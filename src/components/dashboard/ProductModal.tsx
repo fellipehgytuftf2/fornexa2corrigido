@@ -10,6 +10,7 @@ import {
   Truck,
   Sparkles,
   Rocket,
+  RotateCcw,
   Upload,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -138,13 +139,19 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     [product.image, ...(product.images ?? [])].filter(Boolean)
   );
   const [enviandoFoto, setEnviandoFoto] = useState(false);
+
+  /**
+   * A descrição, editável. Nula enquanto o vendedor não mexe: aí vale o texto
+   * sugerido logo abaixo, que acompanha o produto. Mexeu, vale o dele.
+   */
+  const [descricaoEditada, setDescricaoEditada] = useState<string | null>(null);
   /** O cartão que rola. Usado para levar a pessoa de volta ao topo quando a
    *  publicação é recusada e o motivo aparece lá em cima. */
   const cartaoDoModal = useRef<HTMLDivElement>(null);
 
   const [erroFoto, setErroFoto] = useState('');
   const [publishing, setPublishing] = useState(false);
-  const [flowStage, setFlowStage] = useState<'idle' | 'publishing' | 'success'>('idle');
+  const [flowStage, setFlowStage] = useState<'idle' | 'preview' | 'publishing' | 'success'>('idle');
 
   const [mercadoLivreConnected, setMercadoLivreConnected] = useState(false);
   const [loadingMercadoLivre, setLoadingMercadoLivre] = useState(true);
@@ -412,6 +419,8 @@ Sobre este produto:
 
 Compre com segurança: enviamos com código de rastreio e acompanhamento até a entrega.`;
 
+  const descricao = descricaoEditada ?? generatedDescription.trim();
+
   const canSaveProduct =
     mercadoLivreConnected && hasLinkedSupplier && !loadingMercadoLivre;
 
@@ -456,7 +465,8 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         // O que vai para o anúncio é o que o vendedor revisou na tela, não o
         // texto gerado: ele pode ter ajustado título e fotos.
         announcement_title: titulo.trim().slice(0, MAX_TITULO),
-        announcement_description: generatedDescription,
+        // A descrição também: o que vai é o texto que ele revisou.
+        announcement_description: descricao.trim(),
         announcement_category: product.category,
         announcement_price: precoDeVenda,
         announcement_image_url: fotos[0] || product.image,
@@ -561,6 +571,12 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
       if (!confirmado) return;
     }
 
+    // Primeiro a prévia: o vendedor vê o anúncio como o comprador vai ver, e
+    // só publica quando confirma lá.
+    setFlowStage('preview');
+  };
+
+  const confirmarPublicacao = () => {
     setFlowStage('publishing');
     handlePublish();
   };
@@ -883,16 +899,41 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5" />
+                      <FileText className="w-5 h-5 text-gray-500 dark:text-slate-400 mt-0.5 shrink-0" />
 
-                      <div>
-                        <p className="text-sm font-medium text-navy-900 dark:text-white">
-                          Descrição gerada
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <label
+                            htmlFor="descricao-do-anuncio"
+                            className="text-sm font-medium text-navy-900 dark:text-white"
+                          >
+                            Descrição do anúncio
+                          </label>
 
-                        <p className="text-sm text-gray-600 dark:text-slate-400 mt-1 whitespace-pre-line">
-                          {generatedDescription}
-                        </p>
+                          {descricaoEditada !== null && (
+                            <button
+                              type="button"
+                              onClick={() => setDescricaoEditada(null)}
+                              className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              Voltar ao texto sugerido
+                            </button>
+                          )}
+                        </div>
+
+                        <textarea
+                          id="descricao-do-anuncio"
+                          value={descricao}
+                          onChange={(event) => setDescricaoEditada(event.target.value)}
+                          rows={8}
+                          className="w-full mt-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-sm leading-relaxed text-navy-900 dark:text-white resize-y focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                        />
+
+                        <div className="flex flex-wrap justify-between gap-2 text-xs text-gray-500 dark:text-slate-400 mt-1.5">
+                          <span>Só texto: o Mercado Livre recusa links, telefone e e-mail.</span>
+                          <span className="tabular-nums">{descricao.length} caracteres</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1205,9 +1246,16 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
       {flowStage !== 'idle' && (
         <PublishFlowOverlay
-          stage={flowStage === 'publishing' ? 'publishing' : 'success'}
+          stage={flowStage}
           productName={product.name}
-          productImage={product.image}
+          productImage={fotos[0] || product.image}
+          titulo={titulo.trim()}
+          fotos={fotos}
+          descricao={descricao.trim()}
+          prazoDeEnvio={product.supplierShippingTime}
+          onConfirmar={confirmarPublicacao}
+          onVoltar={() => setFlowStage('idle')}
+          aguardandoResposta={publishing}
           marketplace="Mercado Livre"
           finalPrice={precoDeVenda}
           profitAmount={contaDaVenda.lucro}

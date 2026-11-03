@@ -5,6 +5,7 @@ import {
   Package,
   Search,
   ExternalLink,
+  Pencil,
   Share2,
   Store,
   Trash2,
@@ -13,6 +14,8 @@ import {
 import { supabase } from '../../lib/supabase';
 import Pagination from '../../components/ui/pagination';
 import DivulgarNoFacebook from '../../components/dashboard/DivulgarNoFacebook';
+import EditarAnuncio, { type AnuncioSalvo } from '../../components/dashboard/EditarAnuncio';
+import { calcularVenda } from '../../lib/taxasDoMercadoLivre';
 import { useFuncionalidade } from '../../lib/funcionalidades';
 
 const PRODUTOS_POR_PAGINA = 10;
@@ -112,6 +115,20 @@ export default function MyProducts() {
 
   /** O anúncio com o modal de divulgação aberto. */
   const [divulgando, setDivulgando] = useState<UserProduct | null>(null);
+
+  /** O anúncio com a tela de edição aberta. */
+  const [editando, setEditando] = useState<UserProduct | null>(null);
+
+  /** Editar fica escondido até ser liberado em Admin → Funcionalidades em teste. */
+  const { liberada: vendoAEdicao } = useFuncionalidade('editar-anuncio');
+
+  /**
+   * Anúncios que o vendedor pausou pela tela de edição.
+   *
+   * Lido à parte, como `semEstoque`: se a coluna ainda não existir no banco
+   * (migração 20261103120000 não aplicada), a lista continua aparecendo.
+   */
+  const [pausadosPeloVendedor, setPausadosPeloVendedor] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -179,6 +196,16 @@ export default function MyProducts() {
     }
 
     setProducts((data || []) as UserProduct[]);
+
+    const { data: pausados, error: erroPausados } = await supabase
+      .from('user_products')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('pausado_pelo_vendedor', true);
+
+    if (!erroPausados) {
+      setPausadosPeloVendedor(new Set(((pausados ?? []) as { id: string }[]).map((linha) => linha.id)));
+    }
 
     // Falhar aqui não pode esconder a lista: o aviso é complemento.
     const { data: semEstoque } = await supabase.rpc('meus_anuncios_sem_estoque');
@@ -295,6 +322,39 @@ export default function MyProducts() {
     }
 
     return (profit / supplierPrice) * 100;
+  };
+
+  /**
+   * O que a edição salvou no Mercado Livre, refletido na lista sem recarregar.
+   * O lucro é refeito com a mesma conta da publicação.
+   */
+  const aoSalvarEdicao = (produto: UserProduct, salvo: AnuncioSalvo) => {
+    const lucro = calcularVenda(salvo.preco, Number(produto.supplier_price) || 0).lucro;
+
+    setProducts((atual) =>
+      atual.map((item) =>
+        item.id === produto.id
+          ? {
+              ...item,
+              sale_price: salvo.preco,
+              announcement_price: salvo.preco,
+              margin: lucro,
+              announcement_title: salvo.titulo,
+              announcement_description: salvo.descricao,
+            }
+          : item
+      )
+    );
+
+    setPausadosPeloVendedor((atual) => {
+      const proximo = new Set(atual);
+      if (salvo.status === 'paused') proximo.add(produto.id);
+      else proximo.delete(produto.id);
+      return proximo;
+    });
+
+    setEditando(null);
+    showSuccess('Anúncio atualizado no Mercado Livre.');
   };
 
   const handleDeleteProduct = async (productId: string) => {
@@ -447,6 +507,10 @@ export default function MyProducts() {
                           <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
                             Pausado · sem estoque
                           </span>
+                        ) : pausadosPeloVendedor.has(product.id) ? (
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                            Pausado por você
+                          </span>
                         ) : (
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -593,14 +657,26 @@ export default function MyProducts() {
                       </p>
 
                       <p className="text-xs text-red-700 dark:text-red-300/90 mt-2 leading-relaxed">
-                        O preço se corrige no Mercado Livre, em "Ver anúncio". Se o frete
-                        grátis estiver ligado num produto barato, é ele que está comendo a
-                        margem.
+                        {vendoAEdicao
+                          ? 'O preço se corrige em "Editar".'
+                          : 'O preço se corrige no Mercado Livre, em "Ver anúncio".'}{' '}
+                        Se o frete grátis estiver ligado num produto barato, é ele que
+                        está comendo a margem.
                       </p>
                     </div>
                   )}
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
+
+                    {vendoAEdicao && product.ml_item_id && (
+                      <button
+                        onClick={() => setEditando(product)}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold hover:bg-gold-hover text-navy-900 text-sm font-bold transition-colors"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                      </button>
+                    )}
 
                     {/* Sem isto, o vendedor via o anúncio listado aqui e tinha
                         que procurá-lo pelo nome dentro do Mercado Livre. */}
@@ -663,6 +739,14 @@ export default function MyProducts() {
             Vá até o Catálogo, escolha um produto e salve em Meus Anúncios.
           </p>
         </div>
+      )}
+
+      {editando && (
+        <EditarAnuncio
+          anuncio={editando}
+          aoFechar={() => setEditando(null)}
+          aoSalvar={(salvo) => aoSalvarEdicao(editando, salvo)}
+        />
       )}
 
       {divulgando && (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  CheckCircle2,
   Package,
   Search,
   X,
@@ -84,6 +85,19 @@ export default function Catalog() {
   const chaveDoDesligado = (userId: string) => `fornexa_nicho_desligado_${userId}`;
 
   const [paginaAtual, setPaginaAtual] = useState(1);
+
+  /**
+   * Produtos do catálogo que este vendedor já tem no ar.
+   *
+   * Sem o selo, quem tem dezenas de anúncios não lembra o que já publicou, e
+   * anunciar o mesmo produto duas vezes faz os dois anúncios disputarem a
+   * mesma busca no Mercado Livre.
+   *
+   * O vínculo é `user_products.catalog_product_id`. Anúncio antigo sem vínculo
+   * (nome repetido no fornecedor, ver a migração 20260914120000) simplesmente
+   * não ganha selo — melhor faltar selo do que pôr selo no produto errado.
+   */
+  const [jaAnunciados, setJaAnunciados] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -208,6 +222,34 @@ export default function Catalog() {
 
   useEffect(() => {
     loadCatalogProducts();
+  }, []);
+
+  // À parte do catálogo: o selo é complemento, e o catálogo não espera por ele.
+  useEffect(() => {
+    const lerAnunciados = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('user_products')
+        .select('catalog_product_id, ml_item_id')
+        .eq('user_id', user.id)
+        .not('catalog_product_id', 'is', null)
+        .not('ml_item_id', 'is', null);
+
+      setJaAnunciados(
+        new Set(
+          ((data ?? []) as { catalog_product_id: string | null }[])
+            .map((linha) => linha.catalog_product_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      );
+    };
+
+    lerAnunciados();
   }, []);
 
   // O nicho é lido à parte dos produtos: a pergunta só faz sentido com a lista
@@ -488,6 +530,16 @@ export default function Catalog() {
                 <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-white/90 text-navy-900 text-[10px] font-semibold">
                   {product.category}
                 </span>
+
+                {jaAnunciados.has(product.id) && (
+                  <span
+                    title="Você já anunciou este produto"
+                    className="absolute top-2 right-2 inline-flex items-center gap-0.5 pl-1 pr-1.5 py-0.5 rounded-full bg-green-600 text-white text-[10px] font-semibold"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    Anunciado
+                  </span>
+                )}
               </div>
 
               <div className="p-3 space-y-2">
