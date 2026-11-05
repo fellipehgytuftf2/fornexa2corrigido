@@ -12,16 +12,6 @@ const ROTULOS_CAMPOS = {
 };
 const TODOS_ROTULOS = Object.values(ROTULOS_CAMPOS).flat();
 
-const CABECALHOS_DE_CORTE = [
-  "principais características",
-  "características principais",
-  "especificações técnicas",
-  "especificações:",
-  "itens inclusos",
-  "conteúdo da embalagem",
-  "itens incluídos",
-  "especificações",
-];
 
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -136,24 +126,62 @@ export function extrairCamposTexto(texto) {
 
 // Resumo curto da descricao: corta antes de blocos de "caracteristicas" /
 // "especificacoes", colapsa espacos e limita o tamanho.
-export function extrairDescricaoBreve(textoBruto, limite = 500) {
-  let linhas = textoBruto.split("\n");
-  const padraoRotulo = new RegExp(
-    "^\\s*(?:" + TODOS_ROTULOS.map(escapeRegExp).join("|") + "|Categoria)\\s*:"
-  );
-  while (linhas.length && padraoRotulo.test(linhas[0])) {
-    linhas.shift();
-    while (linhas.length && !linhas[0].trim()) linhas.shift();
-  }
-  let texto = linhas.join("\n");
+/**
+ * A descricao do produto, inteira.
+ *
+ * Ela nasceu "breve": cortava em 500 caracteres e, antes disso, jogava fora
+ * tudo a partir de "Principais caracteristicas" -- que e onde moram a lista de
+ * caracteristicas, os itens inclusos e as especificacoes. O anuncio no Mercado
+ * Livre saia com um paragrafo e meio, e era essa a sensacao de "vem pela
+ * metade".
+ *
+ * Agora so sai o que ja virou coluna propria: as linhas de rotulo do topo
+ * (Marca, Modelo, Codigo de Barras, Dimensoes, Peso), que o anuncio recebe
+ * como atributo e nao precisa repetir no texto.
+ *
+ * O limite continua existindo, alto, como defesa contra pagina quebrada que
+ * devolve o site inteiro num campo so.
+ */
+export function extrairDescricaoBreve(textoBruto, limite = 5000) {
+  let texto = String(textoBruto ?? "").replace(/\s+/g, " ").trim();
 
-  const textoMin = texto.toLowerCase();
-  const posicoes = CABECALHOS_DE_CORTE.map((c) => textoMin.indexOf(c)).filter((p) => p !== -1);
-  if (posicoes.length && Math.min(...posicoes) >= 20) {
-    texto = texto.slice(0, Math.min(...posicoes));
+  // Tira os rotulos do topo, um a um, e nao linha a linha.
+  //
+  // Parte do catalogo escreve tudo colado, sem quebra nenhuma:
+  //   "Marca: GenericoModelo: boomsbox 30 cmPeso: 1.44A Caixa de Som..."
+  // Descartando a linha inteira, como se fazia, a descricao desses produtos
+  // sumia por completo -- eram 68 produtos com descricao vazia no catalogo.
+  //
+  // O valor de cada rotulo termina onde o proximo rotulo comeca. No ultimo
+  // deles nao ha proximo, e o texto do produto comeca colado no numero; por
+  // isso ali o valor e so o numero, com unidade opcional.
+  const rotulos = [...TODOS_ROTULOS, "Categoria", "Altura", "Largura", "Comprimento"]
+    .map(escapeRegExp)
+    .join("|");
+
+  // O valor para em 60 caracteres de proposito. Sem esse teto, "Homologação:
+  // N/A" ia ate o proximo "Marca:" -- que reaparece mais abaixo, na secao de
+  // caracteristicas -- e levava junto o texto do produto inteiro.
+  // Os dois-pontos sao opcionais: parte do catalogo escreve "Altura 5
+  // Comprimento 17 Largura 14 Marca: Generica", misturando as duas formas na
+  // mesma linha.
+  const rotulo = `(?:${rotulos})\\b\\s*:?\\s*`;
+
+  const ateOProximoRotulo = new RegExp(`^\\s*${rotulo}.{0,60}?(?=(?:${rotulos})\\b\\s*:?)`, "i");
+  const soONumero = new RegExp(`^\\s*${rotulo}[\\d.,]+\\s*(?:kg|g|cm|mm|m)?\\s*`, "i");
+  const rotuloSozinho = new RegExp(`^\\s*${rotulo}(?:N/A)?\\s*(?=[A-ZÀ-Ú])`);
+
+  for (let passo = 0; passo < 12; passo += 1) {
+    const antes = texto;
+
+    texto = texto.replace(ateOProximoRotulo, "");
+    if (texto === antes) texto = texto.replace(soONumero, "");
+    if (texto === antes) texto = texto.replace(rotuloSozinho, "");
+    if (texto === antes) break;
+
+    texto = texto.trim();
   }
 
-  texto = texto.replace(/\s+/g, " ").trim();
   if (texto.length > limite) {
     texto = texto.slice(0, limite).split(" ").slice(0, -1).join(" ") + "...";
   }
