@@ -143,14 +143,39 @@ async function renomearFamilia(
         const familia = produto.family_id ?? (produto.family as Record<string, unknown> | undefined)?.id;
 
         if (familia) {
-          if (
-            await tentar(
-              'user-products-families.name',
-              `https://api.mercadolibre.com/user-products-families/${familia}`,
-              { name: nome }
-            )
-          ) {
-            return { ok: true, tentativas };
+          const url = `https://api.mercadolibre.com/user-products-families/${familia}`;
+
+          // A família existe e responde — em 05/11 ela recusou `{ name }` com
+          // "Invalid body format", e não com "não encontrado". Falta acertar o
+          // formato, e a própria família é quem diz qual é: o corpo do PUT
+          // costuma espelhar o do GET.
+          let familiaLida: Record<string, unknown> | null = null;
+
+          try {
+            const leitura = await fetch(url, { headers: cabecalhos });
+            const texto = await leitura.text();
+
+            tentativas.push({ caminho: 'familia.ler', status: leitura.status, resposta: texto.slice(0, 900) });
+
+            if (leitura.ok) familiaLida = JSON.parse(texto) as Record<string, unknown>;
+          } catch (erro) {
+            tentativas.push({ caminho: 'familia.ler', erro: String(erro) });
+          }
+
+          const corposPossiveis: Array<[string, Record<string, unknown>]> = [
+            ['familia.family_name', { family_name: nome }],
+            ['familia.name', { name: nome }],
+          ];
+
+          // O corpo do GET de volta, só com o nome trocado. É o formato que a
+          // família mais provavelmente aceita, porque é o dela.
+          if (familiaLida) {
+            const campoDoNome = 'family_name' in familiaLida ? 'family_name' : 'name';
+            corposPossiveis.unshift(['familia.espelho', { ...familiaLida, [campoDoNome]: nome }]);
+          }
+
+          for (const [rotulo, corpoDaFamilia] of corposPossiveis) {
+            if (await tentar(rotulo, url, corpoDaFamilia)) return { ok: true, tentativas };
           }
         } else {
           tentativas.push({ caminho: 'user-products.family_id', erro: 'produto não trouxe a família' });
