@@ -74,6 +74,104 @@ function limparParaTextoPuro(texto: string): string {
  * Os motivos que se repetem ganham frase própria; o resto segue com o texto
  * deles, que pelo menos aponta o campo.
  */
+/**
+ * Troca o nome do anúncio no modelo novo do Mercado Livre.
+ *
+ * Lá o título do item é derivado do nome da família ("family_name"), e mandar
+ * `title` no item é recusado sempre. O recurso que guarda esse nome não está
+ * em documentação aberta — a API devolve 403 para quem não tem token —, então
+ * aqui vão três caminhos, do mais direto ao mais indireto:
+ *
+ *   1. `PUT /items/{id}` com `family_name`, que é o campo aceito na criação.
+ *   2. `PUT /user-products/{user_product_id}` com `name`.
+ *   3. Descobrir a família pelo produto e `PUT /user-products-families/{id}`.
+ *
+ * Toda tentativa entra no retorno, com o que o Mercado Livre respondeu. Na
+ * primeira que der certo o resto é dispensado, e o log passa a dizer qual
+ * caminho vale — assim isto deixa de ser tentativa e vira regra.
+ */
+async function renomearFamilia(
+  item: Record<string, unknown>,
+  nome: string,
+  cabecalhos: Record<string, string>,
+  supabase: ReturnType<typeof createClient>,
+  itemId: string
+): Promise<{ ok: boolean; tentativas: unknown[] }> {
+  const tentativas: unknown[] = [];
+
+  const tentar = async (rotulo: string, url: string, corpo: Record<string, unknown>) => {
+    try {
+      const resposta = await fetch(url, { method: 'PUT', headers: cabecalhos, body: JSON.stringify(corpo) });
+      const texto = await resposta.text();
+
+      tentativas.push({
+        caminho: rotulo,
+        status: resposta.status,
+        resposta: texto.slice(0, 500),
+      });
+
+      return resposta.ok;
+    } catch (erro) {
+      tentativas.push({ caminho: rotulo, erro: String(erro) });
+      return false;
+    }
+  };
+
+  if (await tentar('items.family_name', `https://api.mercadolibre.com/items/${itemId}`, { family_name: nome })) {
+    return { ok: true, tentativas };
+  }
+
+  const produtoId = String(item.user_product_id ?? '');
+
+  if (produtoId) {
+    if (
+      await tentar('user-products.name', `https://api.mercadolibre.com/user-products/${produtoId}`, { name: nome })
+    ) {
+      return { ok: true, tentativas };
+    }
+
+    // A família não vem no item: é preciso perguntar ao produto qual é a dele.
+    try {
+      const resposta = await fetch(`https://api.mercadolibre.com/user-products/${produtoId}`, {
+        headers: cabecalhos,
+      });
+
+      if (resposta.ok) {
+        const produto = (await resposta.json()) as Record<string, unknown>;
+        const familia = produto.family_id ?? (produto.family as Record<string, unknown> | undefined)?.id;
+
+        if (familia) {
+          if (
+            await tentar(
+              'user-products-families.name',
+              `https://api.mercadolibre.com/user-products-families/${familia}`,
+              { name: nome }
+            )
+          ) {
+            return { ok: true, tentativas };
+          }
+        } else {
+          tentativas.push({ caminho: 'user-products.family_id', erro: 'produto não trouxe a família' });
+        }
+      } else {
+        tentativas.push({ caminho: 'user-products.ler', status: resposta.status });
+      }
+    } catch (erro) {
+      tentativas.push({ caminho: 'user-products.ler', erro: String(erro) });
+    }
+  } else {
+    tentativas.push({ caminho: 'item.user_product_id', erro: 'o anúncio não trouxe o id do produto' });
+  }
+
+  await supabase.from('log_integracao_ml').insert({
+    contexto: 'ml-editar-anuncio',
+    mensagem: 'Nenhum caminho de renomear família funcionou',
+    detalhes: { tentativas },
+  });
+
+  return { ok: false, tentativas };
+}
+
 function traduzirRecusa(corpo: Record<string, unknown> | null, status: number): string {
   const causas = Array.isArray(corpo?.cause) ? (corpo?.cause as Array<Record<string, unknown>>) : [];
 
@@ -246,19 +344,15 @@ Deno.serve(async (req: Request) => {
 
         // Por que o título não pode mudar — nulo quando pode.
         //
-        // São dois motivos, e a tela só conhecia um. O segundo é o anúncio
-        // preso a uma ficha técnica do Mercado Livre: ali o título é o da
-        // ficha, e o ML recusa o PUT inteiro por causa dele. Recusa inteiro
-        // mesmo: em 05/11 uma troca de preço foi junto no mesmo pedido e caiu
-        // junto, então o vendedor não conseguia mudar nem o preço.
+        // Só a venda trava de verdade: o Mercado Livre não deixa renomear
+        // anúncio que já vendeu, e não há volta disso.
         //
-        // Sabendo disso na hora de abrir, o campo nasce travado e o título
-        // nunca chega a ser enviado.
-        titulo_travado: item.family_name
-          ? 'Este anúncio usa uma ficha técnica do Mercado Livre, e o título é o dela.'
-          : vendas > 0
-            ? 'O Mercado Livre não deixa mudar o título depois da primeira venda.'
-            : null,
+        // Ficha técnica não entra aqui. Ali o título vem do nome da família, e
+        // o `PUT /items { title }` é recusado — mas o nome da família tem
+        // caminho próprio, que a função tenta em `renomearFamilia`. Travar o
+        // campo seria dizer que não dá, quando dá.
+        titulo_travado:
+          vendas > 0 ? 'O Mercado Livre não deixa mudar o título depois da primeira venda.' : null,
       },
     });
   }
@@ -284,21 +378,42 @@ Deno.serve(async (req: Request) => {
   }
 
   if (typeof mudancas.titulo === 'string' && mudancas.titulo.trim()) {
-    if (item.family_name) {
-      return json(
-        {
-          error:
-            'Este anúncio usa uma ficha técnica do Mercado Livre, e o título é o dela — ele não pode ser alterado. Desfaça a mudança no título para salvar o resto.',
-        },
-        409
-      );
-    }
-
     if (vendas > 0) {
       return json({ error: 'O Mercado Livre não deixa mudar o título de um anúncio que já vendeu.' }, 409);
     }
 
-    corpo.title = mudancas.titulo.trim().slice(0, 60);
+    const tituloNovo = mudancas.titulo.trim().slice(0, 60);
+
+    if (item.family_name) {
+      // No modelo novo do Mercado Livre o título é montado a partir do nome da
+      // família, e `PUT /items { title }` é recusado para sempre:
+      //   "You cannot modify the title if the item has a family_name"
+      //
+      // Quem guarda esse nome é outro recurso, e o caminho até ele não está em
+      // documentação aberta. Por isso são tentativas em cadeia, da mais direta
+      // para a mais indireta, e cada uma fica registrada: quando uma funciona,
+      // o log diz qual foi, e o que não funcionar nunca mais precisa ser
+      // tentado no escuro.
+      const resultado = await renomearFamilia(item, tituloNovo, cabecalhos, supabase, itemId);
+
+      if (!resultado.ok) {
+        await supabase.from('log_integracao_ml').insert({
+          contexto: 'ml-editar-anuncio',
+          mensagem: `Nome da família recusado no anúncio ${anuncio.ml_item_id}`,
+          detalhes: { titulo: tituloNovo, tentativas: resultado.tentativas },
+        });
+
+        return json(
+          {
+            error:
+              'O Mercado Livre não aceitou o novo título deste anúncio. Ele usa o modelo de ficha técnica, onde o título pertence à família do produto — e a família recusou a troca. As outras alterações não foram salvas; desfaça o título para salvar o resto.',
+          },
+          409
+        );
+      }
+    } else {
+      corpo.title = tituloNovo;
+    }
   }
 
   if (mudancas.status === 'active' || mudancas.status === 'paused') {
