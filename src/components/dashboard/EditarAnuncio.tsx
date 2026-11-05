@@ -64,6 +64,8 @@ interface AnuncioNoMl {
   vendas: number;
   /** Visitas nos últimos 30 dias. Nulo quando o Mercado Livre não respondeu. */
   visitas?: number | null;
+  /** Por que o título não pode mudar. Nulo quando pode. */
+  titulo_travado?: string | null;
   fotos: string[];
 }
 
@@ -81,6 +83,32 @@ interface Props {
 }
 
 const LIMITE_TITULO = 60;
+
+/**
+ * O motivo que a função escreveu, quando ela recusa.
+ *
+ * Quando a resposta não é 2xx, o supabase-js trata como erro: `data` vem nulo
+ * e o corpo — onde está a frase em português — fica guardado dentro de
+ * `error.context`, que é um Response ainda não lido. Sem abrir esse envelope,
+ * a tela mostrava "O Mercado Livre não aceitou a alteração" para qualquer
+ * recusa, inclusive as que a função já sabia explicar.
+ */
+async function motivoDaFalha(data: { error?: string } | null, erro: unknown): Promise<string | null> {
+  if (data?.error) return data.error;
+
+  const contexto = (erro as { context?: { json?: () => Promise<{ error?: string }> } } | null)?.context;
+
+  if (contexto?.json) {
+    try {
+      const corpo = await contexto.json();
+      if (corpo?.error) return corpo.error;
+    } catch {
+      // resposta sem corpo legível: fica a frase genérica de quem chamou
+    }
+  }
+
+  return null;
+}
 const LIMITE_FOTOS = 10;
 const FOTOS_RECOMENDADAS = 4;
 const LUCROS_RAPIDOS = [15, 25, 40];
@@ -191,7 +219,7 @@ export default function EditarAnuncio({ anuncio, aoFechar, aoSalvar }: Props) {
 
       if (error || !data?.anuncio) {
         setErroAoLer(
-          data?.error ||
+          (await motivoDaFalha(data, error)) ??
             'Não foi possível ler o anúncio no Mercado Livre. Confira se a conta está conectada em Integrações.'
         );
         setCarregando(false);
@@ -253,7 +281,15 @@ export default function EditarAnuncio({ anuncio, aoFechar, aoSalvar }: Props) {
     [original, custo]
   );
 
-  const tituloTravado = (original?.vendas ?? 0) > 0;
+  // O motivo vem do Mercado Livre ao abrir: venda feita ou ficha técnica. A
+  // contagem de vendas fica como rede de segurança para anúncio aberto antes
+  // desta versão.
+  const motivoDoTituloTravado =
+    original?.titulo_travado ??
+    ((original?.vendas ?? 0) > 0
+      ? 'O Mercado Livre não deixa mudar o título depois da primeira venda.'
+      : null);
+  const tituloTravado = Boolean(motivoDoTituloTravado);
 
   const mudancas = useMemo(() => {
     if (!original) return [] as { campo: string; de: string; para: string }[];
@@ -382,7 +418,8 @@ export default function EditarAnuncio({ anuncio, aoFechar, aoSalvar }: Props) {
 
     if (error || !data?.ok) {
       setErroAoSalvar(
-        data?.error || 'O Mercado Livre não aceitou a alteração. Tente de novo em instantes.'
+        (await motivoDaFalha(data, error)) ??
+          'O Mercado Livre não aceitou a alteração. Tente de novo em instantes.'
       );
       return;
     }
@@ -667,9 +704,7 @@ export default function EditarAnuncio({ anuncio, aoFechar, aoSalvar }: Props) {
                     </div>
                     <div className="flex justify-between gap-3 text-xs text-gray-500 dark:text-slate-400">
                       <span>
-                        {tituloTravado
-                          ? 'O Mercado Livre não deixa mudar o título depois da primeira venda.'
-                          : 'Comece pelo que o comprador digita na busca.'}
+                        {motivoDoTituloTravado ?? 'Comece pelo que o comprador digita na busca.'}
                       </span>
                       <span className="tabular-nums shrink-0">
                         {titulo.length}/{LIMITE_TITULO}

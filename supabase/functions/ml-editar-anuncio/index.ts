@@ -243,6 +243,22 @@ Deno.serve(async (req: Request) => {
         vendas,
         visitas: visitas?.total_visits ?? null,
         fotos: fotosDoItem.map(enderecoDaFoto).filter(Boolean),
+
+        // Por que o título não pode mudar — nulo quando pode.
+        //
+        // São dois motivos, e a tela só conhecia um. O segundo é o anúncio
+        // preso a uma ficha técnica do Mercado Livre: ali o título é o da
+        // ficha, e o ML recusa o PUT inteiro por causa dele. Recusa inteiro
+        // mesmo: em 05/11 uma troca de preço foi junto no mesmo pedido e caiu
+        // junto, então o vendedor não conseguia mudar nem o preço.
+        //
+        // Sabendo disso na hora de abrir, o campo nasce travado e o título
+        // nunca chega a ser enviado.
+        titulo_travado: item.family_name
+          ? 'Este anúncio usa uma ficha técnica do Mercado Livre, e o título é o dela.'
+          : vendas > 0
+            ? 'O Mercado Livre não deixa mudar o título depois da primeira venda.'
+            : null,
       },
     });
   }
@@ -268,9 +284,20 @@ Deno.serve(async (req: Request) => {
   }
 
   if (typeof mudancas.titulo === 'string' && mudancas.titulo.trim()) {
+    if (item.family_name) {
+      return json(
+        {
+          error:
+            'Este anúncio usa uma ficha técnica do Mercado Livre, e o título é o dela — ele não pode ser alterado. Desfaça a mudança no título para salvar o resto.',
+        },
+        409
+      );
+    }
+
     if (vendas > 0) {
       return json({ error: 'O Mercado Livre não deixa mudar o título de um anúncio que já vendeu.' }, 409);
     }
+
     corpo.title = mudancas.titulo.trim().slice(0, 60);
   }
 
