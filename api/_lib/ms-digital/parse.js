@@ -66,7 +66,11 @@ export function normalizarPeso(valorBruto) {
   let numero = parseFloat(m[1].includes(",") ? m[1].replace(/\./g, "").replace(",", ".") : m[1]);
   if (Number.isNaN(numero)) return valor;
   if (m[2].toLowerCase() === "g") numero = numero / 1000;
-  return `${numero.toFixed(2)} kg`;
+
+  // Tres casas, e nao duas, porque o kg passou a ser lido de volta em gramas
+  // para o anuncio do Mercado Livre. Com duas casas, "1 g" virava "0.00 kg" e
+  // a medida sumia; "45 g" virava 50 g. A resolucao agora e de 1 grama.
+  return `${numero.toFixed(3)} kg`;
 }
 
 export function extrairPreco(texto) {

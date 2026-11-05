@@ -90,17 +90,25 @@ function dimensoesParaNumeros(texto) {
   return { altura_cm: partes[0], largura_cm: partes[1], comprimento_cm: partes[2] };
 }
 
-/** "1.17 kg" vira 1170. O parse ja normalizou tudo para kg antes de chegar aqui. */
+/**
+ * "1.170 kg" vira 1170.
+ *
+ * O parse normaliza tudo para kg antes de chegar aqui, mas a unidade em gramas
+ * tambem e aceita: e assim que a tabela de especificacoes do fornecedor
+ * escreve os produtos leves, e um dia o caminho pode mudar.
+ */
 function pesoParaGramas(texto) {
   if (!texto) return null;
 
-  const m = String(texto).match(/(\d[\d.,]*)\s*kg/i);
+  const m = String(texto).match(/(\d[\d.,]*)\s*(kg|g)\b/i);
   if (!m) return null;
 
-  const kg = parseFloat(m[1].replace(",", "."));
-  if (!Number.isFinite(kg) || kg <= 0) return null;
+  const numero = parseFloat(m[1].replace(",", "."));
+  if (!Number.isFinite(numero) || numero <= 0) return null;
 
-  return Math.round(kg * 1000);
+  const gramas = m[2].toLowerCase() === "kg" ? numero * 1000 : numero;
+
+  return Math.round(gramas);
 }
 
 function precoParaNumero(precoTexto) {
