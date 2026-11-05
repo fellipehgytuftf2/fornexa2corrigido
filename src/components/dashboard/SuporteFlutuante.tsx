@@ -187,7 +187,15 @@ export default function SuporteFlutuante() {
         type="button"
         onClick={alternar}
         aria-label={aberto ? 'Fechar suporte' : 'Abrir suporte'}
-        className="fixed bottom-6 right-4 sm:right-6 z-[120] w-14 h-14 rounded-full bg-navy-900 dark:bg-gold text-white dark:text-navy-900 shadow-xl flex items-center justify-center hover:opacity-90 transition-opacity"
+        // Abaixo dos modais, que ficam em z-[100].
+        //
+        // O botão morava em z-[120] e por isso flutuava por cima de qualquer
+        // janela aberta — no celular, onde a tela é estreita, ele cobria o
+        // conteúdo do modal e o dedo acertava o suporte sem querer.
+        //
+        // O painel do suporte continua em z-[120]: quando ele abre, não há
+        // modal aberto, porque o botão que o abre está atrás deles.
+        className="fixed bottom-6 right-4 sm:right-6 z-[90] w-14 h-14 rounded-full bg-navy-900 dark:bg-gold text-white dark:text-navy-900 shadow-xl flex items-center justify-center hover:opacity-90 transition-opacity"
       >
         {aberto ? <X className="w-6 h-6" /> : <Headset className="w-6 h-6" />}
 
