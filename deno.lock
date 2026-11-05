@@ -10,7 +10,11 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@dnd-kit/core@^6.3.1",
+        "npm:@dnd-kit/sortable@10",
+        "npm:@dnd-kit/utilities@^3.2.2",
         "npm:@eslint/js@^9.9.1",
+        "npm:@sparticuz/chromium@153",
         "npm:@supabase/supabase-js@^2.110.0",
         "npm:@types/react-dom@^18.3.0",
         "npm:@types/react@^18.3.5",
@@ -23,6 +27,7 @@
         "npm:globals@^15.9.0",
         "npm:lucide-react@0.344",
         "npm:postcss@^8.4.35",
+        "npm:puppeteer-core@^25.16.0",
         "npm:react-dom@^18.3.1",
         "npm:react-router-dom@^7.18.1",
         "npm:react@^18.3.1",
