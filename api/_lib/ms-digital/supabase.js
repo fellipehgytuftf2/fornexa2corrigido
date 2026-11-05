@@ -62,7 +62,46 @@ const CAMPOS_COMPARADOS = [
   "supplier_price",
   "stock",
   "indisponivel_no_fornecedor",
+  "altura_cm",
+  "largura_cm",
+  "comprimento_cm",
+  "peso_g",
 ];
+
+/**
+ * Transforma "20x15x10 cm" nos tres numeros, em centimetros.
+ *
+ * A MS Digital escreve de varios jeitos: "20x15x10 cm", "20 x 15 x 10cm",
+ * "20,5x15x10". O separador pode ser x minusculo, X maiusculo ou o simbolo de
+ * multiplicacao. Fora desses formatos, devolve null -- medida meio lida e pior
+ * que medida nenhuma, porque vira frete errado no anuncio.
+ */
+function dimensoesParaNumeros(texto) {
+  if (!texto) return null;
+
+  const partes = String(texto)
+    .replace(/cm/gi, "")
+    .split(/\s*[x×]\s*/i)
+    .map((parte) => parseFloat(parte.trim().replace(",", ".")));
+
+  if (partes.length !== 3 || partes.some((n) => !Number.isFinite(n) || n <= 0)) return null;
+
+  // A ordem em que o fornecedor escreve e altura x largura x comprimento.
+  return { altura_cm: partes[0], largura_cm: partes[1], comprimento_cm: partes[2] };
+}
+
+/** "1.17 kg" vira 1170. O parse ja normalizou tudo para kg antes de chegar aqui. */
+function pesoParaGramas(texto) {
+  if (!texto) return null;
+
+  const m = String(texto).match(/(\d[\d.,]*)\s*kg/i);
+  if (!m) return null;
+
+  const kg = parseFloat(m[1].replace(",", "."));
+  if (!Number.isFinite(kg) || kg <= 0) return null;
+
+  return Math.round(kg * 1000);
+}
 
 function precoParaNumero(precoTexto) {
   if (!precoTexto) return null;
@@ -130,6 +169,15 @@ function montarCamposAtuais(produto) {
   const custo = precoDeCusto(produto);
   if (custo !== null) campos.supplier_price = custo;
 
+  // As medidas da embalagem, que o Mercado Livre exige para criar o anuncio.
+  // Ja eram apuradas ha meses e descartadas aqui. Seguem a regra da funcao:
+  // o que a coleta nao leu nao entra, para o PATCH nao apagar o que ja existe.
+  const dimensoes = dimensoesParaNumeros(produto.dimensoes);
+  if (dimensoes) Object.assign(campos, dimensoes);
+
+  const pesoEmGramas = pesoParaGramas(produto.peso);
+  if (pesoEmGramas !== null) campos.peso_g = pesoEmGramas;
+
   if (typeof produto.estoque === "number") campos.stock = produto.estoque;
 
   // Disponibilidade e estoque sao coisas diferentes, e a MS Digital responde
@@ -185,7 +233,8 @@ function apenasMudancas(campos, existente) {
  * continua funcionando, so que casando por nome como antes.
  */
 async function lerExistentes(url, chave, supplierId) {
-  const comuns = "id,name,indisponivel_no_fornecedor,description,category,image_url,images,supplier_price,stock";
+  const comuns =
+    "id,name,indisponivel_no_fornecedor,description,category,image_url,images,supplier_price,stock,altura_cm,largura_cm,comprimento_cm,peso_g";
   try {
     const linhas = await chamarSupabase(
       url,

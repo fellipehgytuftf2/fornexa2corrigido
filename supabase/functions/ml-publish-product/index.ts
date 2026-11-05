@@ -422,6 +422,10 @@ function traduzirErroMercadoLivre(itemData: any): string | null {
     return "Sua conta do Mercado Livre ainda não está habilitada para vender. Costuma ser pendência de cadastro: endereço fiscal incompleto, documento não validado ou dados do Mercado Pago faltando. Abra 'Minha conta' no Mercado Livre e resolva o que ele apontar — pessoa física com CPF pode vender, então nem sempre é caso de abrir CNPJ.";
   }
 
+  if (/seller_package/.test(causeCodes) || /seller_package/.test(causeMessages) || /seller_package/.test(message)) {
+    return "Este produto ainda não tem as medidas da embalagem (altura, largura, comprimento e peso), e o Mercado Livre não cria o anúncio sem elas. Elas vêm do fornecedor na sincronização do catálogo, que roda duas vezes por dia — se o produto é novo, tente de novo depois da próxima rodada. Se continuar, avise o suporte do FORNEXA com o nome do produto: significa que o fornecedor não publicou a medida.";
+  }
+
   if (causeCodes.includes("address_pending")) {
     return "Falta confirmar o endereço fiscal da sua conta do Mercado Livre. Acesse 'Seu perfil' nas configurações da conta para revisar.";
   }
@@ -554,7 +558,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: catalogProduct, error: catalogProductError } = await supabase
       .from("catalog_products")
-      .select("id, supplier_id, supplier_price")
+      .select("id, supplier_id, supplier_price, altura_cm, largura_cm, comprimento_cm, peso_g")
       .eq("id", body.catalog_product_id)
       .maybeSingle();
 
@@ -1300,6 +1304,42 @@ Deno.serve(async (req: Request) => {
         // anúncio engana o comprador.
         unresolvedRequiredAttributes.push(attr.name ?? attr.id);
       }
+    }
+
+    /**
+     * As medidas da embalagem.
+     *
+     * Em 05/11 o Mercado Livre passou a recusar a criação do anúncio sem elas:
+     *   [item.attribute.missing.seller_package_dimensions] The attributes
+     *   [seller_package_height, seller_package_width, seller_package_length,
+     *    seller_package_weight] are all required
+     *
+     * Elas não aparecem em /categories/{id}/attributes, que é de onde sai a
+     * lista de obrigatórios acima — são atributos de envio, cobrados só na
+     * hora de criar o item. Por isso entram aqui, à parte.
+     *
+     * Vêm do catálogo, apuradas na sincronização do fornecedor. As quatro ou
+     * nenhuma: o Mercado Livre exige o conjunto, e mandar três faz a recusa
+     * continuar igual.
+     */
+    const alturaDaEmbalagem = Number(catalogProduct.altura_cm ?? 0);
+    const larguraDaEmbalagem = Number(catalogProduct.largura_cm ?? 0);
+    const comprimentoDaEmbalagem = Number(catalogProduct.comprimento_cm ?? 0);
+    const pesoDaEmbalagem = Number(catalogProduct.peso_g ?? 0);
+
+    const temAsQuatroMedidas =
+      alturaDaEmbalagem > 0 &&
+      larguraDaEmbalagem > 0 &&
+      comprimentoDaEmbalagem > 0 &&
+      pesoDaEmbalagem > 0;
+
+    if (temAsQuatroMedidas) {
+      itemAttributes.push(
+        { id: "SELLER_PACKAGE_HEIGHT", value_name: `${alturaDaEmbalagem} cm` },
+        { id: "SELLER_PACKAGE_WIDTH", value_name: `${larguraDaEmbalagem} cm` },
+        { id: "SELLER_PACKAGE_LENGTH", value_name: `${comprimentoDaEmbalagem} cm` },
+        { id: "SELLER_PACKAGE_WEIGHT", value_name: `${pesoDaEmbalagem} g` }
+      );
     }
 
     if (unresolvedRequiredAttributes.length > 0) {
