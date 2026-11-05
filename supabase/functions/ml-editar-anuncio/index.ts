@@ -94,7 +94,9 @@ async function renomearFamilia(
   item: Record<string, unknown>,
   nome: string,
   cabecalhos: Record<string, string>,
-  supabase: ReturnType<typeof createClient>,
+  // Só o que esta função usa do cliente. `ReturnType<typeof createClient>` traz
+  // junto os genéricos do schema e não aceita o cliente real como argumento.
+  registrar: (linha: Record<string, unknown>) => PromiseLike<unknown>,
   itemId: string
 ): Promise<{ ok: boolean; tentativas: unknown[] }> {
   const tentativas: unknown[] = [];
@@ -163,7 +165,7 @@ async function renomearFamilia(
     tentativas.push({ caminho: 'item.user_product_id', erro: 'o anúncio não trouxe o id do produto' });
   }
 
-  await supabase.from('log_integracao_ml').insert({
+  await registrar({
     contexto: 'ml-editar-anuncio',
     mensagem: 'Nenhum caminho de renomear família funcionou',
     detalhes: { tentativas },
@@ -394,10 +396,16 @@ Deno.serve(async (req: Request) => {
       // para a mais indireta, e cada uma fica registrada: quando uma funciona,
       // o log diz qual foi, e o que não funcionar nunca mais precisa ser
       // tentado no escuro.
-      const resultado = await renomearFamilia(item, tituloNovo, cabecalhos, supabase, itemId);
+      const resultado = await renomearFamilia(
+        item,
+        tituloNovo,
+        cabecalhos,
+        (linha) => admin.from('log_integracao_ml').insert(linha),
+        itemId
+      );
 
       if (!resultado.ok) {
-        await supabase.from('log_integracao_ml').insert({
+        await admin.from('log_integracao_ml').insert({
           contexto: 'ml-editar-anuncio',
           mensagem: `Nome da família recusado no anúncio ${anuncio.ml_item_id}`,
           detalhes: { titulo: tituloNovo, tentativas: resultado.tentativas },
