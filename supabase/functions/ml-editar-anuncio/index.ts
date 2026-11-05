@@ -404,6 +404,14 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // O título que de fato passou no Mercado Livre.
+  //
+  // Existe separado de `corpo.title` porque há dois caminhos: o item, que usa
+  // `title`, e a família, que não passa pelo `corpo` nenhum. A cópia em
+  // `user_products` olhava só o `corpo` — então o nome mudava no anúncio e a
+  // lista de Meus Anúncios continuava com o título do fornecedor.
+  let tituloAplicado: string | null = null;
+
   if (typeof mudancas.titulo === 'string' && mudancas.titulo.trim()) {
     if (vendas > 0) {
       return json({ error: 'O Mercado Livre não deixa mudar o título de um anúncio que já vendeu.' }, 409);
@@ -444,8 +452,13 @@ Deno.serve(async (req: Request) => {
           409
         );
       }
+
+      // A família aceitou: o nome já mudou no Mercado Livre, mesmo sem passar
+      // pelo PUT do item.
+      tituloAplicado = tituloNovo;
     } else {
       corpo.title = tituloNovo;
+      tituloAplicado = tituloNovo;
     }
   }
 
@@ -526,7 +539,7 @@ Deno.serve(async (req: Request) => {
     copia.announcement_price = mudancas.preco;
     if (typeof mudancas.margem === 'number') copia.margin = mudancas.margem;
   }
-  if (typeof corpo.title === 'string') copia.announcement_title = corpo.title;
+  if (tituloAplicado) copia.announcement_title = tituloAplicado;
   if (typeof mudancas.descricao === 'string') copia.announcement_description = mudancas.descricao;
   if (Array.isArray(mudancas.fotos) && mudancas.fotos[0]) {
     copia.image_url = mudancas.fotos[0];
