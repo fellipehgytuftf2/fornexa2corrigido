@@ -30,6 +30,32 @@ function escapeRegExp(s) {
 // Extrai o valor de um campo "Rotulo: valor" em texto livre, independente da
 // posicao. O valor termina no proximo rotulo conhecido, uma linha em branco,
 // ou o fim do texto. "N/A" conta como ausente (retorna null).
+/**
+ * Le o valor na tabela "Especificacoes" da pagina do produto.
+ *
+ * A pagina diz o peso duas vezes, e as duas versoes discordam:
+ *
+ *   Peso: 0.07            <- solto no topo, sem unidade
+ *   | Peso | 70 g |       <- na tabela, com unidade
+ *
+ * A de cima e a que `extrairCampoGenerico` encontra, porque so entende
+ * "Rotulo:". Sem unidade, 0.07 nao vira peso nenhum -- e foi assim que 611 dos
+ * 848 produtos ficaram sem medida quando o Mercado Livre passou a exigi-la.
+ *
+ * A tabela e a fonte boa, entao e consultada primeiro.
+ */
+export function extrairDaTabela(texto, rotulos) {
+  for (const rotulo of rotulos) {
+    const m = texto.match(new RegExp(`\\|\\s*${escapeRegExp(rotulo)}\\s*\\|\\s*([^|\\n]+?)\\s*\\|`, "i"));
+    if (m) {
+      const valor = m[1].trim();
+      if (!valor || valor.toUpperCase() === "N/A") return null;
+      return valor;
+    }
+  }
+  return null;
+}
+
 export function extrairCampoGenerico(texto, rotulos) {
   const outros = TODOS_ROTULOS.filter((r) => !rotulos.includes(r));
   const fronteira = outros.map(escapeRegExp).join("|");
@@ -100,8 +126,9 @@ export function extrairCamposTexto(texto) {
     marca: extrairCampoGenerico(texto, ROTULOS_CAMPOS.marca),
     modelo: extrairCampoGenerico(texto, ROTULOS_CAMPOS.modelo),
     codigo_barras: extrairCampoGenerico(texto, ROTULOS_CAMPOS.codigo_barras),
-    dimensoes: extrairCampoGenerico(texto, ROTULOS_CAMPOS.dimensoes),
-    peso: normalizarPeso(extrairCampoGenerico(texto, ROTULOS_CAMPOS.peso)),
+    // A tabela de especificacoes manda: ver o comentario de extrairDaTabela.
+    dimensoes: extrairDaTabela(texto, ROTULOS_CAMPOS.dimensoes) ?? extrairCampoGenerico(texto, ROTULOS_CAMPOS.dimensoes),
+    peso: normalizarPeso(extrairDaTabela(texto, ROTULOS_CAMPOS.peso) ?? extrairCampoGenerico(texto, ROTULOS_CAMPOS.peso)),
     homologacao: extrairCampoGenerico(texto, ROTULOS_CAMPOS.homologacao),
     descricao: null,
   };
