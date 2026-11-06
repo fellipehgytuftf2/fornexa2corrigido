@@ -535,3 +535,12 @@ body {
   .divulgar-frase-nova,
   .dark .divulgar-frase-nova { animation: none; }
 }
+
+/* Cards de Meus Anúncios: entrada em cascata e barras que enchem */
+@keyframes cartao-entra { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.cartao-entra { animation: cartao-entra 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes barra-enche { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.barra-enche { transform-origin: left; animation: barra-enche 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .cartao-entra, .barra-enche { animation: none; }
+}
