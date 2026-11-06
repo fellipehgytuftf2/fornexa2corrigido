@@ -527,6 +527,11 @@ body {
   from { background-color: rgba(255, 211, 0, 0.28); border-color: #ffd300; }
 }
 .divulgar-frase-nova { animation: divulgar-frase-nova 0.9s ease-out; }
+.dark .divulgar-frase-nova { animation-name: divulgar-frase-nova-escuro; }
+@keyframes divulgar-frase-nova-escuro {
+  from { background-color: rgba(255, 211, 0, 0.12); border-color: #ffd300; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .divulgar-frase-nova { animation: none; }
+  .divulgar-frase-nova,
+  .dark .divulgar-frase-nova { animation: none; }
 }
