@@ -1,19 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AlertCircle,
-  CheckCircle,
-  Package,
-  Search,
-  ExternalLink,
-  Pencil,
-  Share2,
-  Store,
-  Trash2,
-  Truck,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle, Package, Search, Store } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import Pagination from '../../components/ui/pagination';
 import DivulgarNoFacebook from '../../components/dashboard/DivulgarNoFacebook';
+import CartaoDoAnuncio, {
+  gradeDoFormato,
+  type FormatoDoCartao,
+} from '../../components/dashboard/cartao-anuncio/CartaoDoAnuncio';
+import BarraDePreviaDoCartao, {
+  formatoDoCartaoGuardado,
+} from '../../components/dashboard/cartao-anuncio/BarraDePreviaDoCartao';
 import EditarAnuncio, { type AnuncioSalvo } from '../../components/dashboard/EditarAnuncio';
 import { calcularVenda } from '../../lib/taxasDoMercadoLivre';
 import { useFuncionalidade } from '../../lib/funcionalidades';
@@ -115,6 +111,8 @@ export default function MyProducts() {
 
   /** O anúncio com o modal de divulgação aberto. */
   const [divulgando, setDivulgando] = useState<UserProduct | null>(null);
+  // PRÉVIA (feat/cards-anuncios): qual desenho de card mostrar.
+  const [formatoDoCartao, setFormatoDoCartao] = useState<FormatoDoCartao>(formatoDoCartaoGuardado);
 
   /** O anúncio com a tela de edição aberta. */
   const [editando, setEditando] = useState<UserProduct | null>(null);
@@ -476,167 +474,38 @@ export default function MyProducts() {
         </div>
       ) : filteredProducts.length > 0 ? (
         <>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-          {produtosDaPagina.map((product) => {
+        <div key={formatoDoCartao} className={gradeDoFormato[formatoDoCartao]}>
+          {produtosDaPagina.map((product, indiceNaPagina) => {
             const supplier = getSupplier(product);
             const marginPercent = getMarginPercent(product);
             const productHasSupplier = Boolean(product.supplier_id && supplier);
 
-            return (
-              <div
-                key={product.id}
-                className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-navy-700 shadow-sm overflow-hidden"
-              >
-                <div className="p-5">
-                  <div className="flex gap-4">
-                    <img
-                      src={product.image_url}
-                      alt={product.name}
-                      className="w-24 h-24 rounded-xl object-cover"
-                    />
+            // Pausa sem explicação parece defeito do sistema.
+            const avisoDeEstoque = semEstoque.has(product.id)
+              ? {
+                  pausado: Boolean(semEstoque.get(product.id)),
+                  texto: semEstoque.get(product.id)
+                    ? 'Pausado pelo FORNEXA: o fornecedor está sem estoque. Volta ao ar sozinho quando ele repor.'
+                    : 'O fornecedor está sem estoque. Este anúncio será pausado no Mercado Livre para você não vender o que não existe.',
+                }
+              : null;
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300">
-                          {product.marketplace}
-                        </span>
+            // A pausa por falta de estoque não mexe em `status` — a tabela
+            // recusa 'paused'. Sem olhar a marca, o selo dizia "Ativo" ao lado
+            // do aviso de pausado.
+            const situacao: { texto: string; tom: 'ativo' | 'pausado' | 'neutro' } = semEstoque.get(product.id)
+              ? { texto: 'Pausado · sem estoque', tom: 'pausado' }
+              : pausadosPeloVendedor.has(product.id)
+                ? { texto: 'Pausado por você', tom: 'pausado' }
+                : product.status === 'active'
+                  ? { texto: 'Ativo', tom: 'ativo' }
+                  : { texto: product.status === 'paused' ? 'Pausado' : product.status, tom: 'neutro' };
 
-                        {/* A pausa por falta de estoque não mexe em `status` —
-                            a tabela recusa 'paused'. Sem olhar a marca, o selo
-                            dizia "Ativo" ao lado do aviso de pausado. */}
-                        {semEstoque.get(product.id) ? (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                            Pausado · sem estoque
-                          </span>
-                        ) : pausadosPeloVendedor.has(product.id) ? (
-                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                            Pausado por você
-                          </span>
-                        ) : (
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              product.status === 'active'
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : 'bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300'
-                            }`}
-                          >
-                            {product.status === 'active'
-                              ? 'Ativo'
-                              : product.status === 'paused'
-                                ? 'Pausado'
-                                : product.status}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* O título do anúncio, não o nome do fornecedor: quem renomeia
-                          no Mercado Livre espera ver o nome novo aqui também. O name
-                          é reserva para produto salvo que ainda não foi publicado. */}
-                      <h3 className="text-navy-900 dark:text-white font-bold mt-3 line-clamp-2">
-                        {product.announcement_title || product.name}
-                      </h3>
-
-                      <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
-                        Salvo em {formatDate(product.created_at)}
-                      </p>
-
-                      {/* Pausa sem explicação parece defeito do sistema. */}
-                      {semEstoque.has(product.id) && (
-                        <div
-                          className={`mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
-                            semEstoque.get(product.id)
-                              ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300'
-                              : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300'
-                          }`}
-                        >
-                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                          <span>
-                            {semEstoque.get(product.id)
-                              ? 'Pausado pelo FORNEXA: o fornecedor está sem estoque. Volta ao ar sozinho quando ele repor.'
-                              : 'O fornecedor está sem estoque. Este anúncio será pausado no Mercado Livre para você não vender o que não existe.'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
-                    <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 dark:text-slate-400">
-                        Preço fornecedor
-                      </p>
-
-                      <p className="text-sm font-bold text-navy-900 dark:text-white mt-1">
-                        {formatCurrency(product.supplier_price)}
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-3">
-                      <p className="text-xs text-gray-500 dark:text-slate-400">
-                        Preço venda
-                      </p>
-
-                      <p className="text-sm font-bold text-navy-900 dark:text-white mt-1">
-                        {formatCurrency(product.sale_price)}
-                      </p>
-                    </div>
-
-                    <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-3">
-                      <p className="text-xs text-green-700 dark:text-green-400">
-                        Lucro
-                      </p>
-
-                      <p className="text-sm font-bold text-green-700 dark:text-green-400 mt-1">
-                        {formatCurrency(product.margin)} · {marginPercent.toFixed(0)}%
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Quem fornece o produto não aparece aqui de propósito. O
-                      vendedor só precisa saber que o envio está garantido e em
-                      quanto tempo; a identidade do fornecedor entra depois da
-                      venda, na tela de Pedidos, onde ele precisa dela para
-                      pagar e resolver problema. */}
-                  <div className="mt-5 bg-gray-50 dark:bg-navy-700 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <Truck className="w-5 h-5 text-gray-600 dark:text-slate-400 mt-0.5" />
-
-                      <div>
-                        <p className="text-sm font-medium text-navy-900 dark:text-white">
-                          {productHasSupplier
-                            ? 'Envio pelo fornecedor'
-                            : 'Fornecedor não vinculado'}
-                        </p>
-
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                          {productHasSupplier
-                            ? `Prazo médio: ${
-                                supplier?.average_shipping_time || 'não informado'
-                              }`
-                            : 'Este produto precisa ter supplier_id para gerar pedido corretamente.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* O botão "Registrar venda" saiu daqui.
-                      Ele era sobra de demonstração: criava um pedido com
-                      comprador sorteado de uma lista fixa no código. Parecia
-                      registrar uma venda feita fora do Mercado Livre, e
-                      qualquer vendedor clicaria achando isso.
-                      Em 2026-08-06 um vendedor clicou três vezes e mandou três
-                      pedidos falsos, com compradores inventados, direto para o
-                      portal de um fornecedor real — que quase separou e postou
-                      mercadoria para gente que não existe.
-                      Venda de verdade entra sozinha pelo webhook do Mercado
-                      Livre. Se um dia fizer falta registrar venda de fora,
-                      precisa ser um formulário pedindo o comprador real. */}
-                  {/* O prejuízo, dito no anúncio que o causa.
-                      Somado no Financeiro ele vira um número que não aponta
-                      para nada; aqui ele fica ao lado do botão que abre o
-                      anúncio no Mercado Livre, que é onde o preço se corrige. */}
-                  {noVermelho[product.id] && (
-                    <div className="mt-5 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
+            // O prejuízo, dito no anúncio que o causa. Somado no Financeiro ele
+            // vira um número que não aponta para nada; aqui ele fica ao lado do
+            // botão que abre o anúncio, que é onde o preço se corrige.
+            const alertaDePrejuizo = noVermelho[product.id] ? (
+                    <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
                       <p className="text-sm font-semibold text-red-800 dark:text-red-200">
                         Este anúncio está vendendo no prejuízo
                       </p>
@@ -668,58 +537,40 @@ export default function MyProducts() {
                         está comendo a margem.
                       </p>
                     </div>
-                  )}
+                  ) : null;
 
-                  <div className="mt-5 flex flex-col sm:flex-row gap-3">
-
-                    {vendoAEdicao && product.ml_item_id && (
-                      <button
-                        onClick={() => setEditando(product)}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gold hover:bg-gold-hover text-navy-900 text-sm font-bold transition-colors"
-                      >
-                        <Pencil className="w-4 h-4" />
-                        Editar
-                      </button>
-                    )}
-
-                    {/* Sem isto, o vendedor via o anúncio listado aqui e tinha
-                        que procurá-lo pelo nome dentro do Mercado Livre. */}
-                    {enderecoDoAnuncio(product) && (
-                      <a
-                        href={enderecoDoAnuncio(product) as string}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Ver anúncio
-                      </a>
-                    )}
-
-                    {/* Mesma condição do botão acima: sem anúncio publicado não
-                        há o que divulgar, e um botão que abre um modal sem link
-                        seria pior que botão nenhum. */}
-                    {vendoADivulgacao && enderecoDoAnuncio(product) && (
-                      <button
-                        onClick={() => setDivulgando(product)}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm font-semibold transition-colors"
-                      >
-                        <Share2 className="w-4 h-4" />
-                        Divulgar
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => handleDeleteProduct(product.id)}
-                      disabled={actionId === product.id}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm font-semibold transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Excluir
-                    </button>
-                  </div>
-                </div>
-              </div>
+            return (
+              <CartaoDoAnuncio
+                key={product.id}
+                formato={formatoDoCartao}
+                ordem={indiceNaPagina}
+                imagem={product.image_url}
+                nome={product.name}
+                // O título do anúncio, não o nome do fornecedor: quem renomeia no
+                // Mercado Livre espera ver o nome novo aqui também.
+                titulo={product.announcement_title || product.name}
+                marketplace={product.marketplace}
+                situacao={situacao}
+                avisoDeEstoque={avisoDeEstoque}
+                salvoEm={formatDate(product.created_at)}
+                precoFornecedor={product.supplier_price}
+                precoVenda={product.sale_price}
+                lucro={product.margin}
+                margemPercentual={marginPercent}
+                // Quem fornece não aparece no card de propósito: o vendedor só
+                // precisa saber que o envio está garantido e em quanto tempo.
+                temFornecedor={productHasSupplier}
+                prazo={supplier?.average_shipping_time || 'não informado'}
+                alertaDePrejuizo={alertaDePrejuizo}
+                podeEditar={Boolean(vendoAEdicao && product.ml_item_id)}
+                linkDoAnuncio={enderecoDoAnuncio(product)}
+                // Sem anúncio publicado não há o que divulgar.
+                podeDivulgar={Boolean(vendoADivulgacao && enderecoDoAnuncio(product))}
+                excluindo={actionId === product.id}
+                aoEditar={() => setEditando(product)}
+                aoDivulgar={() => setDivulgando(product)}
+                aoExcluir={() => handleDeleteProduct(product.id)}
+              />
             );
           })}
         </div>
@@ -744,6 +595,8 @@ export default function MyProducts() {
           </p>
         </div>
       )}
+
+      <BarraDePreviaDoCartao formato={formatoDoCartao} aoEscolher={setFormatoDoCartao} />
 
       {editando && (
         <EditarAnuncio
