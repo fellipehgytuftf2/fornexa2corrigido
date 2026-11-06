@@ -37,7 +37,7 @@ export const TONS: { id: Tom; nome: string }[] = [
 
 export const CANAIS: { id: Canal; nome: string; detalhe: string }[] = [
   { id: 'grupos', nome: 'Grupos do Facebook', detalhe: 'Copia o texto e busca grupos do nicho' },
-  { id: 'perfil', nome: 'Meu perfil', detalhe: 'Copia o texto e abre o compartilhamento' },
+  { id: 'perfil', nome: 'Post', detalhe: 'Copia o texto e abre o compartilhamento' },
   { id: 'whatsapp', nome: 'WhatsApp', detalhe: 'Abre o WhatsApp com a mensagem pronta' },
   { id: 'link', nome: 'Copiar link', detalhe: 'Só o link, para colar onde quiser' },
 ];
@@ -57,6 +57,47 @@ function textoPronto(tom: Tom, dados: DadosDaDivulgacao) {
   }
 
   return `Achei em promoção: ${dados.titulo}${preco}.\nCompra garantida pelo Mercado Livre.\n${dados.linkDoAnuncio}`;
+}
+
+/**
+ * As frases do botão "Gerar com IA". Cada uma recebe o título e o preço do
+ * anúncio, e o link vai sempre no fim.
+ *
+ * Nenhuma promete o que o FORNEXA não sabe: nada de "últimas unidades",
+ * "frete grátis" ou "entrega amanhã" — isso depende do anúncio e do
+ * comprador, e frase que mente é denúncia no grupo.
+ */
+const FRASES: ((titulo: string, preco: string) => string)[] = [
+  (t, p) => `Achei em promoção: ${t}${p ? ` por ${p}` : ''}.\nCompra garantida pelo Mercado Livre.`,
+  (t, p) => `${t}${p ? ` — ${p}` : ''}`,
+  (t, p) => `Alguém aqui procurando ${t}? Achei${p ? ` por ${p}` : ''}, com compra garantida pelo Mercado Livre.`,
+  (t, p) => `Olha que achado: ${t}${p ? ` saindo por ${p}` : ''} no Mercado Livre.`,
+  (t, p) => `Quem estava precisando de ${t}?${p ? ` Tem por ${p},` : ''} com envio pelo Mercado Livre.`,
+  (t, p) => `Ideia de presente: ${t}${p ? `, por ${p}` : ''}.`,
+  (t, p) => `Preço bom de verdade: ${t}${p ? ` por ${p}` : ''}. Compra com a garantia do Mercado Livre.`,
+  (t, p) => `Para quem pediu indicação: ${t}${p ? `, ${p}` : ''}. O link está aqui embaixo.`,
+  (t, p) => `Vale a pena conferir: ${t}${p ? ` por apenas ${p}` : ''}.`,
+  (t, p) => `Novidade na minha loja: ${t}${p ? `, ${p}` : ''}.`,
+  (t, p) => `${t}${p ? ` por ${p}` : ''}.\nCompra Garantida do Mercado Livre: se não chegar, você recebe o dinheiro de volta.`,
+  (t, p) => `Promoção do dia: ${t}${p ? ` por ${p}` : ''}. Pague com segurança pelo Mercado Livre.`,
+  (t, p) => `Tá aí o que faltava: ${t}${p ? `, ${p}` : ''}.`,
+  (t, p) => `Achado do dia: ${t}${p ? ` por ${p}` : ''}. Confira no link.`,
+  (t, p) => `Quer economizar? ${t}${p ? ` por ${p}` : ''}, direto pelo Mercado Livre.`,
+];
+
+/** Sorteia `quantas` frases diferentes, já com o link no fim. */
+function sortearFrases(dados: DadosDaDivulgacao, quantas: number, evitar: string[] = []) {
+  const preco = dados.preco ? formatarReais(dados.preco) : '';
+  const todas = FRASES.map((frase) => `${frase(dados.titulo, preco)}\n${dados.linkDoAnuncio}`);
+  const novas = todas.filter((frase) => !evitar.includes(frase));
+  const baralho = (novas.length >= quantas ? novas : todas).slice();
+
+  for (let i = baralho.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [baralho[i], baralho[j]] = [baralho[j], baralho[i]];
+  }
+
+  return baralho.slice(0, quantas);
 }
 
 async function copiarParaAreaDeTransferencia(texto: string): Promise<boolean> {
@@ -93,6 +134,15 @@ export function useDivulgacao(dados: DadosDaDivulgacao) {
   const [tom, setTom] = useState<Tom>('promocao');
   const [mensagem, setMensagem] = useState(() => textoPronto('promocao', dados));
   const [feito, setFeito] = useState<Canal | null>(null);
+  const [sugestoes, setSugestoes] = useState<string[]>([]);
+
+  // Cada clique traz frases que ainda não estavam na tela.
+  const gerarSugestoes = () => setSugestoes((atuais) => sortearFrases(dados, 3, atuais));
+
+  const escolherSugestao = (texto: string) => {
+    setMensagem(texto);
+    setSugestoes([]);
+  };
 
   // Trocar o tom troca o texto. Quem já editou e troca de tom recebe o texto
   // novo — o tom é justamente o pedido de outro texto.
@@ -173,6 +223,10 @@ export function useDivulgacao(dados: DadosDaDivulgacao) {
     feito,
     usarCanal,
     copiarMensagem: () => copiar(mensagem),
+    sugestoes,
+    gerarSugestoes,
+    escolherSugestao,
+    fecharSugestoes: () => setSugestoes([]),
   };
 }
 

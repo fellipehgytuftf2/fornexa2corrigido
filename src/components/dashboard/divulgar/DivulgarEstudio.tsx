@@ -1,10 +1,9 @@
-import { Check, ImageIcon, User, X } from 'lucide-react';
+import { Check, ImageIcon, RefreshCw, Sparkles, User, X } from 'lucide-react';
 import ModalPortal from '../../ui/modal-portal';
 import { useTravaScrollDeFundo } from '../../../lib/useTravaScrollDeFundo';
-import { AvisoDeQuemPublica, CampoDaMensagem, EscolhaDeTom, IconeDoCanal } from './partes';
+import { AvisoDeQuemPublica, IconeDoCanal } from './partes';
 import {
   CANAIS,
-  formatarReais,
   useAberturaAnimada,
   useDivulgacao,
   type DadosDaDivulgacao,
@@ -110,12 +109,6 @@ export default function DivulgarEstudio({
                   >
                     {dados.titulo}
                   </h2>
-                  {dados.preco ? (
-                    <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                      {formatarReais(dados.preco)}
-                      {dados.lucro ? ` · você lucra ${formatarReais(dados.lucro)}` : ''}
-                    </p>
-                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -127,12 +120,72 @@ export default function DivulgarEstudio({
                 </button>
               </div>
 
-              <EscolhaDeTom tom={divulgacao.tom} aoEscolher={divulgacao.escolherTom} />
-              <CampoDaMensagem
-                id="estudio-mensagem"
-                valor={divulgacao.mensagem}
-                aoMudar={divulgacao.setMensagem}
-              />
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="estudio-mensagem"
+                    className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400"
+                  >
+                    Mensagem
+                  </label>
+                  <button
+                    type="button"
+                    onClick={divulgacao.gerarSugestoes}
+                    aria-expanded={divulgacao.sugestoes.length > 0}
+                    aria-controls="estudio-sugestoes"
+                    className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 rounded-full border border-navy-900 dark:border-gold text-sm font-semibold text-navy-900 dark:text-gold hover:bg-navy-900 hover:text-white dark:hover:bg-gold dark:hover:text-navy-900 transition-colors"
+                  >
+                    {divulgacao.sugestoes.length > 0 ? (
+                      <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {divulgacao.sugestoes.length > 0 ? 'Gerar outras' : 'Gerar com IA'}
+                  </button>
+                </div>
+
+                {divulgacao.sugestoes.length > 0 && (
+                  <div
+                    id="estudio-sugestoes"
+                    role="group"
+                    aria-label="Sugestões de mensagem"
+                    className="flex flex-col gap-2 rounded-2xl bg-gold/10 border border-gold/40 p-2.5"
+                  >
+                    <div className="flex items-center justify-between px-1.5">
+                      <p className="text-xs font-semibold text-navy-900 dark:text-gold">
+                        Escolha a que achar melhor
+                      </p>
+                      <button
+                        type="button"
+                        onClick={divulgacao.fecharSugestoes}
+                        aria-label="Fechar sugestões"
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5 dark:text-slate-400 dark:hover:bg-white/10"
+                      >
+                        <X className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                    {divulgacao.sugestoes.map((sugestao, indice) => (
+                      <button
+                        key={sugestao}
+                        type="button"
+                        onClick={() => divulgacao.escolherSugestao(sugestao)}
+                        style={{ animationDelay: `${indice * 70}ms` }}
+                        className="acesso-aviso text-left rounded-xl bg-white dark:bg-navy-900 border border-gray-200 dark:border-navy-700 px-3.5 py-3 text-sm leading-relaxed text-navy-900 dark:text-slate-100 whitespace-pre-line line-clamp-4 hover:border-navy-900 dark:hover:border-gold transition-colors"
+                      >
+                        {sugestao.replace(dados.linkDoAnuncio, '').trim()}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <textarea
+                  id="estudio-mensagem"
+                  value={divulgacao.mensagem}
+                  onChange={(evento) => divulgacao.setMensagem(evento.target.value)}
+                  rows={5}
+                  className="w-full px-4 py-3 rounded-2xl bg-gray-50 dark:bg-navy-900 border border-gray-200 dark:border-navy-700 text-[15px] text-navy-900 dark:text-white leading-relaxed resize-y focus:outline-none focus:border-navy-900 dark:focus:border-gold focus:ring-2 focus:ring-navy-900/10 dark:focus:ring-gold/20"
+                />
+              </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 {CANAIS.map((canal) => {
