@@ -271,6 +271,7 @@ export default function MyProducts() {
       // filtrados revelaria o que a tela deixou de mostrar.
       return (
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (product.announcement_title ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         product.marketplace.toLowerCase().includes(searchTerm.toLowerCase())
       );
     });
@@ -528,8 +529,11 @@ export default function MyProducts() {
                         )}
                       </div>
 
+                      {/* O título do anúncio, não o nome do fornecedor: quem renomeia
+                          no Mercado Livre espera ver o nome novo aqui também. O name
+                          é reserva para produto salvo que ainda não foi publicado. */}
                       <h3 className="text-navy-900 dark:text-white font-bold mt-3 line-clamp-2">
-                        {product.name}
+                        {product.announcement_title || product.name}
                       </h3>
 
                       <p className="text-sm text-gray-500 dark:text-slate-400 mt-2">
