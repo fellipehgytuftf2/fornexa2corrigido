@@ -115,6 +115,13 @@ export default function MyProducts() {
 
   /** O anúncio com o modal de divulgação aberto. */
   const [divulgando, setDivulgando] = useState<UserProduct | null>(null);
+  // Onde estava o botão "Divulgar" clicado: o formato balão nasce dali.
+  const [ancoraDaDivulgacao, setAncoraDaDivulgacao] = useState<{
+    top: number;
+    bottom: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   /** O anúncio com a tela de edição aberta. */
   const [editando, setEditando] = useState<UserProduct | null>(null);
@@ -701,7 +708,16 @@ export default function MyProducts() {
                         seria pior que botão nenhum. */}
                     {vendoADivulgacao && enderecoDoAnuncio(product) && (
                       <button
-                        onClick={() => setDivulgando(product)}
+                        onClick={(evento) => {
+                          const caixa = evento.currentTarget.getBoundingClientRect();
+                          setAncoraDaDivulgacao({
+                            top: caixa.top,
+                            bottom: caixa.bottom,
+                            left: caixa.left,
+                            width: caixa.width,
+                          });
+                          setDivulgando(product);
+                        }}
                         className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm font-semibold transition-colors"
                       >
                         <Share2 className="w-4 h-4" />
@@ -761,6 +777,10 @@ export default function MyProducts() {
           // "Pet" acha grupo de pet, o nome do produto não acha nada.
           categoria={divulgando.announcement_category || divulgando.name}
           linkDoAnuncio={enderecoDoAnuncio(divulgando) as string}
+          imagem={divulgando.announcement_image_url || divulgando.image_url}
+          preco={divulgando.sale_price}
+          lucro={divulgando.margin}
+          ancora={ancoraDaDivulgacao}
           aoFechar={() => setDivulgando(null)}
         />
       )}
