@@ -761,6 +761,9 @@ export default function MyProducts() {
           // "Pet" acha grupo de pet, o nome do produto não acha nada.
           categoria={divulgando.announcement_category || divulgando.name}
           linkDoAnuncio={enderecoDoAnuncio(divulgando) as string}
+          imagem={divulgando.announcement_image_url || divulgando.image_url}
+          preco={divulgando.sale_price}
+          lucro={divulgando.margin}
           aoFechar={() => setDivulgando(null)}
         />
       )}
