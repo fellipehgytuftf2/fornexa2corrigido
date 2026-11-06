@@ -3,11 +3,8 @@ import { supabase } from '../../../lib/supabase';
 import { useToast } from '../../../lib/toast';
 
 /**
- * Tudo o que os formatos de "Divulgar" fazem, num lugar só.
- *
- * Os formatos (gaveta, folha, estúdio, balão) mudam só o desenho. Texto,
- * cópia, abertura do Facebook e do WhatsApp e a medição ficam aqui, para os
- * quatro se comportarem igual e a escolha entre eles ser só de aparência.
+ * O que o "Divulgar" faz: a mensagem, a troca de frase, a cópia, a abertura
+ * do Facebook e do WhatsApp e a medição. O desenho fica em DivulgarEstudio.
  *
  * POR QUE NÃO PUBLICA SOZINHO
  *
@@ -26,14 +23,7 @@ export interface DadosDaDivulgacao {
   lucro?: number | null;
 }
 
-export type Tom = 'promocao' | 'direto' | 'pergunta';
 export type Canal = 'grupos' | 'perfil' | 'whatsapp' | 'link';
-
-export const TONS: { id: Tom; nome: string }[] = [
-  { id: 'promocao', nome: 'Promoção' },
-  { id: 'direto', nome: 'Direto ao ponto' },
-  { id: 'pergunta', nome: 'Pergunta ao grupo' },
-];
 
 export const CANAIS: { id: Canal; nome: string; detalhe: string }[] = [
   { id: 'grupos', nome: 'Grupos do Facebook', detalhe: 'Copia o texto e busca grupos do nicho' },
@@ -44,20 +34,6 @@ export const CANAIS: { id: Canal; nome: string; detalhe: string }[] = [
 
 export const formatarReais = (valor?: number | null) =>
   Number(valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-function textoPronto(tom: Tom, dados: DadosDaDivulgacao) {
-  const preco = dados.preco ? ` por ${formatarReais(dados.preco)}` : '';
-
-  if (tom === 'direto') {
-    return `${dados.titulo}${dados.preco ? ` — ${formatarReais(dados.preco)}` : ''}\n${dados.linkDoAnuncio}`;
-  }
-
-  if (tom === 'pergunta') {
-    return `Alguém aqui procurando ${dados.titulo}? Achei${preco}, com compra garantida pelo Mercado Livre.\n${dados.linkDoAnuncio}`;
-  }
-
-  return `Achei em promoção: ${dados.titulo}${preco}.\nCompra garantida pelo Mercado Livre.\n${dados.linkDoAnuncio}`;
-}
 
 /**
  * As frases do botão "Gerar com IA". Cada uma recebe o título e o preço do
@@ -85,19 +61,15 @@ const FRASES: ((titulo: string, preco: string) => string)[] = [
   (t, p) => `Quer economizar? ${t}${p ? ` por ${p}` : ''}, direto pelo Mercado Livre.`,
 ];
 
-/** Sorteia `quantas` frases diferentes, já com o link no fim. */
-function sortearFrases(dados: DadosDaDivulgacao, quantas: number, evitar: string[] = []) {
+function montarFrase(indice: number, dados: DadosDaDivulgacao) {
   const preco = dados.preco ? formatarReais(dados.preco) : '';
-  const todas = FRASES.map((frase) => `${frase(dados.titulo, preco)}\n${dados.linkDoAnuncio}`);
-  const novas = todas.filter((frase) => !evitar.includes(frase));
-  const baralho = (novas.length >= quantas ? novas : todas).slice();
+  return `${FRASES[indice](dados.titulo, preco)}\n${dados.linkDoAnuncio}`;
+}
 
-  for (let i = baralho.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [baralho[i], baralho[j]] = [baralho[j], baralho[i]];
-  }
-
-  return baralho.slice(0, quantas);
+/** Uma frase sorteada que não seja a que está na tela agora. */
+function sortearOutra(atual: number) {
+  const sorteio = Math.floor(Math.random() * (FRASES.length - 1));
+  return sorteio >= atual ? sorteio + 1 : sorteio;
 }
 
 async function copiarParaAreaDeTransferencia(texto: string): Promise<boolean> {
@@ -131,24 +103,19 @@ function abrirEmNovaAba(endereco: string) {
 export function useDivulgacao(dados: DadosDaDivulgacao) {
   const { mostrarToast } = useToast();
 
-  const [tom, setTom] = useState<Tom>('promocao');
-  const [mensagem, setMensagem] = useState(() => textoPronto('promocao', dados));
+  const [fraseAtual, setFraseAtual] = useState(0);
+  const [mensagem, setMensagem] = useState(() => montarFrase(0, dados));
   const [feito, setFeito] = useState<Canal | null>(null);
-  const [sugestoes, setSugestoes] = useState<string[]>([]);
+  // Sobe a cada frase nova: a caixa da mensagem usa isto para piscar e
+  // mostrar que o texto mudou.
+  const [vezesQueGerou, setVezesQueGerou] = useState(0);
 
-  // Cada clique traz frases que ainda não estavam na tela.
-  const gerarSugestoes = () => setSugestoes((atuais) => sortearFrases(dados, 3, atuais));
-
-  const escolherSugestao = (texto: string) => {
-    setMensagem(texto);
-    setSugestoes([]);
-  };
-
-  // Trocar o tom troca o texto. Quem já editou e troca de tom recebe o texto
-  // novo — o tom é justamente o pedido de outro texto.
-  const escolherTom = (novo: Tom) => {
-    setTom(novo);
-    setMensagem(textoPronto(novo, dados));
+  // Cada clique troca a mensagem por outra frase, direto na caixa.
+  const gerarFrase = () => {
+    const proxima = sortearOutra(fraseAtual);
+    setFraseAtual(proxima);
+    setMensagem(montarFrase(proxima, dados));
+    setVezesQueGerou((vezes) => vezes + 1);
   };
 
   useEffect(() => {
@@ -216,17 +183,13 @@ export function useDivulgacao(dados: DadosDaDivulgacao) {
   };
 
   return {
-    tom,
-    escolherTom,
     mensagem,
     setMensagem,
     feito,
     usarCanal,
     copiarMensagem: () => copiar(mensagem),
-    sugestoes,
-    gerarSugestoes,
-    escolherSugestao,
-    fecharSugestoes: () => setSugestoes([]),
+    gerarFrase,
+    vezesQueGerou,
   };
 }
 

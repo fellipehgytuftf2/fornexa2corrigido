@@ -521,3 +521,12 @@ body {
     transform: none;
   }
 }
+
+/* Divulgar: a caixa da mensagem pisca em amarelo quando "Gerar com IA" troca a frase */
+@keyframes divulgar-frase-nova {
+  from { background-color: rgba(255, 211, 0, 0.28); border-color: #ffd300; }
+}
+.divulgar-frase-nova { animation: divulgar-frase-nova 0.9s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .divulgar-frase-nova { animation: none; }
+}
