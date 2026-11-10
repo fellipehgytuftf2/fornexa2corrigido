@@ -1,8 +1,8 @@
 -- ============================================================================
--- O co-produtor enxerga as contas, sem poder mexer nelas
+-- O co-produtor enxerga as contas de vendedor, e só elas
 -- ============================================================================
 --
--- A tela "Contas e acessos" faz cinco coisas, e só duas são olhar:
+-- A tela "Contas e acessos" faz cinco coisas, e só uma é olhar a lista:
 --
 --   admin_mapa_de_acesso          quem é cada conta, plano, validade, acessos
 --   admin_fornecedores_da_conta   quais fornecedores aquela conta enxerga
@@ -10,73 +10,29 @@
 --   admin_excluir_conta           APAGA a conta
 --   admin-entrar-como             ENTRA na conta como se fosse a pessoa
 --
--- As duas primeiras são liberadas aqui. As outras três continuam só do admin.
+-- Só a primeira é liberada aqui, e mesmo ela sai capada: sem fornecedor.
 --
--- POR QUE O "ENTRAR" NÃO VEM JUNTO
+-- FORNECEDOR NÃO APARECE, E O CORTE É AQUI
 --
--- Não é cautela genérica: `admin-entrar-como` também entra em conta de
--- FORNECEDOR -- a resposta dela devolve `tipo: 'vendedor' | 'fornecedor'`.
--- Dar esse botão ao co-produtor abriria o portal do fornecedor por dentro,
--- que é exatamente o que ele não deve ver. O botão contradiz a própria regra
--- que o criou.
+-- A lista inclui as contas de fornecedor -- é de onde sai o bloco
+-- "Fornecedores com acesso ao portal", com o botão de entrar no portal de
+-- cada um. Essas linhas somem para o co-produtor.
+--
+-- O corte é nesta função, e não na tela, porque é a função que devolve a
+-- lista. Escondido só no navegador, bastaria abrir o console para ler o que
+-- veio -- e o que veio seria o acesso ao portal de quem abastece a operação.
+--
+-- Pelo mesmo motivo `admin_fornecedores_da_conta` NÃO entra aqui: ela diz
+-- quais fornecedores uma conta enxerga, e continua só do admin.
+--
+-- O "ENTRAR" TAMBÉM NÃO VEM
+--
+-- Não é cautela genérica: `admin-entrar-como` entra em conta de fornecedor
+-- também -- a resposta dela devolve `tipo: 'vendedor' | 'fornecedor'`. O
+-- botão contradiz a própria regra que o criou.
 --
 -- Mudar plano e apagar conta ficam de fora por outro motivo: são as duas
--- ações desta tela que um erro não desfaz. Apagar é definitivo, e mexer no
--- plano mexe no que alguém pagou.
---
--- Nada disso depende da tela esconder botão. Quem chamar a função direto,
--- pelo console do navegador, recebe a mesma recusa.
-
-CREATE OR REPLACE FUNCTION public.admin_fornecedores_da_conta(p_user_id uuid)
- RETURNS TABLE(supplier_id uuid, fornecedor text, pedidos integer, primeiro_pedido timestamp with time zone, ultimo_pedido timestamp with time zone)
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare
-  v_eh_admin boolean;
-begin
-  if not exists (
-    select 1 from public.profiles
-    where profiles.id = auth.uid() and profiles.role in ('admin', 'coprodutor')
-  ) then
-    raise exception 'apenas administradores e co-produtores';
-  end if;
-
-  select (role = 'admin') into v_eh_admin
-  from public.profiles where id = p_user_id;
-
-  -- Conta de admin enxerga o cadastro inteiro, tenha pedido ou não.
-  if coalesce(v_eh_admin, false) then
-    return query
-    select
-      s.id,
-      coalesce(s.company_name, s.name),
-      (select count(*)::integer from public.orders o
-        where o.supplier_id = s.id and o.user_id = p_user_id),
-      null::timestamptz,
-      null::timestamptz
-    from public.suppliers s
-    order by coalesce(s.company_name, s.name);
-
-    return;
-  end if;
-
-  return query
-  select
-    s.id,
-    coalesce(s.company_name, s.name),
-    count(o.id)::integer,
-    min(o.created_at),
-    max(o.created_at)
-  from public.orders o
-  join public.suppliers s on s.id = o.supplier_id
-  where o.user_id = p_user_id
-  group by s.id, s.company_name, s.name
-  order by max(o.created_at) desc;
-end;
-$function$;
-
+-- ações desta tela que um erro não desfaz.
 
 CREATE OR REPLACE FUNCTION public.admin_mapa_de_acesso()
  RETURNS TABLE(user_id uuid, nome text, email text, tipo text, plano text, plan_status text, plan_expira_em timestamp with time zone, entra_no_painel boolean, ml_conectado boolean, ml_situacao text, fornecedores_visiveis integer, total_pedidos integer, total_produtos integer, criado_em timestamp with time zone, ultimo_acesso timestamp with time zone)
@@ -86,13 +42,18 @@ CREATE OR REPLACE FUNCTION public.admin_mapa_de_acesso()
 AS $function$
 declare
   v_total_fornecedores integer;
+  v_eh_coprodutor boolean;
 begin
   if not exists (
     select 1 from public.profiles
     where profiles.id = auth.uid() and profiles.role in ('admin', 'coprodutor')
   ) then
-    raise exception 'apenas administradores e co-produtores';
+    raise exception 'apenas administradores e co-produtores podem ver o mapa de acesso';
   end if;
+
+  -- Quem chama decide o que sai. O co-produtor nao ve fornecedor nenhum.
+  select (role = 'coprodutor') into v_eh_coprodutor
+  from public.profiles where id = auth.uid();
 
   -- Só o admin usa este número (linha 'Administrador' abaixo), e é o mesmo
   -- para toda conta admin — uma vez fora do laço em vez de uma vez por linha.
@@ -175,6 +136,13 @@ begin
     group by up.user_id
   ) prod on prod.user_id = p.id
 
+  -- A conta de fornecedor some para o co-produtor.
+  --
+  -- Cortada aqui, e nao na tela: a lista inteira vem desta funcao, e o
+  -- painel do fornecedor e a lista de quem o acessa sao justamente o que ele
+  -- nao deve alcancar. Escondido no navegador, bastaria o console para ler.
+  where not (coalesce(v_eh_coprodutor, false) and f.id is not null)
+
   order by u.last_sign_in_at desc nulls last;
 end;
 $function$;
@@ -184,14 +152,12 @@ $function$;
 -- VERIFICAÇÃO
 -- ============================================================================
 
--- (a) As duas funções de leitura aceitam os dois papéis:
+-- (a) Só o mapa foi liberado. Esta lista tem de sair com UMA linha:
 -- select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
--- where n.nspname = 'public' and proname in
---   ('admin_mapa_de_acesso', 'admin_fornecedores_da_conta')
+-- where n.nspname = 'public'
+--   and proname in ('admin_mapa_de_acesso', 'admin_fornecedores_da_conta',
+--                   'admin_define_plano', 'admin_excluir_conta')
 --   and pg_get_functiondef(p.oid) like '%coprodutor%';
 
--- (b) E as três pesadas continuam fechadas -- nenhuma pode aparecer aqui:
--- select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
--- where n.nspname = 'public' and proname in
---   ('admin_define_plano', 'admin_excluir_conta')
---   and pg_get_functiondef(p.oid) like '%coprodutor%';
+-- (b) Rodando como co-produtor, nenhuma linha pode vir como 'Fornecedor':
+-- select tipo, count(*) from public.admin_mapa_de_acesso() group by tipo;

@@ -480,8 +480,8 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
       </div>
 
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-        Quem é cada conta, o que ela paga e até onde ela alcança. Clique numa
-        linha para ver quais fornecedores ela já enxerga.
+        Quem é cada conta, o que ela paga e até onde ela alcança.
+        {!somenteLeitura && ' Clique numa linha para ver quais fornecedores ela já enxerga.'}
       </p>
 
       {erro && (
@@ -613,7 +613,7 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
                   <th className="pb-3 pr-4 font-medium">Situação</th>
                   <th className="pb-3 pr-4 font-medium">Validade</th>
                   <th className="pb-3 pr-4 font-medium">ML</th>
-                  <th className="pb-3 pr-4 font-medium">Fornec.</th>
+                  {!somenteLeitura && <th className="pb-3 pr-4 font-medium">Fornec.</th>}
                   <th className="pb-3 pr-4 font-medium">Pedidos</th>
                   <th className="pb-3 pr-4 font-medium">Criada</th>
                   <th className="pb-3 pr-4 font-medium">Último acesso</th>
@@ -630,8 +630,15 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
                   return (
                     <tr
                       key={conta.user_id}
-                      onClick={() => abrirDetalhe(conta)}
-                      className="border-b border-gray-100 dark:border-navy-700 last:border-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-navy-700/50"
+                      // Abrir a linha mostra quais fornecedores aquela conta
+                      // enxerga, e isso o co-produtor não alcança: a função
+                      // por trás continua só do admin e recusaria o clique.
+                      onClick={somenteLeitura ? undefined : () => abrirDetalhe(conta)}
+                      className={`border-b border-gray-100 dark:border-navy-700 last:border-0 ${
+                        somenteLeitura
+                          ? ''
+                          : 'cursor-pointer hover:bg-gray-50 dark:hover:bg-navy-700/50'
+                      }`}
                     >
                       <td className="py-3 pr-4">
                         <p className="text-navy-900 dark:text-white font-medium flex items-center gap-2">
@@ -687,13 +694,15 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
                         )}
                       </td>
 
-                      <td className="py-3 pr-4 text-navy-900 dark:text-white">
-                        {conta.tipo === 'Administrador'
-                          ? 'todos'
-                          : conta.fornecedores_visiveis === 0
-                            ? 'nenhum'
-                            : conta.fornecedores_visiveis}
-                      </td>
+                      {!somenteLeitura && (
+                        <td className="py-3 pr-4 text-navy-900 dark:text-white">
+                          {conta.tipo === 'Administrador'
+                            ? 'todos'
+                            : conta.fornecedores_visiveis === 0
+                              ? 'nenhum'
+                              : conta.fornecedores_visiveis}
+                        </td>
+                      )}
 
                       <td className="py-3 pr-4 text-gray-600 dark:text-slate-300">
                         {conta.total_pedidos}
@@ -791,7 +800,11 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
             </div>
           )}
 
-          {/* Fornecedores à parte: sem plano, sem marketplace, sem anúncio. */}
+          {/* Fornecedores à parte: sem plano, sem marketplace, sem anúncio.
+              Não existem para o co-produtor — e o banco já não manda essas
+              linhas para ele, então aqui a lista viria vazia de qualquer
+              jeito. Some inteiro para não anunciar o que ele não alcança. */}
+          {!somenteLeitura && (
           <div className="mt-8 pt-6 border-t border-gray-200 dark:border-navy-600">
             <div className="flex items-center gap-2 mb-1">
               <Truck className="w-4 h-4 text-gray-600 dark:text-slate-400" />
@@ -850,6 +863,7 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
               </div>
             )}
           </div>
+          )}
         </>
       )}
 
