@@ -38,7 +38,7 @@ interface Conta {
   user_id: string;
   nome: string | null;
   email: string | null;
-  tipo: 'Administrador' | 'Vendedor' | 'Fornecedor';
+  tipo: 'Administrador' | 'Co-produtor' | 'Afiliado' | 'Vendedor' | 'Fornecedor';
   plano: string | null;
   plan_status: string | null;
   plan_expira_em: string | null;
@@ -91,8 +91,41 @@ const rotulosDePlano: Record<string, string> = {
 /** Contas desenhadas por vez na tabela. Ver `quantasMostrar`. */
 const POR_VEZ = 25;
 
+/**
+ * O selo ao lado do nome, por papel.
+ *
+ * Vendedor não tem selo de propósito: é a esmagadora maioria da lista, e um
+ * selo que aparece em quase toda linha deixa de ser lido. O selo existe para
+ * o que é exceção.
+ */
+const SELO_DO_PAPEL: Partial<Record<Conta['tipo'], { rotulo: string; cor: string }>> = {
+  Administrador: {
+    rotulo: 'Admin',
+    cor: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  },
+  'Co-produtor': {
+    rotulo: 'Co-produtor',
+    cor: 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300',
+  },
+  Afiliado: {
+    rotulo: 'Afiliado',
+    cor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  },
+  Fornecedor: {
+    rotulo: 'Fornecedor',
+    cor: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+  },
+};
+
 const FILTROS: { id: string; rotulo: string; aplica: (conta: Conta) => boolean }[] = [
   { id: 'todas', rotulo: 'Todas', aplica: () => true },
+
+  // Os três papéis que não são "vendedor comum". Ficam no começo porque são
+  // a pergunta que a lista não respondia: quem é quem na operação.
+  { id: 'admins', rotulo: 'Admin', aplica: (conta) => conta.tipo === 'Administrador' },
+  { id: 'coprodutores', rotulo: 'Co-produtores', aplica: (conta) => conta.tipo === 'Co-produtor' },
+  { id: 'afiliados', rotulo: 'Afiliados', aplica: (conta) => conta.tipo === 'Afiliado' },
+
   { id: 'novas', rotulo: 'Novas', aplica: (conta) => ehNova(conta.criado_em) },
 
   // Pagou e nunca entrou é reembolso a caminho — o recorte mais urgente.
@@ -310,8 +343,17 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
   const administradores = contas.filter((conta) => conta.tipo === 'Administrador');
 
   // Conta que paga e nunca entrou é reembolso a caminho.
+  //
+  // Escrito como "nem fornecedor nem admin", e não como "é Vendedor": quando
+  // Co-produtor e Afiliado viraram tipos próprios, a segunda forma passou a
+  // deixar de fora cliente pagante que também é afiliado — encolhendo a conta
+  // sem ninguém pedir.
   const pagamNaoUsam = contas.filter(
-    (conta) => conta.entra_no_painel && conta.tipo === 'Vendedor' && !conta.ultimo_acesso
+    (conta) =>
+      conta.entra_no_painel &&
+      conta.tipo !== 'Fornecedor' &&
+      conta.tipo !== 'Administrador' &&
+      !conta.ultimo_acesso
   );
 
   const abrirDetalhe = async (conta: Conta) => {
@@ -644,9 +686,11 @@ export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitur
                         <p className="text-navy-900 dark:text-white font-medium flex items-center gap-2">
                           {conta.nome}
 
-                          {conta.tipo === 'Administrador' && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-                              Admin
+                          {SELO_DO_PAPEL[conta.tipo] && (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${SELO_DO_PAPEL[conta.tipo]?.cor}`}
+                            >
+                              {SELO_DO_PAPEL[conta.tipo]?.rotulo}
                             </span>
                           )}
 
