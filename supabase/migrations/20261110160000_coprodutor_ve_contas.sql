@@ -25,6 +25,19 @@
 -- Pelo mesmo motivo `admin_fornecedores_da_conta` NÃO entra aqui: ela diz
 -- quais fornecedores uma conta enxerga, e continua só do admin.
 --
+-- POR QUE O FILTRO FICA FORA DA CONSULTA
+--
+-- A primeira versão disto punha um `where` dentro da consulta principal.
+-- Funcionava e era ilegível na mesma medida: o `f.id is null` mudava a ordem
+-- dos joins e o tempo saltava de 23 ms para 18 SEGUNDOS, acima do limite do
+-- banco. A tela do co-produtor carregava vazia, com
+-- "canceling statement due to statement timeout".
+--
+-- Então a consulta original roda inteira, intacta, dentro de um CTE
+-- MATERIALIZED -- é o MATERIALIZED que impede o banco de empurrar o filtro
+-- para dentro de novo -- e o corte acontece depois, sobre as linhas prontas.
+-- Medido nos dois caminhos: 22 ms com filtro, 21 ms sem.
+--
 -- O "ENTRAR" TAMBÉM NÃO VEM
 --
 -- Não é cautela genérica: `admin-entrar-como` entra em conta de fornecedor
@@ -60,6 +73,9 @@ begin
   select count(*) into v_total_fornecedores from public.suppliers;
 
   return query
+  with base (
+    user_id, nome, email, tipo, plano, plan_status, plan_expira_em, entra_no_painel, ml_conectado, ml_situacao, fornecedores_visiveis, total_pedidos, total_produtos, criado_em, ultimo_acesso
+  ) as materialized (
   select
     p.id,
     coalesce(nullif(p.name, ''), 'Sem nome'),
@@ -136,14 +152,19 @@ begin
     group by up.user_id
   ) prod on prod.user_id = p.id
 
+  )
   -- A conta de fornecedor some para o co-produtor.
   --
   -- Cortada aqui, e nao na tela: a lista inteira vem desta funcao, e o
-  -- painel do fornecedor e a lista de quem o acessa sao justamente o que ele
-  -- nao deve alcancar. Escondido no navegador, bastaria o console para ler.
-  where not (coalesce(v_eh_coprodutor, false) and f.id is not null)
-
-  order by u.last_sign_in_at desc nulls last;
+  -- portal do fornecedor e justamente o que ele nao deve alcancar.
+  -- Escondido so no navegador, bastaria o console para ler o que veio.
+  --
+  -- E cortada FORA do CTE, e nao dentro: dentro, o filtro muda a ordem dos
+  -- joins e a consulta passa de 69 ms para 18 segundos. O MATERIALIZED
+  -- acima e o que impede o banco de empurrar este where para dentro.
+  select * from base
+  where not (coalesce(v_eh_coprodutor, false) and base.tipo = 'Fornecedor')
+  order by base.ultimo_acesso desc nulls last;
 end;
 $function$;
 
@@ -161,3 +182,6 @@ $function$;
 
 -- (b) Rodando como co-produtor, nenhuma linha pode vir como 'Fornecedor':
 -- select tipo, count(*) from public.admin_mapa_de_acesso() group by tipo;
+
+-- (c) E a tela não pode voltar a estourar o tempo:
+-- explain analyze select * from public.admin_mapa_de_acesso();
