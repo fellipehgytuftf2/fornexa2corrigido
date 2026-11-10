@@ -70,7 +70,7 @@ export const PLANOS: Plano[] = [
     id: 'premium',
     nome: 'Plano Premium',
     preco: 'R$ 297,00',
-    precoAntigo: 'De R$ 497,00',
+    precoAntigo: 'De R$ 614,00',
     periodo: 'Pagamento único',
     destaque: '💎 MELHOR VALOR',
     chamada: 'Pagar uma vez e pronto',
