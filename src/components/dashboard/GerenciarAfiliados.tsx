@@ -82,6 +82,9 @@ const precoNoCampo = (valor: number | null | undefined) =>
  * de vez.
  */
 
+/** A mesma regra que a coluna `apelido` cobra no banco. */
+const CODIGO_VALIDO = /^[a-z0-9-]{3,40}$/;
+
 const AGORA_EM_PT = (valor: string | null) =>
   valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
 
@@ -555,7 +558,7 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
 
         <div>
           <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
-            Código dele
+            Código dele — vira {window.location.host}/código
           </label>
           <input
             type="text"
@@ -564,6 +567,18 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
             placeholder="paulo"
             className={`${campo} font-mono`}
           />
+
+          {/* O campo ao lado do e-mail parece pedir um endereço, e o link do
+              checkout está sempre na área de transferência de quem acabou de
+              criá-lo na Applyfy. O erro é natural, e o banco só o apanharia
+              depois do clique. */}
+          {apelido.trim() !== '' && !CODIGO_VALIDO.test(apelido.trim().toLowerCase()) && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              {/\//.test(apelido)
+                ? 'Isso parece um link. Aqui vai só o apelido curto — "paulo". O checkout entra depois, no lápis do cartão.'
+                : 'De 3 a 40 caracteres, só letras minúsculas, números e hífen.'}
+            </p>
+          )}
         </div>
       </div>
 
@@ -582,7 +597,9 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
       <button
         type="button"
         onClick={criar}
-        disabled={salvando || !email.trim() || !apelido.trim()}
+        disabled={
+          salvando || !email.trim() || !CODIGO_VALIDO.test(apelido.trim().toLowerCase())
+        }
         className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
         {salvando && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
