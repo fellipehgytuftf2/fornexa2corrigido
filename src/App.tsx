@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 
 import LandingPage from './pages/LandingPage';
@@ -39,6 +39,20 @@ const Suporte = lazy(() => import('./pages/dashboard/Suporte'));
 const Tools = lazy(() => import('./pages/dashboard/Tools'));
 const Tutorials = lazy(() => import('./pages/dashboard/Tutorials'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
+
+/**
+ * /dashboard/admin/<tela> → /admin/<tela>.
+ *
+ * O Admin saiu de dentro da área do vendedor e virou tela própria. Este
+ * desvio mantém vivos os endereços antigos — favoritos, links em mensagem,
+ * o "voltar" do portal do fornecedor —, levando junto a busca e o estado.
+ */
+function RedirecionaParaPainelAdmin() {
+  const { '*': resto } = useParams();
+  const location = useLocation();
+  const destino = `/admin${resto ? `/${resto}` : ''}${location.search}${location.hash}`;
+  return <Navigate to={destino} replace state={location.state} />;
+}
 
 import { supabase } from './lib/supabase';
 import { fetchSupplierAccount } from './lib/supplierAuth';
@@ -356,27 +370,15 @@ function App() {
         >
          <Route index element={<Dashboard darkMode={darkMode} />} />
           <Route path="catalog" element={<Catalog />} />
-          <Route path="suppliers" element={<Suppliers />} />
+          <Route path="suppliers" element={<Navigate to="/admin/fornecedores" replace />} />
           <Route path="my-products" element={<MyProducts />} />
           <Route path="orders" element={<Orders />} />
           <Route path="top-vendedores" element={<TopVendedores />} />
           <Route path="financial" element={<Financial />} />
           <Route path="integrations" element={<Integrations />} />
-          <Route path="admin" element={<Navigate to="/dashboard/admin/catalogo" replace />} />
-          <Route path="admin/catalogo" element={<AdminCatalogo />} />
-          <Route path="admin/avisos" element={<AdminAvisos />} />
-          <Route path="admin/impressao" element={<AdminImpressao />} />
-          <Route path="admin/contas" element={<AdminContas />} />
-          <Route path="admin/numeros" element={<AdminNumeros />} />
-          <Route
-            path="admin/afiliados"
-            element={<Navigate to="/dashboard/admin/afiliados/pedidos" replace />}
-          />
-          <Route path="admin/afiliados/pedidos" element={<PedidosDeAfiliado />} />
-          <Route path="admin/afiliados/desempenho" element={<DesempenhoDosAfiliados />} />
-          <Route path="admin/afiliados/gerenciar" element={<GerenciarAfiliados />} />
-          <Route path="admin/repasses" element={<AdminRepasses />} />
-          <Route path="admin/kanban" element={<AdminKanban />} />
+          {/* O Admin virou tela própria, em /admin. Endereço antigo salvo nos
+              favoritos ou escrito em algum link continua chegando. */}
+          <Route path="admin/*" element={<RedirecionaParaPainelAdmin />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="suporte" element={<Suporte />} />
           <Route path="tools" element={<Tools />} />
@@ -385,6 +387,32 @@ function App() {
             path="settings"
             element={<Settings darkMode={darkMode} setDarkMode={setDarkMode} />}
           />
+        </Route>
+
+        {/* Painel admin: tela própria, com menu, cor e cabeçalho dela. Usa o
+            mesmo DashboardLayout, que troca tudo isso quando o endereço começa
+            com /admin — e mantém a mesma trava de quem pode entrar. */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/admin/numeros" replace />} />
+          <Route path="numeros" element={<AdminNumeros />} />
+          <Route path="catalogo" element={<AdminCatalogo />} />
+          <Route path="fornecedores" element={<Suppliers />} />
+          <Route path="avisos" element={<AdminAvisos />} />
+          <Route path="impressao" element={<AdminImpressao />} />
+          <Route path="contas" element={<AdminContas />} />
+          <Route path="afiliados" element={<Navigate to="/admin/afiliados/pedidos" replace />} />
+          <Route path="afiliados/pedidos" element={<PedidosDeAfiliado />} />
+          <Route path="afiliados/desempenho" element={<DesempenhoDosAfiliados />} />
+          <Route path="afiliados/gerenciar" element={<GerenciarAfiliados />} />
+          <Route path="repasses" element={<AdminRepasses />} />
+          <Route path="kanban" element={<AdminKanban />} />
         </Route>
 
         {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
