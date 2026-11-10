@@ -10,6 +10,7 @@ import {
   Bell,
   ChevronDown,
   Columns3,
+  ScrollText,
   DollarSign,
   HandCoins,
   Printer,
@@ -158,6 +159,7 @@ const adminNavigationItems: NavigationItem[] = [
   { path: '/admin/impressao', label: 'Impressão', icon: Printer },
   { path: '/admin/repasses', label: 'Repasses', icon: HandCoins },
   { path: '/admin/kanban', label: 'Kanban', icon: Columns3 },
+  { path: '/admin/historico', label: 'Histórico', icon: ScrollText },
 ];
 
 /** O dono e o co-produtor, juntos. */

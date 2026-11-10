@@ -25,6 +25,7 @@ const AdminAvisos = lazy(() => import('./pages/dashboard/AdminAvisos'));
 const AdminImpressao = lazy(() => import('./pages/dashboard/AdminImpressao'));
 const AdminContas = lazy(() => import('./pages/dashboard/AdminContas'));
 const AdminNumeros = lazy(() => import('./pages/dashboard/AdminNumeros'));
+const AdminHistorico = lazy(() => import('./pages/dashboard/AdminHistorico'));
 const GerenciarAfiliados = lazy(() => import('./components/dashboard/GerenciarAfiliados'));
 const DesempenhoDosAfiliados = lazy(() =>
   import('./components/dashboard/AfiliadosAdmin').then((m) => ({ default: m.DesempenhoDosAfiliados }))
@@ -407,6 +408,7 @@ function App() {
           <Route path="impressao" element={<AdminImpressao />} />
           <Route path="repasses" element={<AdminRepasses />} />
           <Route path="kanban" element={<AdminKanban />} />
+          <Route path="historico" element={<AdminHistorico />} />
 
           {/* Endereços antigos, de quando tudo morava sob /admin. Quem tem
               link salvo ou aba aberta não cai em tela de erro. */}
