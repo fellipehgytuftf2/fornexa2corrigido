@@ -41,15 +41,6 @@ interface NavigationSubItem {
   label: string;
   /** Submenu dentro do submenu (ex.: Admin → Afiliados → Desempenho). */
   children?: NavigationSubItem[];
-  /**
-   * O co-produtor também vê este item.
-   *
-   * Sem a marca, não vê. O papel nasce enxergando nada e cada coisa é
-   * liberada de propósito — o contrário de admin, que abre tudo. Aqui é só
-   * o menu; a trava de verdade está nas funções do banco, porque esconder
-   * link não impede ninguém de digitar o endereço.
-   */
-  coprodutor?: boolean;
 }
 
 interface NavigationItem {
@@ -57,8 +48,6 @@ interface NavigationItem {
   label: string;
   icon: typeof LayoutDashboard;
   adminOnly?: boolean;
-  /** Ver NavigationSubItem.coprodutor. */
-  coprodutor?: boolean;
   /** Chave da novidade em teste. Sem liberação, o item não aparece. */
   funcionalidade?: string;
   /** Item vira um grupo expansível na barra lateral em vez de um link direto. */
@@ -125,70 +114,88 @@ const navigationItems: NavigationItem[] = [
   },
   // Fornecedores e as telas de Admin moram no Painel admin, que é uma tela
   // própria (/admin). Aqui fica só a porta de entrada.
+  // Aponta para Números, e não para /admin: é a primeira tela que os dois
+  // papéis abrem. Mandar o co-produtor para /admin seria mandá-lo para uma
+  // porta que o recusa.
   {
-    path: '/admin',
+    path: '/gestao/numeros',
     label: 'Painel admin',
     icon: ShieldCheck,
     adminOnly: true,
-    coprodutor: true,
   },
 ];
 
 /**
- * O menu do Painel admin (/admin).
+ * Quem entra em cada área, pelo endereço.
  *
- * Tela própria, separada da área do vendedor: quem administra o FORNEXA não
- * precisa ver o menu de quem vende, e o vendedor não precisa saber que esta
- * parte existe. As marcas `adminOnly` e `coprodutor` funcionam igual às do
- * menu do vendedor.
+ * Antes isto estava espalhado: a tela ficava sob `/admin` e ganhava uma
+ * marca `coprodutor` avulsa, e havia ainda uma lista de caminhos liberados em
+ * outro ponto do arquivo. Para responder "quem abre esta tela?" era preciso
+ * cruzar os três lugares, e tela nova entrava com a marca errada sem ninguém
+ * notar.
+ *
+ * Agora o endereço responde sozinho: `/admin` é do dono, `/gestao` é o que o
+ * co-produtor também abre, `/afiliados` é a área de parceria. Mover uma tela
+ * de área é mover o endereço dela, e a permissão vai junto.
  */
+const PAPEIS_DA_AREA: Record<string, readonly string[]> = {
+  '/admin': ['admin'],
+  '/gestao': ['admin', 'coprodutor'],
+  '/afiliados': ['admin', 'coprodutor'],
+};
+
+/** A área a que um endereço pertence, ou nada se for tela de vendedor. */
+const areaDoCaminho = (caminho: string) =>
+  Object.keys(PAPEIS_DA_AREA).find(
+    (area) => caminho === area || caminho.startsWith(`${area}/`)
+  );
+
+/** Só do dono: nada aqui o co-produtor abre. */
 const adminNavigationItems: NavigationItem[] = [
-  { path: '/admin/numeros', label: 'Números', icon: BarChart3, adminOnly: true, coprodutor: true },
-  { path: '/admin/catalogo', label: 'Catálogo', icon: Package, adminOnly: true },
-  { path: '/admin/fornecedores', label: 'Fornecedores', icon: Truck, adminOnly: true },
-  { path: '/admin/avisos', label: 'Avisos', icon: Bell, adminOnly: true },
-  { path: '/admin/impressao', label: 'Impressão', icon: Printer, adminOnly: true },
-  { path: '/admin/contas', label: 'Contas e acessos', icon: UserCog, adminOnly: true, coprodutor: true },
-  {
-    path: '/admin/afiliados',
-    label: 'Afiliados',
-    icon: UsersRound,
-    adminOnly: true,
-    coprodutor: true,
-    children: [
-      { path: '/admin/afiliados/gerenciar', label: 'Gerenciar', coprodutor: true },
-      { path: '/admin/afiliados/pedidos', label: 'Aceitar pedido', coprodutor: true },
-      { path: '/admin/afiliados/desempenho', label: 'Desempenho', coprodutor: true },
-    ],
-  },
-  { path: '/admin/repasses', label: 'Repasses', icon: HandCoins, adminOnly: true },
-  { path: '/admin/kanban', label: 'Kanban', icon: Columns3, adminOnly: true },
+  { path: '/admin/catalogo', label: 'Catálogo', icon: Package },
+  { path: '/admin/fornecedores', label: 'Fornecedores', icon: Truck },
+  { path: '/admin/avisos', label: 'Avisos', icon: Bell },
+  { path: '/admin/impressao', label: 'Impressão', icon: Printer },
+  { path: '/admin/repasses', label: 'Repasses', icon: HandCoins },
+  { path: '/admin/kanban', label: 'Kanban', icon: Columns3 },
 ];
 
-const adminOnlyPaths = ['/admin', '/dashboard/admin', '/dashboard/suppliers'];
+/** O dono e o co-produtor, juntos. */
+const gestaoNavigationItems: NavigationItem[] = [
+  { path: '/gestao/numeros', label: 'Números', icon: BarChart3 },
+  { path: '/gestao/contas', label: 'Contas e acessos', icon: UserCog },
+];
+
+/** A parceria, que os dois tocam por inteiro. */
+const afiliadosNavigationItems: NavigationItem[] = [
+  { path: '/afiliados/gerenciar', label: 'Gerenciar', icon: UsersRound },
+  { path: '/afiliados/pedidos', label: 'Aceitar pedido', icon: UserCog },
+  { path: '/afiliados/desempenho', label: 'Desempenho', icon: BarChart3 },
+];
+
+/** O menu de quem está numa área de gestão, já filtrado pelo papel. */
+const menuDaGestao = (papel: string | null): NavigationItem[] => [
+  ...(papel === 'admin' ? adminNavigationItems : []),
+  ...gestaoNavigationItems,
+  ...afiliadosNavigationItems,
+];
 
 /**
- * O que o co-produtor abre dentro do Admin.
+ * Telas de gestão que não moram numa das três áreas.
  *
- * Escrita como lista fechada, e não como "tudo menos X": lista de exceções
- * envelhece mal — a próxima tela do Admin entraria liberada por esquecimento.
- * Tela nova nasce fechada para ele, que é o lado seguro do erro.
- *
- * Com uma exceção deliberada: `/admin/afiliados` é um PREFIXO, e
- * não uma tela. A área de afiliados foi entregue inteira a ele — inclusive
- * criar, aprovar e editar —, então subtela nova ali nasce liberada. É o que
- * se pediu; se um dia aparecer ali algo que ele não deva ver, o lugar de
- * cortar é aqui.
+ * `/dashboard/suppliers` e os endereços antigos de `/dashboard/admin` só
+ * existem para redirecionar — ficam fechados ao vendedor do mesmo jeito.
  */
-const caminhosDoCoprodutor = [
-  '/admin/numeros',
-  '/admin/afiliados',
-  '/admin/contas',
-  // Endereços antigos: só redirecionam para os de cima.
-  '/dashboard/admin/numeros',
-  '/dashboard/admin/afiliados',
-  '/dashboard/admin/contas',
-];
+const CAMINHOS_SO_DO_DONO = ['/dashboard/admin', '/dashboard/suppliers'];
+
+/** Se este papel abre este endereço. */
+const papelAbre = (papel: string | null, caminho: string) => {
+  if (papel === 'admin') return true;
+
+  const area = areaDoCaminho(caminho);
+
+  return Boolean(area && PAPEIS_DA_AREA[area].includes(papel ?? ''));
+};
 
 interface SavedUser {
   id?: string;
@@ -231,7 +238,7 @@ export default function DashboardLayout() {
    */
   const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(() => {
     const abertos = new Set<string>();
-    [...navigationItems, ...adminNavigationItems].forEach((item) => {
+    [...navigationItems, ...menuDaGestao('admin')].forEach((item) => {
       item.children?.forEach((filho) => {
         if (location.pathname.startsWith(filho.path)) {
           abertos.add(item.path);
@@ -429,24 +436,17 @@ export default function DashboardLayout() {
     await handleLogout();
   };
 
-  const isAdminOnlyRoute = adminOnlyPaths.some((path) =>
-    location.pathname.startsWith(path)
-  );
+  /**
+   * Nas três áreas de gestão a tela troca de menu, de cor e de cabeçalho.
+   * Quem vende nunca passa por aqui.
+   */
+  const naAreaAdmin = Boolean(areaDoCaminho(location.pathname));
 
-  /** No Painel admin (/admin) a tela troca de menu, de cor e de cabeçalho. */
-  const naAreaAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
-
-  const coprodutorPodeAbrir =
-    userRole === 'coprodutor' &&
-    // "/admin" sozinho só redireciona para a primeira tela dele.
-    (location.pathname === '/admin' ||
-      caminhosDoCoprodutor.some((path) => location.pathname.startsWith(path)));
+  const isAdminOnlyRoute =
+    naAreaAdmin || CAMINHOS_SO_DO_DONO.some((path) => location.pathname.startsWith(path));
 
   const shouldBlockAdminRoute =
-    !checkingRole &&
-    isAdminOnlyRoute &&
-    userRole !== 'admin' &&
-    !coprodutorPodeAbrir;
+    !checkingRole && isAdminOnlyRoute && !papelAbre(userRole, location.pathname);
 
   const firstName = savedUser?.name?.split(' ')[0] || 'Vendedor';
 
@@ -519,7 +519,6 @@ export default function DashboardLayout() {
   };
 
   const renderNavigation = () => {
-    const ehCoprodutor = userRole === 'coprodutor';
 
     // O Painel admin tem barra escura com destaque amarelo, nos dois temas:
     // é o jeito de saber, de relance, que se está mexendo no FORNEXA inteiro
@@ -534,25 +533,17 @@ export default function DashboardLayout() {
     const linhaDoGrupo = naAreaAdmin ? 'border-white/10' : 'border-gray-200 dark:border-navy-700';
 
     /**
-     * Poda o submenu até sobrar só o que o co-produtor pode ver.
+     * O menu não precisa mais podar nada.
      *
-     * Vai fundo porque Admin → Afiliados tem filhos: ele enxerga Desempenho,
-     * e não Aceitar pedido. Grupo que ficou sem nenhum filho visível some.
+     * Antes cada item carregava a marca de quem o via, e o menu peneirava
+     * item a item — inclusive submenu dentro de submenu. Agora cada área tem
+     * a sua lista, e `menuDaGestao` devolve só as listas do papel: o que não
+     * é dele nunca chega aqui.
      */
-    const podar = (itens: NavigationSubItem[]): NavigationSubItem[] =>
-      itens
-        .filter((filho) => filho.coprodutor)
-        .map((filho) =>
-          filho.children ? { ...filho, children: podar(filho.children) } : filho
-        )
-        .filter((filho) => !filho.children || filho.children.length > 0);
-
-    const visibleItems = (naAreaAdmin ? adminNavigationItems : navigationItems)
+    const visibleItems = (naAreaAdmin ? menuDaGestao(userRole) : navigationItems)
       .filter((item) => {
-        if (item.adminOnly && userRole !== 'admin') {
-          if (!(ehCoprodutor && item.coprodutor)) {
-            return false;
-          }
+        if (item.adminOnly && !papelAbre(userRole, item.path)) {
+          return false;
         }
 
         if (item.funcionalidade && !liberadas.has(item.funcionalidade)) {
@@ -561,11 +552,6 @@ export default function DashboardLayout() {
 
         return true;
       })
-      .map((item) =>
-        ehCoprodutor && item.children
-          ? { ...item, children: podar(item.children) }
-          : item
-      )
       .filter((item) => !item.children || item.children.length > 0);
 
     return (

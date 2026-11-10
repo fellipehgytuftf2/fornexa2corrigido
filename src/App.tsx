@@ -400,19 +400,57 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/admin/numeros" replace />} />
-          <Route path="numeros" element={<AdminNumeros />} />
+          <Route index element={<Navigate to="/admin/catalogo" replace />} />
           <Route path="catalogo" element={<AdminCatalogo />} />
           <Route path="fornecedores" element={<Suppliers />} />
           <Route path="avisos" element={<AdminAvisos />} />
           <Route path="impressao" element={<AdminImpressao />} />
-          <Route path="contas" element={<AdminContas />} />
-          <Route path="afiliados" element={<Navigate to="/admin/afiliados/pedidos" replace />} />
-          <Route path="afiliados/pedidos" element={<PedidosDeAfiliado />} />
-          <Route path="afiliados/desempenho" element={<DesempenhoDosAfiliados />} />
-          <Route path="afiliados/gerenciar" element={<GerenciarAfiliados />} />
           <Route path="repasses" element={<AdminRepasses />} />
           <Route path="kanban" element={<AdminKanban />} />
+
+          {/* Endereços antigos, de quando tudo morava sob /admin. Quem tem
+              link salvo ou aba aberta não cai em tela de erro. */}
+          <Route path="numeros" element={<Navigate to="/gestao/numeros" replace />} />
+          <Route path="contas" element={<Navigate to="/gestao/contas" replace />} />
+          <Route path="afiliados" element={<Navigate to="/afiliados/pedidos" replace />} />
+          <Route path="afiliados/pedidos" element={<Navigate to="/afiliados/pedidos" replace />} />
+          <Route
+            path="afiliados/desempenho"
+            element={<Navigate to="/afiliados/desempenho" replace />}
+          />
+          <Route
+            path="afiliados/gerenciar"
+            element={<Navigate to="/afiliados/gerenciar" replace />}
+          />
+        </Route>
+
+        {/* Gestão: o que o dono e o co-produtor abrem juntos. */}
+        <Route
+          path="/gestao"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/gestao/numeros" replace />} />
+          <Route path="numeros" element={<AdminNumeros />} />
+          <Route path="contas" element={<AdminContas />} />
+        </Route>
+
+        {/* Parceria: a área de afiliados, que os dois tocam por inteiro. */}
+        <Route
+          path="/afiliados"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/afiliados/pedidos" replace />} />
+          <Route path="pedidos" element={<PedidosDeAfiliado />} />
+          <Route path="desempenho" element={<DesempenhoDosAfiliados />} />
+          <Route path="gerenciar" element={<GerenciarAfiliados />} />
         </Route>
 
         {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
