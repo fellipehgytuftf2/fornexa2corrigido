@@ -40,6 +40,11 @@ const Suporte = lazy(() => import('./pages/dashboard/Suporte'));
 const Tools = lazy(() => import('./pages/dashboard/Tools'));
 const Tutorials = lazy(() => import('./pages/dashboard/Tutorials'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
+// PRÉVIA da área do parceiro (feat/area-do-parceiro): telas com dados de exemplo.
+const AreaDoParceiro = lazy(() => import('./pages/parceiro/AreaDoParceiro'));
+const EntrarParceiro = lazy(() => import('./pages/parceiro/EntrarParceiro'));
+const ConviteParceiro = lazy(() => import('./pages/parceiro/ConviteParceiro'));
+const ConvidarParceiroPrevia = lazy(() => import('./pages/parceiro/ConvidarParceiroPrevia'));
 
 /**
  * /dashboard/admin/<tela> → /admin/<tela>.
@@ -454,6 +459,14 @@ function App() {
           <Route path="desempenho" element={<DesempenhoDosAfiliados />} />
           <Route path="gerenciar" element={<GerenciarAfiliados />} />
         </Route>
+
+        {/* Área do parceiro (afiliado). PRÉVIA: ainda sem banco. Rotas fixas
+            ganham da rota do apelido abaixo, então "parceiro" não vira link
+            de afiliado. */}
+        <Route path="/parceiro" element={<AreaDoParceiro />} />
+        <Route path="/parceiro/entrar" element={<EntrarParceiro />} />
+        <Route path="/parceiro/convite/:token" element={<ConviteParceiro />} />
+        <Route path="/parceiro/previa/convidar" element={<ConvidarParceiroPrevia />} />
 
         {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
             endereço de um pedaço só (sem barra), então nunca esbarra em

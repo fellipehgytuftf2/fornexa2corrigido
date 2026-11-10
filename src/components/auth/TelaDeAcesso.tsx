@@ -26,7 +26,7 @@ const PREFERE_MENOS_MOVIMENTO =
   typeof window !== 'undefined' &&
   window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-function Marca({ brilhando }: { brilhando: boolean }) {
+function Marca({ brilhando, frase }: { brilhando: boolean; frase?: string }) {
   return (
     <div>
       <div className="flex items-center gap-3">
@@ -47,7 +47,7 @@ function Marca({ brilhando }: { brilhando: boolean }) {
         </span>
       </div>
       <p className="mt-3.5 max-w-[320px] text-[15px] min-[900px]:text-base leading-relaxed text-[#9AA8B2]">
-        Do catálogo ao anúncio publicado, em minutos.
+        {frase ?? 'Do catálogo ao anúncio publicado, em minutos.'}
       </p>
     </div>
   );
@@ -109,9 +109,16 @@ interface TelaDeAcessoProps {
   tremer?: number;
   /** Deu certo: a logo pulsa enquanto a página mostra o "Tudo certo!". */
   sucesso?: boolean;
+  /** A frase embaixo da marca. A área do parceiro usa a dela. */
+  frase?: string;
 }
 
-export default function TelaDeAcesso({ children, tremer = 0, sucesso = false }: TelaDeAcessoProps) {
+export default function TelaDeAcesso({
+  children,
+  tremer = 0,
+  sucesso = false,
+  frase,
+}: TelaDeAcessoProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -143,7 +150,7 @@ export default function TelaDeAcesso({ children, tremer = 0, sucesso = false }: 
           className="inline-block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-4 focus-visible:ring-offset-navy-950"
           aria-label="FORNEXA — página inicial"
         >
-          <Marca brilhando={sucesso} />
+          <Marca brilhando={sucesso} frase={frase} />
         </Link>
       </div>
 
