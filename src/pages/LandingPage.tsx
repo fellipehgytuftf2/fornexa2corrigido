@@ -8,10 +8,17 @@ import Plans from '../components/landing/Plans';
 import FAQ from '../components/landing/FAQ';
 import FinalCTA from '../components/landing/FinalCTA';
 
-export default function LandingPage() {
-  // Chegou por fornexa.site/CODIGO: o link já foi conferido e o endereço
-  // limpo; a indicação vem junto no histórico da aba.
-  const codigoAfiliado = (useLocation().state as { afiliado?: string } | null)?.afiliado;
+export default function LandingPage({ codigoDaRota }: { codigoDaRota?: string }) {
+  /**
+   * De quem é esta visita.
+   *
+   * `codigoDaRota` é o caminho normal hoje: a página mora no endereço do
+   * afiliado, fornexa.site/paulo, e o código está à vista na barra. O
+   * histórico da aba continua valendo para quem chegou antes desta mudança,
+   * quando o endereço era limpo e a indicação viajava só ali.
+   */
+  const doHistorico = (useLocation().state as { afiliado?: string } | null)?.afiliado;
+  const codigoAfiliado = codigoDaRota || doHistorico;
 
   return (
     <div className="min-h-screen bg-navy-900">

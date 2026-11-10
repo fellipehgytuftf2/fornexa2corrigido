@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 
 import LandingPage from './pages/LandingPage';
@@ -233,19 +233,28 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
  * Endereço inventado, afiliado removido ou ainda sem checkout mostra que o
  * link não está ativo, e o código NÃO fica guardado no navegador.
  *
- * Ativo, o endereço vira só fornexa.site/ — quem compra não vê de quem é o
- * link. A indicação segue junto no histórico da aba (sobrevive a F5 e a aba
- * anônima sem armazenamento) e no navegador: quem não comprar na hora e
- * voltar depois por /planos continua comprando no checkout dele.
+ * O endereço FICA. Antes ele era trocado por fornexa.site/ assim que a
+ * conferência passava, e o afiliado perdia a própria página: o link que ele
+ * divulgava sumia da barra no primeiro segundo. Agora a landing é servida
+ * ali mesmo, em /paulo, e é dele enquanto estiver aberta.
+ *
+ * Isso também segura a indicação quando o navegador não guarda nada -- aba
+ * anônima, navegador de dentro do Instagram, armazenamento bloqueado. Com o
+ * código só no localStorage, a venda dele viraria venda da casa; no endereço,
+ * ele continua lá.
+ *
+ * O código é guardado assim mesmo, para quem sai da landing e volta depois
+ * por /planos continuar comprando no checkout dele.
  */
 function LandingComCodigoDeAfiliado() {
   const { codigoAfiliado } = useParams();
-  const navigate = useNavigate();
   const [inativo, setInativo] = useState(false);
+  const [ativo, setAtivo] = useState(false);
 
   useEffect(() => {
     let vivo = true;
     setInativo(false);
+    setAtivo(false);
 
     buscarCheckoutDoAfiliado(codigoAfiliado ?? '').then((checkout) => {
       if (!vivo) return;
@@ -256,16 +265,20 @@ function LandingComCodigoDeAfiliado() {
       }
 
       capturarCodigoDoAfiliado(codigoAfiliado);
-      navigate('/', { replace: true, state: { afiliado: codigoAfiliado } });
+      setAtivo(true);
     });
 
     return () => {
       vivo = false;
     };
-  }, [codigoAfiliado, navigate]);
+  }, [codigoAfiliado]);
 
   if (inativo) {
     return <LinkDeAfiliadoInativo />;
+  }
+
+  if (ativo) {
+    return <LandingPage codigoDaRota={codigoAfiliado} />;
   }
 
   return (
