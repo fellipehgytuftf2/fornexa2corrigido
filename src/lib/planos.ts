@@ -56,7 +56,7 @@ export const PLANOS: Plano[] = [
   {
     id: 'basico',
     nome: 'Plano Básico',
-    preco: 'R$ 139,00',
+    preco: 'R$ 169,00',
     periodo: '/mês',
     chamada: 'Assinar mensal',
     beneficios: [
@@ -69,7 +69,7 @@ export const PLANOS: Plano[] = [
   {
     id: 'premium',
     nome: 'Plano Premium',
-    preco: 'R$ 229,00',
+    preco: 'R$ 297,00',
     precoAntigo: 'De R$ 497,00',
     periodo: 'Pagamento único',
     destaque: '💎 MELHOR VALOR',
