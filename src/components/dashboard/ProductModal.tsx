@@ -1200,7 +1200,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </Link>
                       ) : !hasLinkedSupplier ? (
                         <Link
-                          to="/dashboard/suppliers"
+                          to="/admin/fornecedores"
                           className="w-full px-4 py-3 rounded-lg bg-black hover:bg-gray-900 text-white font-medium transition-colors flex items-center justify-center gap-2"
                         >
                           <Truck className="w-4 h-4" />

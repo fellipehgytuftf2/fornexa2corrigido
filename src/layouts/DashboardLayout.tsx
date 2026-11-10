@@ -5,8 +5,17 @@ import Notificacoes from '../components/dashboard/Notificacoes';
 import SuporteFlutuante from '../components/dashboard/SuporteFlutuante';
 import {
   AlertCircle,
+  ArrowLeft,
+  BarChart3,
+  Bell,
   ChevronDown,
+  Columns3,
   DollarSign,
+  HandCoins,
+  Printer,
+  ShieldCheck,
+  UserCog,
+  UsersRound,
   LayoutDashboard,
   LifeBuoy,
   Link2,
@@ -17,7 +26,6 @@ import {
   Settings,
   Megaphone,
   ShoppingCart,
-  Store,
   Sun,
   Trophy,
   Truck,
@@ -115,45 +123,49 @@ const navigationItems: NavigationItem[] = [
     label: 'Configurações',
     icon: Settings,
   },
+  // Fornecedores e as telas de Admin moram no Painel admin, que é uma tela
+  // própria (/admin). Aqui fica só a porta de entrada.
   {
-    path: '/dashboard/suppliers',
-    label: 'Fornecedores',
-    icon: Truck,
-    adminOnly: true,
-  },
-  {
-    path: '/dashboard/admin',
-    label: 'Admin',
-    icon: Store,
+    path: '/admin',
+    label: 'Painel admin',
+    icon: ShieldCheck,
     adminOnly: true,
     coprodutor: true,
-    children: [
-      { path: '/dashboard/admin/numeros', label: 'Números', coprodutor: true },
-      { path: '/dashboard/admin/catalogo', label: 'Catálogo' },
-      { path: '/dashboard/admin/avisos', label: 'Avisos' },
-      { path: '/dashboard/admin/impressao', label: 'Impressão' },
-      { path: '/dashboard/admin/contas', label: 'Contas e acessos', coprodutor: true },
-      {
-        path: '/dashboard/admin/afiliados',
-        label: 'Afiliados',
-        coprodutor: true,
-        children: [
-          { path: '/dashboard/admin/afiliados/gerenciar', label: 'Gerenciar', coprodutor: true },
-          { path: '/dashboard/admin/afiliados/pedidos', label: 'Aceitar pedido', coprodutor: true },
-          {
-            path: '/dashboard/admin/afiliados/desempenho',
-            label: 'Desempenho',
-            coprodutor: true,
-          },
-        ],
-      },
-      { path: '/dashboard/admin/repasses', label: 'Repasses' },
-      { path: '/dashboard/admin/kanban', label: 'Kanban' },
-    ],
   },
 ];
 
-const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
+/**
+ * O menu do Painel admin (/admin).
+ *
+ * Tela própria, separada da área do vendedor: quem administra o FORNEXA não
+ * precisa ver o menu de quem vende, e o vendedor não precisa saber que esta
+ * parte existe. As marcas `adminOnly` e `coprodutor` funcionam igual às do
+ * menu do vendedor.
+ */
+const adminNavigationItems: NavigationItem[] = [
+  { path: '/admin/numeros', label: 'Números', icon: BarChart3, adminOnly: true, coprodutor: true },
+  { path: '/admin/catalogo', label: 'Catálogo', icon: Package, adminOnly: true },
+  { path: '/admin/fornecedores', label: 'Fornecedores', icon: Truck, adminOnly: true },
+  { path: '/admin/avisos', label: 'Avisos', icon: Bell, adminOnly: true },
+  { path: '/admin/impressao', label: 'Impressão', icon: Printer, adminOnly: true },
+  { path: '/admin/contas', label: 'Contas e acessos', icon: UserCog, adminOnly: true, coprodutor: true },
+  {
+    path: '/admin/afiliados',
+    label: 'Afiliados',
+    icon: UsersRound,
+    adminOnly: true,
+    coprodutor: true,
+    children: [
+      { path: '/admin/afiliados/gerenciar', label: 'Gerenciar', coprodutor: true },
+      { path: '/admin/afiliados/pedidos', label: 'Aceitar pedido', coprodutor: true },
+      { path: '/admin/afiliados/desempenho', label: 'Desempenho', coprodutor: true },
+    ],
+  },
+  { path: '/admin/repasses', label: 'Repasses', icon: HandCoins, adminOnly: true },
+  { path: '/admin/kanban', label: 'Kanban', icon: Columns3, adminOnly: true },
+];
+
+const adminOnlyPaths = ['/admin', '/dashboard/admin', '/dashboard/suppliers'];
 
 /**
  * O que o co-produtor abre dentro do Admin.
@@ -162,13 +174,17 @@ const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
  * envelhece mal — a próxima tela do Admin entraria liberada por esquecimento.
  * Tela nova nasce fechada para ele, que é o lado seguro do erro.
  *
- * Com uma exceção deliberada: `/dashboard/admin/afiliados` é um PREFIXO, e
+ * Com uma exceção deliberada: `/admin/afiliados` é um PREFIXO, e
  * não uma tela. A área de afiliados foi entregue inteira a ele — inclusive
  * criar, aprovar e editar —, então subtela nova ali nasce liberada. É o que
  * se pediu; se um dia aparecer ali algo que ele não deva ver, o lugar de
  * cortar é aqui.
  */
 const caminhosDoCoprodutor = [
+  '/admin/numeros',
+  '/admin/afiliados',
+  '/admin/contas',
+  // Endereços antigos: só redirecionam para os de cima.
   '/dashboard/admin/numeros',
   '/dashboard/admin/afiliados',
   '/dashboard/admin/contas',
@@ -215,7 +231,7 @@ export default function DashboardLayout() {
    */
   const [gruposAbertos, setGruposAbertos] = useState<Set<string>>(() => {
     const abertos = new Set<string>();
-    navigationItems.forEach((item) => {
+    [...navigationItems, ...adminNavigationItems].forEach((item) => {
       item.children?.forEach((filho) => {
         if (location.pathname.startsWith(filho.path)) {
           abertos.add(item.path);
@@ -405,7 +421,7 @@ export default function DashboardLayout() {
         // Recarrega em vez de navegar: as telas já montadas carregaram os
         // dados do cliente, e trocar de usuário por baixo delas deixaria
         // resto da conta antiga na tela.
-        window.location.assign('/dashboard/admin');
+        window.location.assign('/admin/contas');
         return;
       }
     }
@@ -417,9 +433,14 @@ export default function DashboardLayout() {
     location.pathname.startsWith(path)
   );
 
+  /** No Painel admin (/admin) a tela troca de menu, de cor e de cabeçalho. */
+  const naAreaAdmin = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
+
   const coprodutorPodeAbrir =
     userRole === 'coprodutor' &&
-    caminhosDoCoprodutor.some((path) => location.pathname.startsWith(path));
+    // "/admin" sozinho só redireciona para a primeira tela dele.
+    (location.pathname === '/admin' ||
+      caminhosDoCoprodutor.some((path) => location.pathname.startsWith(path)));
 
   const shouldBlockAdminRoute =
     !checkingRole &&
@@ -445,7 +466,9 @@ export default function DashboardLayout() {
 
   const isDashboardHome = location.pathname === '/dashboard';
 
-  const headerSubtitle = isDashboardHome
+  const headerSubtitle = naAreaAdmin
+    ? 'Painel administrativo do FORNEXA.'
+    : isDashboardHome
     ? 'Vamos aumentar seu faturamento hoje? Seu próximo anúncio pode ser seu próximo lucro.'
     : 'Escolha produtos, prepare anúncios e acompanhe pedidos.';
   const renderAccessDenied = () => {
@@ -498,6 +521,18 @@ export default function DashboardLayout() {
   const renderNavigation = () => {
     const ehCoprodutor = userRole === 'coprodutor';
 
+    // O Painel admin tem barra escura com destaque amarelo, nos dois temas:
+    // é o jeito de saber, de relance, que se está mexendo no FORNEXA inteiro
+    // e não na própria loja.
+    const corAtiva = naAreaAdmin
+      ? 'bg-gold text-navy-900'
+      : 'bg-black text-white dark:bg-white dark:text-navy-900';
+    const corInativa = naAreaAdmin
+      ? 'text-slate-400 hover:bg-white/5 hover:text-white'
+      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white';
+    const corDoSubgrupoAtivo = naAreaAdmin ? 'text-white' : 'text-navy-900 dark:text-white';
+    const linhaDoGrupo = naAreaAdmin ? 'border-white/10' : 'border-gray-200 dark:border-navy-700';
+
     /**
      * Poda o submenu até sobrar só o que o co-produtor pode ver.
      *
@@ -512,7 +547,7 @@ export default function DashboardLayout() {
         )
         .filter((filho) => !filho.children || filho.children.length > 0);
 
-    const visibleItems = navigationItems
+    const visibleItems = (naAreaAdmin ? adminNavigationItems : navigationItems)
       .filter((item) => {
         if (item.adminOnly && userRole !== 'admin') {
           if (!(ehCoprodutor && item.coprodutor)) {
@@ -552,8 +587,8 @@ export default function DashboardLayout() {
                   aria-expanded={grupoAberto}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
                     grupoAtivo
-                      ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                      ? corAtiva
+                      : corInativa
                   }`}
                 >
                   <Icon className="w-5 h-5" />
@@ -564,7 +599,7 @@ export default function DashboardLayout() {
                 </button>
 
                 {grupoAberto && (
-                  <div className="mt-1 ml-4 pl-4 border-l border-gray-200 dark:border-navy-700 space-y-1">
+                  <div className={`mt-1 ml-4 pl-4 border-l ${linhaDoGrupo} space-y-1`}>
                     {item.children.map((filho) => {
                       if (filho.children) {
                         const subAberto = gruposAbertos.has(filho.path);
@@ -578,8 +613,8 @@ export default function DashboardLayout() {
                               aria-expanded={subAberto}
                               className={`w-full flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                                 subAtivo
-                                  ? 'text-navy-900 dark:text-white'
-                                  : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                                  ? corDoSubgrupoAtivo
+                                  : corInativa
                               }`}
                             >
                               {filho.label}
@@ -589,7 +624,7 @@ export default function DashboardLayout() {
                             </button>
 
                             {subAberto && (
-                              <div className="mt-1 ml-3 pl-3 border-l border-gray-200 dark:border-navy-700 space-y-1">
+                              <div className={`mt-1 ml-3 pl-3 border-l ${linhaDoGrupo} space-y-1`}>
                                 {filho.children.map((neto) => (
                                   <NavLink
                                     key={neto.path}
@@ -598,8 +633,8 @@ export default function DashboardLayout() {
                                     className={({ isActive }) =>
                                       `block px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                         isActive
-                                          ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                                          : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                                          ? corAtiva
+                                          : corInativa
                                       }`
                                     }
                                   >
@@ -620,8 +655,8 @@ export default function DashboardLayout() {
                           className={({ isActive }) =>
                             `block px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                               isActive
-                                ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                                : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                                ? corAtiva
+                                : corInativa
                             }`
                           }
                         >
@@ -644,12 +679,12 @@ export default function DashboardLayout() {
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-black text-white dark:bg-white dark:text-navy-900'
-                    : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800 hover:text-navy-900 dark:hover:text-white'
+                    ? corAtiva
+                    : corInativa
                 }`
               }
             >
-              <Icon className="w-5 h-5" />
+              <Icon className={`w-5 h-5 ${item.path === '/admin' ? 'text-gold' : ''}`} />
               {item.label}
 
               {/* O fornecedor responde e o vendedor não vê: a contagem existia
@@ -676,23 +711,53 @@ export default function DashboardLayout() {
     );
   };
 
+  const corDaBarra = naAreaAdmin
+    ? 'bg-navy-950 text-white border-white/10'
+    : 'bg-white dark:bg-navy-900 border-gray-200 dark:border-navy-700';
+
+  const renderMarcaDaBarra = () =>
+    naAreaAdmin ? (
+      <div className="p-6 border-b border-white/10">
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-bold text-white">FORNEXA</h1>
+          <span className="px-2 py-0.5 rounded-md bg-gold text-navy-900 text-[11px] font-bold uppercase tracking-wider">
+            Admin
+          </span>
+        </div>
+        <p className="text-sm text-slate-400 mt-1">Painel administrativo</p>
+      </div>
+    ) : (
+      <div className="p-6 border-b border-gray-200 dark:border-navy-700">
+        <h1 className="text-xl font-bold text-navy-900 dark:text-white">FORNEXA</h1>
+        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Área do vendedor</p>
+      </div>
+    );
+
+  /** No Painel admin, a volta para a loja fica sempre à mão, no pé do menu. */
+  const renderRodapeDaBarra = () =>
+    naAreaAdmin ? (
+      <div className="p-4 border-t border-white/10">
+        <Link
+          to="/dashboard"
+          onClick={() => setSidebarOpen(false)}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-white border border-white/15 hover:bg-white/5 hover:border-white/30 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          Área do vendedor
+        </Link>
+      </div>
+    ) : null;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-navy-900">
-      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-72 bg-white dark:bg-navy-900 border-r border-gray-200 dark:border-navy-700 flex-col z-40">
-        <div className="p-6 border-b border-gray-200 dark:border-navy-700">
-          <h1 className="text-xl font-bold text-navy-900 dark:text-white">
-            FORNEXA
-          </h1>
-
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-            Área do vendedor
-          </p>
-        </div>
+      <aside className={`hidden lg:flex fixed inset-y-0 left-0 w-72 border-r flex-col z-40 ${corDaBarra}`}>
+        {renderMarcaDaBarra()}
 
         {/* O rodapé do menu sumiu por inteiro: nome, e-mail e plano foram para
             o topo ou para Configurações, e o Sair já existe lá em cima. Dois
             botões de sair na mesma tela só dividem a atenção. */}
         <div className="flex-1 overflow-y-auto p-4">{renderNavigation()}</div>
+        {renderRodapeDaBarra()}
       </aside>
 
       {sidebarOpen && (
@@ -702,27 +767,23 @@ export default function DashboardLayout() {
             onClick={() => setSidebarOpen(false)}
           />
 
-          <aside className="absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-white dark:bg-navy-900 border-r border-gray-200 dark:border-navy-700 flex flex-col">
-            <div className="p-5 border-b border-gray-200 dark:border-navy-700 flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-bold text-navy-900 dark:text-white">
-                  FORNEXA
-                </h1>
-
-                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  Área do vendedor
-                </p>
-              </div>
+          <aside className={`absolute left-0 top-0 bottom-0 w-80 max-w-[85vw] border-r flex flex-col ${corDaBarra}`}>
+            <div className="relative">
+              {renderMarcaDaBarra()}
 
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-navy-800 transition-colors"
+                aria-label="Fechar menu"
+                className={`absolute top-4 right-4 p-2 rounded-xl transition-colors ${
+                  naAreaAdmin ? 'text-slate-300 hover:bg-white/10' : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-800'
+                }`}
               >
-                <X className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">{renderNavigation()}</div>
+            {renderRodapeDaBarra()}
           </aside>
         </div>
       )}
@@ -739,8 +800,13 @@ export default function DashboardLayout() {
               </button>
 
               <div>
-                <p className="text-sm font-semibold text-navy-900 dark:text-white">
+                <p className="text-sm font-semibold text-navy-900 dark:text-white flex items-center gap-2">
                   {getGreeting()}, {firstName}
+                  {naAreaAdmin && (
+                    <span className="px-1.5 py-0.5 rounded bg-gold text-navy-900 text-[10px] font-bold uppercase tracking-wider">
+                      Admin
+                    </span>
+                  )}
                 </p>
 
                 <p className="text-xs text-gray-500 dark:text-slate-400">
@@ -752,7 +818,7 @@ export default function DashboardLayout() {
             {/* No cabeçalho, e não numa faixa abaixo dele: faturamento e meta
                 são o placar do dia, e placar fica junto do nome de quem joga.
                 Some no celular, onde a linha não comporta os dois. */}
-            {liberadas.has('top-vendedores') && (
+            {!naAreaAdmin && liberadas.has('top-vendedores') && (
               <div className="hidden md:flex flex-1 justify-center px-4 min-w-0">
                 <BarraDeFaturamento />
               </div>
@@ -761,7 +827,7 @@ export default function DashboardLayout() {
             <div className="flex items-center gap-2 sm:gap-3">
               {/* Antes do tema: o sino é sobre o que mudou na conta, e o tema é
                   preferência pessoal. O que pede ação vem primeiro. */}
-              <Notificacoes />
+              {!naAreaAdmin && <Notificacoes />}
 
               <button
                 onClick={handleToggleTheme}
@@ -829,7 +895,7 @@ export default function DashboardLayout() {
 
         {/* A volta da autorização do Mercado Livre cai no painel, não na tela
             de Integrações: o aviso precisa morar aqui para ser visto. */}
-        <AvisoDeConexaoMl />
+        {!naAreaAdmin && <AvisoDeConexaoMl />}
 
         <main className="p-4 sm:p-6 bg-gray-50 dark:bg-navy-900 min-h-[calc(100vh-4rem)]">
           {isAdminOnlyRoute && checkingRole
@@ -844,12 +910,12 @@ export default function DashboardLayout() {
           não conteúdo da tela em que a pessoa está. Aparece uma vez, em
           qualquer página do painel — quem precisa ser avisado do endereço de
           remetente raramente abre Integrações por conta própria. */}
-      <AvisoDoSistema />
+      {!naAreaAdmin && <AvisoDoSistema />}
 
       {/* O suporte fica onde a dúvida nasce — no meio de um anúncio, num
           pedido travado. Item de menu obrigava a sair de onde o problema
           estava, e quem sai perde o print que ia mandar. */}
-      <SuporteFlutuante />
+      {!naAreaAdmin && <SuporteFlutuante />}
     </div>
   );
 }

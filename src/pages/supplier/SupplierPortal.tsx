@@ -773,7 +773,7 @@ export default function SupplierPortal() {
       });
 
       if (!error) {
-        window.location.assign('/dashboard/admin');
+        window.location.assign('/admin');
         return;
       }
     }
