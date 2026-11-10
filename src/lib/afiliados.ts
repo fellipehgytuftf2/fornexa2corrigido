@@ -168,6 +168,25 @@ export async function removerAfiliado(conta: string): Promise<void> {
   }
 }
 
+/**
+ * O admin põe alguém no programa sem esperar o pedido.
+ *
+ * A conta precisa existir: afiliado é uma linha presa a uma conta, e não um
+ * cadastro solto. Os checkouts nascem vazios de propósito -- enquanto
+ * estiverem assim o link não vende, e a venda cai no checkout da casa em vez
+ * de sumir.
+ */
+export async function criarAfiliado(email: string, apelido: string): Promise<void> {
+  const { error } = await supabase.rpc('admin_criar_afiliado', {
+    p_email: email.trim(),
+    p_apelido: apelido.trim().toLowerCase(),
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 /** Troca o apelido, e com ele o endereço que o afiliado divulga. */
 export async function trocarApelido(conta: string, apelido: string): Promise<void> {
   const { error } = await supabase

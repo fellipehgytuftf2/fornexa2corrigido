@@ -1,0 +1,592 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react';
+import {
+  criarAfiliado,
+  decidirAfiliado,
+  linkDoAfiliado,
+  listarAfiliadosDoAdmin,
+  podeDivulgar,
+  removerAfiliado,
+  salvarCheckoutDoAfiliado,
+  trocarApelido,
+  type AfiliadoDoAdmin,
+} from '../../lib/afiliados';
+
+/**
+ * Todos os afiliados numa tela só, cada um num cartão.
+ *
+ * POR QUE ESTA TELA, SE JÁ HAVIA "ACEITAR PEDIDO"
+ *
+ * Aquela tela responde a uma pergunta de uma vez só: quem pediu, e eu aceito?
+ * Depois do aceite ela não serve mais para nada — e é justamente depois que
+ * aparece o trabalho de todo dia. Qual é o link do Paulo. O cupom da Faella
+ * ainda está de pé. Esse aqui já colou os checkouts. Preciso tirar o João do
+ * ar hoje, sem apagar o histórico dele.
+ *
+ * Cada uma dessas respostas estava num canto diferente, e algumas não
+ * estavam em canto nenhum.
+ *
+ * COMO O CARTÃO É ORGANIZADO
+ *
+ * Em cima, quem é a pessoa e em que pé ela está. Embaixo, em três blocos, as
+ * três coisas que se copiam e colam o dia inteiro: o link que ela divulga, os
+ * checkouts da conta dela e o código. Separados porque vão para lugares
+ * diferentes — o link vai para a pessoa, o checkout vem da Applyfy, o código
+ * entra na conversa.
+ *
+ * LIGAR E DESLIGAR, EM VEZ DE APAGAR
+ *
+ * A chave tira o link do ar na hora e deixa a linha onde está. Parceria que
+ * esfria costuma voltar, e apagar levaria junto o apelido — que é o endereço
+ * que a pessoa já espalhou por aí. A lixeira continua existindo para quem sai
+ * de vez.
+ */
+
+const AGORA_EM_PT = (valor: string | null) =>
+  valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
+
+const semAcento = (texto: string) =>
+  texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Botãozinho que copia e diz que copiou. */
+function BotaoCopiar({
+  texto,
+  rotulo,
+  titulo,
+}: {
+  texto: string;
+  rotulo: string;
+  titulo?: string;
+}) {
+  const [copiou, setCopiou] = useState(false);
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiou(true);
+      window.setTimeout(() => setCopiou(false), 1600);
+    } catch {
+      // Navegador que recusa a área de transferência (sem https, sem
+      // permissão) não pode deixar o botão mudo: o texto aparece para
+      // selecionar à mão.
+      window.prompt('Copie o texto:', texto);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copiar}
+      disabled={!texto}
+      title={titulo}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-xs font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      {copiou ? (
+        <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+      ) : (
+        <Copy className="w-3.5 h-3.5" />
+      )}
+      {copiou ? 'Copiado' : rotulo}
+    </button>
+  );
+}
+
+/** O bloco cinza com título pequeno que agrupa os botões de uma coisa só. */
+function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[14px] border border-gray-200 dark:border-navy-600 bg-gray-50/60 dark:bg-navy-900/40 p-3">
+      <p className="text-[10px] font-semibold tracking-wider text-gray-500 dark:text-slate-400 uppercase mb-2">
+        {titulo}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function Selo({ afiliado }: { afiliado: AfiliadoDoAdmin }) {
+  const base =
+    'shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide';
+
+  if (afiliado.situacao === 'pendente') {
+    return (
+      <span className={`${base} bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400`}>
+        Pediu
+      </span>
+    );
+  }
+
+  if (afiliado.situacao === 'recusado') {
+    return (
+      <span className={`${base} bg-gray-100 dark:bg-navy-700 text-gray-600 dark:text-slate-400`}>
+        Pausado
+      </span>
+    );
+  }
+
+  if (!podeDivulgar(afiliado)) {
+    return (
+      <span className={`${base} bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400`}>
+        Falta checkout
+      </span>
+    );
+  }
+
+  return (
+    <span className={`${base} bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400`}>
+      Ativo
+    </span>
+  );
+}
+
+function Cartao({
+  afiliado,
+  aoMudar,
+}: {
+  afiliado: AfiliadoDoAdmin;
+  aoMudar: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [apelido, setApelido] = useState(afiliado.apelido);
+  const [basico, setBasico] = useState(afiliado.checkout_basico);
+  const [premium, setPremium] = useState(afiliado.checkout_premium);
+
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
+
+  const ativo = afiliado.situacao === 'aprovado';
+  const link = linkDoAfiliado(afiliado.apelido);
+
+  const tentar = async (acao: () => Promise<void>) => {
+    setOcupado(true);
+    setErro('');
+
+    try {
+      await acao();
+      aoMudar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível.');
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  const salvar = () =>
+    tentar(async () => {
+      if (apelido.trim().toLowerCase() !== afiliado.apelido) {
+        await trocarApelido(afiliado.conta, apelido);
+      }
+
+      if (basico !== afiliado.checkout_basico || premium !== afiliado.checkout_premium) {
+        await salvarCheckoutDoAfiliado(afiliado.conta, { basico, premium });
+      }
+
+      setEditando(false);
+    });
+
+  const campo =
+    'w-full px-3 py-2 rounded-lg bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-gold';
+
+  return (
+    <div className="rounded-[20px] border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-bold text-navy-900 dark:text-white truncate">
+              {afiliado.nome || afiliado.email || 'Sem nome'}
+            </p>
+            <Selo afiliado={afiliado} />
+          </div>
+
+          <p className="text-sm text-gray-500 dark:text-slate-400 truncate mt-0.5">
+            {afiliado.email}
+          </p>
+
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+            Código: <span className="font-mono text-navy-900 dark:text-white">{afiliado.apelido}</span>
+            {' · '}
+            Entrou em {AGORA_EM_PT(afiliado.pedido_em)}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {/* A chave só aparece depois que a pessoa foi aceita: enquanto o
+              pedido está pendente, quem decide é a tela de Aceitar pedido. */}
+          {afiliado.situacao !== 'pendente' && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={ativo}
+              aria-label={ativo ? 'Desligar afiliado' : 'Ligar afiliado'}
+              disabled={ocupado}
+              onClick={() => tentar(() => decidirAfiliado(afiliado.conta, !ativo))}
+              className={`relative w-11 h-6 rounded-full transition-colors disabled:opacity-50 ${
+                ativo ? 'bg-gold' : 'bg-gray-300 dark:bg-navy-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  ativo ? 'translate-x-5' : ''
+                }`}
+              />
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setEditando((estava) => !estava)}
+            aria-label="Editar afiliado"
+            className="p-2 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-700 transition-colors"
+          >
+            {editando ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setConfirmando(true)}
+            aria-label="Remover afiliado"
+            className="p-2 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {erro && (
+        <p className="mt-3 flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          {erro}
+        </p>
+      )}
+
+      {confirmando && (
+        <div className="mt-3 rounded-[14px] border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10 p-3">
+          <p className="text-xs text-red-700 dark:text-red-400">
+            Tirar <strong>{afiliado.nome || afiliado.email}</strong> do programa? O link{' '}
+            <span className="font-mono">/{afiliado.apelido}</span> para de vender na hora e o
+            código fica livre para outra pessoa. As vendas já feitas continuam no histórico.
+          </p>
+
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => tentar(() => removerAfiliado(afiliado.conta))}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+            >
+              {ocupado && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              Remover
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setConfirmando(false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-700 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editando ? (
+        <div className="mt-4 space-y-3">
+          <div>
+            <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+              Código (vira o endereço {window.location.host}/código)
+            </label>
+            <input
+              type="text"
+              value={apelido}
+              onChange={(e) => setApelido(e.target.value)}
+              className={campo}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+              Checkout Básico da conta dele
+            </label>
+            <input
+              type="text"
+              value={basico}
+              onChange={(e) => setBasico(e.target.value)}
+              placeholder="https://checkout.applyfy.com.br/checkout/..."
+              className={campo}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+              Checkout Premium da conta dele
+            </label>
+            <input
+              type="text"
+              value={premium}
+              onChange={(e) => setPremium(e.target.value)}
+              placeholder="https://checkout.applyfy.com.br/checkout/..."
+              className={campo}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={salvar}
+            disabled={ocupado || !apelido.trim()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {ocupado && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            Salvar
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <Bloco titulo="Link de divulgação">
+            <BotaoCopiar texto={link} rotulo="Copiar" titulo={link} />
+
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-navy-600 text-xs font-medium text-navy-900 dark:text-white hover:bg-gray-50 dark:hover:bg-navy-700 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Abrir
+            </a>
+          </Bloco>
+
+          <Bloco titulo="Checkouts">
+            <BotaoCopiar
+              texto={afiliado.checkout_basico}
+              rotulo="Básico"
+              titulo={afiliado.checkout_basico || 'Ainda não colado'}
+            />
+            <BotaoCopiar
+              texto={afiliado.checkout_premium}
+              rotulo="Premium"
+              titulo={afiliado.checkout_premium || 'Ainda não colado'}
+            />
+          </Bloco>
+
+          <Bloco titulo="Código">
+            <BotaoCopiar texto={afiliado.apelido} rotulo={afiliado.apelido} />
+          </Bloco>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
+  const [aberto, setAberto] = useState(false);
+  const [email, setEmail] = useState('');
+  const [apelido, setApelido] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const criar = async () => {
+    setSalvando(true);
+    setErro('');
+
+    try {
+      await criarAfiliado(email, apelido);
+      setEmail('');
+      setApelido('');
+      setAberto(false);
+      aoCriar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível criar.');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const campo =
+    'w-full px-3 py-2 rounded-lg bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold';
+
+  if (!aberto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAberto(true)}
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-gold text-navy-900 text-sm font-bold hover:opacity-90 transition-opacity"
+      >
+        <Plus className="w-4 h-4" />
+        Novo afiliado
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full rounded-[20px] border border-gray-200 dark:border-navy-700 bg-white dark:bg-navy-800 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="font-bold text-navy-900 dark:text-white">Novo afiliado</p>
+
+        <button
+          type="button"
+          onClick={() => setAberto(false)}
+          aria-label="Fechar"
+          className="p-1.5 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-navy-700 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+            E-mail da conta dele na FORNEXA
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="pessoa@exemplo.com"
+            className={campo}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+            Código dele
+          </label>
+          <input
+            type="text"
+            value={apelido}
+            onChange={(e) => setApelido(e.target.value)}
+            placeholder="paulo"
+            className={`${campo} font-mono`}
+          />
+        </div>
+      </div>
+
+      <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+        A pessoa precisa já ter conta na FORNEXA. Ela nasce ativa e sem checkout — enquanto os
+        checkouts não forem colados, o link não vende e a venda cai no checkout da casa.
+      </p>
+
+      {erro && (
+        <p className="mt-2 flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          {erro}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={criar}
+        disabled={salvando || !email.trim() || !apelido.trim()}
+        className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-navy-900 dark:bg-white text-white dark:text-navy-900 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+      >
+        {salvando && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        Criar afiliado
+      </button>
+    </div>
+  );
+}
+
+export default function GerenciarAfiliados() {
+  const [lista, setLista] = useState<AfiliadoDoAdmin[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [busca, setBusca] = useState('');
+
+  const carregar = async () => {
+    try {
+      setLista(await listarAfiliadosDoAdmin());
+      setErro('');
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível carregar.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    carregar();
+  }, []);
+
+  const filtrados = useMemo(() => {
+    const termo = semAcento(busca.trim());
+
+    if (!termo) return lista;
+
+    return lista.filter((a) =>
+      [a.nome, a.email, a.apelido].some((campo) => campo && semAcento(campo).includes(termo))
+    );
+  }, [lista, busca]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-11 h-11 rounded-[14px] bg-gold/15 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5 text-gold" />
+          </div>
+
+          <div>
+            <h2 className="text-xl font-bold text-navy-900 dark:text-white">Afiliados</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              Quem divulga a FORNEXA, com o link, os checkouts e o código de cada um.
+            </p>
+          </div>
+        </div>
+
+        <NovoAfiliado aoCriar={carregar} />
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input
+          type="text"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nome, e-mail ou código..."
+          className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white dark:bg-navy-800 border border-gray-200 dark:border-navy-700 text-navy-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold"
+        />
+      </div>
+
+      {erro && (
+        <p className="flex items-start gap-2 rounded-[14px] border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-900/10 p-3 text-sm text-red-700 dark:text-red-400">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          {erro}
+        </p>
+      )}
+
+      {carregando ? (
+        <div className="flex items-center justify-center py-12 text-gray-500 dark:text-slate-400">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      ) : filtrados.length === 0 ? (
+        <div className="rounded-[20px] border border-dashed border-gray-300 dark:border-navy-600 py-12 text-center">
+          <p className="font-semibold text-navy-900 dark:text-white">
+            {busca ? 'Ninguém com esse nome' : 'Nenhum afiliado ainda'}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+            {busca
+              ? 'Tente outro trecho do nome, do e-mail ou do código.'
+              : 'Use "Novo afiliado" para pôr alguém no programa.'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtrados.map((afiliado) => (
+            <Cartao key={afiliado.conta} afiliado={afiliado} aoMudar={carregar} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

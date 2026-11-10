@@ -25,6 +25,7 @@ const AdminAvisos = lazy(() => import('./pages/dashboard/AdminAvisos'));
 const AdminImpressao = lazy(() => import('./pages/dashboard/AdminImpressao'));
 const AdminContas = lazy(() => import('./pages/dashboard/AdminContas'));
 const AdminNumeros = lazy(() => import('./pages/dashboard/AdminNumeros'));
+const GerenciarAfiliados = lazy(() => import('./components/dashboard/GerenciarAfiliados'));
 const DesempenhoDosAfiliados = lazy(() =>
   import('./components/dashboard/AfiliadosAdmin').then((m) => ({ default: m.DesempenhoDosAfiliados }))
 );
@@ -360,6 +361,7 @@ function App() {
           />
           <Route path="admin/afiliados/pedidos" element={<PedidosDeAfiliado />} />
           <Route path="admin/afiliados/desempenho" element={<DesempenhoDosAfiliados />} />
+          <Route path="admin/afiliados/gerenciar" element={<GerenciarAfiliados />} />
           <Route path="admin/repasses" element={<AdminRepasses />} />
           <Route path="admin/kanban" element={<AdminKanban />} />
           <Route path="tickets" element={<Tickets />} />
