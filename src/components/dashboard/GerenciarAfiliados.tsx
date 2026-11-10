@@ -24,6 +24,7 @@ import {
   trocarApelido,
   type AfiliadoDoAdmin,
 } from '../../lib/afiliados';
+import { PLANOS } from '../../lib/planos';
 
 /**
  * O que foi digitado no campo de preço, como número.
@@ -84,6 +85,22 @@ const precoNoCampo = (valor: number | null | undefined) =>
 
 /** A mesma regra que a coluna `apelido` cobra no banco. */
 const CODIGO_VALIDO = /^[a-z0-9-]{3,40}$/;
+
+/**
+ * O checkout da casa colado no cadastro de um afiliado.
+ *
+ * É o engano mais caro desta tela: os dois links são parecidos, moram na
+ * mesma plataforma, e o errado não dá erro nenhum — passa a mandar TODA
+ * venda da FORNEXA para a conta dele, comissão junto.
+ */
+const idDoCheckout = (url: string) => url.match(/\/checkout\/([^/?#]+)/)?.[1];
+
+const CHECKOUTS_DA_CASA = PLANOS.map((plano) => idDoCheckout(plano.checkout)).filter(Boolean);
+
+const ehCheckoutDaCasa = (url: string) => {
+  const id = idDoCheckout(url);
+  return Boolean(id) && CHECKOUTS_DA_CASA.includes(id);
+};
 
 const AGORA_EM_PT = (valor: string | null) =>
   valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
@@ -216,8 +233,15 @@ function Cartao({
     }
   };
 
-  const salvar = () =>
-    tentar(async () => {
+  const salvar = () => {
+    if ([basico, premium].some((url) => url.trim() && ehCheckoutDaCasa(url))) {
+      setErro(
+        'Esse é o checkout da FORNEXA, não o da conta dele. Toda venda cairia na conta do afiliado.'
+      );
+      return;
+    }
+
+    return tentar(async () => {
       if (apelido.trim().toLowerCase() !== afiliado.apelido) {
         await trocarApelido(afiliado.conta, apelido);
       }
@@ -241,6 +265,7 @@ function Cartao({
 
       setEditando(false);
     });
+  };
 
   const campo =
     'w-full px-3 py-2 rounded-lg bg-white dark:bg-navy-700 border border-gray-200 dark:border-navy-600 text-navy-900 dark:text-white text-xs font-mono focus:outline-none focus:ring-2 focus:ring-gold';
@@ -491,17 +516,38 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
   const [aberto, setAberto] = useState(false);
   const [email, setEmail] = useState('');
   const [apelido, setApelido] = useState('');
+  const [basico, setBasico] = useState('');
+  const [premium, setPremium] = useState('');
+  const [valorBasico, setValorBasico] = useState('');
+  const [valorPremium, setValorPremium] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
 
   const criar = async () => {
+    if ([basico, premium].some((url) => url.trim() && ehCheckoutDaCasa(url))) {
+      setErro(
+        'Esse é o checkout da FORNEXA, não o da conta dele. Toda venda cairia na conta do afiliado.'
+      );
+      return;
+    }
+
     setSalvando(true);
     setErro('');
 
     try {
-      await criarAfiliado(email, apelido);
+      await criarAfiliado(email, apelido, {
+        checkoutBasico: basico,
+        checkoutPremium: premium,
+        valorBasico: precoDigitado(valorBasico),
+        valorPremium: precoDigitado(valorPremium),
+      });
+
       setEmail('');
       setApelido('');
+      setBasico('');
+      setPremium('');
+      setValorBasico('');
+      setValorPremium('');
       setAberto(false);
       aoCriar();
     } catch (e) {
@@ -582,9 +628,77 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
         </div>
       </div>
 
+      <div className="mt-3 rounded-[14px] border border-gray-200 dark:border-navy-600 bg-gray-50/60 dark:bg-navy-900/40 p-3 space-y-3">
+        <div>
+          <p className="text-[10px] font-semibold tracking-wider text-gray-500 dark:text-slate-400 uppercase">
+            Checkouts dele na Applyfy
+          </p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+            São os links que os botões da landing dele vão abrir. Pode deixar para depois —
+            enquanto estiverem vazios, o link não vende e a venda cai no checkout da casa.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">Básico</label>
+            <input
+              type="text"
+              value={basico}
+              onChange={(e) => setBasico(e.target.value)}
+              placeholder="https://checkout.applyfy.com.br/checkout/..."
+              className={`${campo} text-xs font-mono`}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">Premium</label>
+            <input
+              type="text"
+              value={premium}
+              onChange={(e) => setPremium(e.target.value)}
+              placeholder="https://checkout.applyfy.com.br/checkout/..."
+              className={`${campo} text-xs font-mono`}
+            />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-[10px] font-semibold tracking-wider text-gray-500 dark:text-slate-400 uppercase">
+            Preço que a landing dele mostra
+          </p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+            Em branco usa o preço da casa. Tem de bater com o que o checkout acima cobra.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={valorBasico}
+              onChange={(e) => setValorBasico(e.target.value)}
+              placeholder="139,00"
+              className={campo}
+            />
+          </div>
+
+          <div>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={valorPremium}
+              onChange={(e) => setValorPremium(e.target.value)}
+              placeholder="229,00"
+              className={campo}
+            />
+          </div>
+        </div>
+      </div>
+
       <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
-        A pessoa precisa já ter conta na FORNEXA. Ela nasce ativa e sem checkout — enquanto os
-        checkouts não forem colados, o link não vende e a venda cai no checkout da casa.
+        A pessoa precisa já ter conta na FORNEXA — o afiliado fica preso à conta dela.
       </p>
 
       {erro && (

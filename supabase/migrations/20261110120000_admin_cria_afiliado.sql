@@ -21,17 +21,31 @@
 -- criaria usuário sem senha, sem e-mail confirmado e sem ninguém do outro
 -- lado. Então a pessoa se cadastra normalmente e o admin a torna afiliada.
 --
--- OS CHECKOUTS NASCEM VAZIOS
+-- OS CHECKOUTS E OS PREÇOS VÊM JUNTO, SE JÁ ESTIVEREM PRONTOS
 --
--- De propósito. Eles são criados na Applyfy, um por plano, na conta do
--- afiliado, e só existem depois que ele tem conta lá. Enquanto estiverem
--- vazios, `podeDivulgar` é falso e o link não vende -- a venda cai no
--- checkout da casa em vez de sumir. Melhor do que um link que promete
+-- Quem fecha a parceria por fora costuma criar os dois checkouts na Applyfy
+-- antes de voltar aqui -- os links já estão na mão. Obrigar a criar o
+-- afiliado primeiro e colar depois seriam dois passos por nada.
+--
+-- São opcionais mesmo assim, porque a outra ordem também acontece: o afiliado
+-- entra hoje e só abre a conta na Applyfy amanhã. Enquanto os checkouts
+-- estiverem vazios, `podeDivulgar` é falso e o link não vende -- a venda cai
+-- no checkout da casa em vez de sumir. Melhor do que um link que promete
 -- comissão e não paga.
+--
+-- Preço vazio é o preço da casa, como em qualquer outro lugar desta tabela.
+
+-- Uma versão anterior desta função nasceu só com e-mail e apelido. Some aqui
+-- para não ficarem as duas, com o PostgREST escolhendo uma delas.
+drop function if exists public.admin_criar_afiliado(text, text);
 
 create or replace function public.admin_criar_afiliado(
   p_email text,
-  p_apelido text
+  p_apelido text,
+  p_checkout_basico text default '',
+  p_checkout_premium text default '',
+  p_valor_basico numeric default null,
+  p_valor_premium numeric default null
 )
 returns void
 language plpgsql
@@ -75,18 +89,20 @@ begin
   insert into public.afiliados (
     conta, apelido, situacao,
     checkout_basico, checkout_premium,
+    valor_basico, valor_premium,
     pedido_em, decidido_em, atualizado_em
   )
   values (
     v_conta, v_apelido, 'aprovado',
-    '', '',
+    coalesce(trim(p_checkout_basico), ''), coalesce(trim(p_checkout_premium), ''),
+    p_valor_basico, p_valor_premium,
     now(), now(), now()
   );
 end;
 $function$;
 
-revoke all on function public.admin_criar_afiliado(text, text) from public;
-grant execute on function public.admin_criar_afiliado(text, text) to authenticated;
+revoke all on function public.admin_criar_afiliado(text, text, text, text, numeric, numeric) from public;
+grant execute on function public.admin_criar_afiliado(text, text, text, text, numeric, numeric) to authenticated;
 
 
 -- ============================================================================

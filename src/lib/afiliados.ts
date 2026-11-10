@@ -182,10 +182,23 @@ export async function removerAfiliado(conta: string): Promise<void> {
  * estiverem assim o link não vende, e a venda cai no checkout da casa em vez
  * de sumir.
  */
-export async function criarAfiliado(email: string, apelido: string): Promise<void> {
+export async function criarAfiliado(
+  email: string,
+  apelido: string,
+  extras?: {
+    checkoutBasico?: string;
+    checkoutPremium?: string;
+    valorBasico?: number | null;
+    valorPremium?: number | null;
+  }
+): Promise<void> {
   const { error } = await supabase.rpc('admin_criar_afiliado', {
     p_email: email.trim(),
     p_apelido: apelido.trim().toLowerCase(),
+    p_checkout_basico: extras?.checkoutBasico?.trim() ?? '',
+    p_checkout_premium: extras?.checkoutPremium?.trim() ?? '',
+    p_valor_basico: extras?.valorBasico ?? null,
+    p_valor_premium: extras?.valorPremium ?? null,
   });
 
   if (error) {
