@@ -138,7 +138,7 @@ const navigationItems: NavigationItem[] = [
         label: 'Afiliados',
         coprodutor: true,
         children: [
-          { path: '/dashboard/admin/afiliados/gerenciar', label: 'Gerenciar' },
+          { path: '/dashboard/admin/afiliados/gerenciar', label: 'Gerenciar', coprodutor: true },
           { path: '/dashboard/admin/afiliados/pedidos', label: 'Aceitar pedido' },
           {
             path: '/dashboard/admin/afiliados/desempenho',
@@ -165,6 +165,7 @@ const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
 const caminhosDoCoprodutor = [
   '/dashboard/admin/numeros',
   '/dashboard/admin/afiliados/desempenho',
+  '/dashboard/admin/afiliados/gerenciar',
   '/dashboard/admin/contas',
 ];
 
