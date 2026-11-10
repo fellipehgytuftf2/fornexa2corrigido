@@ -24,7 +24,17 @@ import {
   trocarApelido,
   type AfiliadoDoAdmin,
 } from '../../lib/afiliados';
-import { ehCheckoutDaCasa } from '../../lib/planos';
+import { ehCheckoutDaCasa, PLANOS } from '../../lib/planos';
+
+/**
+ * O preço da casa, como texto-fantasma do campo.
+ *
+ * Vem de PLANOS e não escrito à mão: o campo em branco significa "usa o
+ * preço da casa", então a dica tem de dizer qual é ele hoje. Escrita à mão,
+ * continuaria prometendo 139,00 no dia seguinte a um reajuste.
+ */
+const precoDaCasa = (id: 'basico' | 'premium') =>
+  PLANOS.find((plano) => plano.id === id)?.preco.replace('R$', '').trim() ?? '';
 
 /**
  * O que foi digitado no campo de preço, como número.
@@ -418,7 +428,7 @@ function Cartao({
                   inputMode="decimal"
                   value={valorBasico}
                   onChange={(e) => setValorBasico(e.target.value)}
-                  placeholder="139,00"
+                  placeholder={precoDaCasa('basico')}
                   className={campo}
                 />
               </div>
@@ -432,7 +442,7 @@ function Cartao({
                   inputMode="decimal"
                   value={valorPremium}
                   onChange={(e) => setValorPremium(e.target.value)}
-                  placeholder="229,00"
+                  placeholder={precoDaCasa('premium')}
                   className={campo}
                 />
               </div>
@@ -664,7 +674,7 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
               inputMode="decimal"
               value={valorBasico}
               onChange={(e) => setValorBasico(e.target.value)}
-              placeholder="139,00"
+              placeholder={precoDaCasa('basico')}
               className={campo}
             />
           </div>
@@ -675,7 +685,7 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
               inputMode="decimal"
               value={valorPremium}
               onChange={(e) => setValorPremium(e.target.value)}
-              placeholder="229,00"
+              placeholder={precoDaCasa('premium')}
               className={campo}
             />
           </div>
