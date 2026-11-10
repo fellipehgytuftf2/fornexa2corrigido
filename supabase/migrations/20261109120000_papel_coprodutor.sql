@@ -22,11 +22,18 @@
 --
 -- O QUE ELE PASSA A VER
 --
---   admin_estatisticas_de_vendas  faturamento médio, mediana, faixas
---   admin_ranking_completo        os 50 maiores vendedores do mês
---   admin_afiliados               desempenho de cada afiliado
+--   admin_estatisticas_de_vendas   faturamento médio, mediana, faixas
+--   admin_ranking_completo         os 50 maiores vendedores do mês
+--   admin_afiliados                vendas que chegaram por código de indicação
+--   admin_afiliados_cadastrados    quem são os afiliados, e os links deles
+--   admin_desempenho_dos_afiliados vendas e clientes de cada afiliado
 --
--- Os três são números do negócio.
+-- São os números do negócio. As duas últimas entraram depois das outras
+-- três: a tela de Desempenho chama as cinco, e liberar só parte dela deixava
+-- a página meio carregada e meio em mensagem de erro.
+--
+-- admin_afiliados_cadastrados devolve nome e e-mail do AFILIADO, que é
+-- parceiro e não cliente -- é com ele que o co-produtor vai falar.
 --
 -- O QUE ELE CONTINUA SEM VER, e por quê
 --
@@ -101,6 +108,78 @@ begin
     and pg.status = 'pago'
   group by pg.afiliado
   order by count(*) desc;
+end;
+$function$;
+
+
+CREATE OR REPLACE FUNCTION public.admin_afiliados_cadastrados()
+ RETURNS TABLE(conta uuid, apelido text, nome text, email text, situacao text, checkout_basico text, checkout_premium text, pedido_em timestamp with time zone)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not exists (
+    select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coprodutor')
+  ) then
+    raise exception 'apenas administradores e co-produtores';
+  end if;
+
+  return query
+  select
+    a.conta,
+    a.apelido,
+    p.name,
+    p.email,
+    a.situacao,
+    a.checkout_basico,
+    a.checkout_premium,
+    a.pedido_em
+  from public.afiliados a
+  join public.profiles p on p.id = a.conta
+  order by
+    -- Quem está esperando decisão aparece primeiro: é o que exige ação.
+    case a.situacao when 'pendente' then 0 when 'aprovado' then 1 else 2 end,
+    a.pedido_em;
+end;
+$function$;
+
+
+CREATE OR REPLACE FUNCTION public.admin_desempenho_dos_afiliados()
+ RETURNS TABLE(conta uuid, vendas integer, faturamento numeric, clientes_ativos integer, clientes_perdidos integer, usando_ainda integer, ultima_venda timestamp with time zone)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if not exists (
+    select 1 from public.profiles p where p.id = auth.uid() and p.role in ('admin', 'coprodutor')
+  ) then
+    raise exception 'apenas administradores e co-produtores';
+  end if;
+
+  return query
+  select
+    a.conta,
+    count(pg.id)::integer,
+    coalesce(sum(pg.valor), 0),
+    count(pg.id) filter (where pf.plan_status = 'ativo')::integer,
+    count(pg.id) filter (where pf.plan_status in ('reembolsado', 'cancelado'))::integer,
+    count(pg.id) filter (where u.last_sign_in_at > now() - interval '14 days')::integer,
+    max(pg.criado_em)
+  from public.afiliados a
+  left join public.pagamentos pg
+    on pg.status = 'pago'
+   and substring(pg.payload->>'checkoutUrl' from '/checkout/([^/?#]+)') in (
+         substring(a.checkout_basico from '/checkout/([^/?#]+)'),
+         substring(a.checkout_premium from '/checkout/([^/?#]+)')
+       )
+  left join public.profiles pf on pf.id = pg.user_id
+  left join auth.users u on u.id = pg.user_id
+  where a.situacao = 'aprovado'
+    and a.checkout_basico <> ''
+    and a.checkout_premium <> ''
+  group by a.conta;
 end;
 $function$;
 
@@ -251,7 +330,7 @@ $function$;
 -- (a) As três guardas aceitam os dois papéis, e nenhuma outra função mudou:
 -- select proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 -- where n.nspname = 'public' and pg_get_functiondef(p.oid) like '%coprodutor%';
--- esperado: admin_afiliados, admin_estatisticas_de_vendas, admin_ranking_completo
+-- esperado: as cinco funcoes liberadas acima
 
 -- (b) Quem é co-produtor hoje:
 -- select id, email, role from public.profiles where role = 'coprodutor';

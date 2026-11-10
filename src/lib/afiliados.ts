@@ -69,7 +69,7 @@ export async function pedirParaSerAfiliado(): Promise<SituacaoDoAfiliado> {
   const { data, error } = await supabase.rpc('pedir_para_ser_afiliado');
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 
   return data as SituacaoDoAfiliado;
@@ -86,11 +86,15 @@ export interface NumerosDoAfiliado {
   ultima_venda: string | null;
 }
 
+// O erro do Supabase e um objeto comum, nao um Error. Quem chama testava
+// `e instanceof Error` e caia no texto generico "Erro desconhecido",
+// escondendo justamente o motivo -- foi assim que a recusa do banco ao
+// co-produtor chegou na tela sem dizer o que era. Por isso vira Error aqui.
 export async function desempenhoDosAfiliados(): Promise<NumerosDoAfiliado[]> {
   const { data, error } = await supabase.rpc('admin_desempenho_dos_afiliados');
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 
   return (data as NumerosDoAfiliado[]) || [];
@@ -100,7 +104,7 @@ export async function listarAfiliadosDoAdmin(): Promise<AfiliadoDoAdmin[]> {
   const { data, error } = await supabase.rpc('admin_afiliados_cadastrados');
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 
   return (data as AfiliadoDoAdmin[]) || [];
@@ -118,7 +122,7 @@ export async function decidirAfiliado(conta: string, aprovado: boolean): Promise
     .eq('conta', conta);
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 }
 
@@ -137,7 +141,7 @@ export async function salvarCheckoutDoAfiliado(
     .eq('conta', conta);
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 }
 
@@ -154,7 +158,7 @@ export async function removerAfiliado(conta: string): Promise<void> {
     .select('conta');
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 
   // Sem permissão, o banco não reclama: só não apaga nada. Melhor avisar do
@@ -172,7 +176,7 @@ export async function trocarApelido(conta: string, apelido: string): Promise<voi
     .eq('conta', conta);
 
   if (error) {
-    throw error;
+    throw new Error(error.message);
   }
 }
 
