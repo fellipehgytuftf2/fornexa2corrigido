@@ -236,7 +236,7 @@ function Cartao({
   const salvar = () => {
     if ([basico, premium].some((url) => url.trim() && ehCheckoutDaCasa(url))) {
       setErro(
-        'Esse é o checkout da FORNEXA, não o da conta dele. Toda venda cairia na conta do afiliado.'
+        'Esse é o checkout da própria FORNEXA, não um criado para este afiliado. Cole o link que a Applyfy gerou na conta dele.'
       );
       return;
     }
@@ -526,7 +526,7 @@ function NovoAfiliado({ aoCriar }: { aoCriar: () => void }) {
   const criar = async () => {
     if ([basico, premium].some((url) => url.trim() && ehCheckoutDaCasa(url))) {
       setErro(
-        'Esse é o checkout da FORNEXA, não o da conta dele. Toda venda cairia na conta do afiliado.'
+        'Esse é o checkout da própria FORNEXA, não um criado para este afiliado. Cole o link que a Applyfy gerou na conta dele.'
       );
       return;
     }
