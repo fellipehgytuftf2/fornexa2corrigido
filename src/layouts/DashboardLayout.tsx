@@ -132,7 +132,7 @@ const navigationItems: NavigationItem[] = [
       { path: '/dashboard/admin/catalogo', label: 'Catálogo' },
       { path: '/dashboard/admin/avisos', label: 'Avisos' },
       { path: '/dashboard/admin/impressao', label: 'Impressão' },
-      { path: '/dashboard/admin/contas', label: 'Contas e acessos' },
+      { path: '/dashboard/admin/contas', label: 'Contas e acessos', coprodutor: true },
       {
         path: '/dashboard/admin/afiliados',
         label: 'Afiliados',
@@ -165,6 +165,7 @@ const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
 const caminhosDoCoprodutor = [
   '/dashboard/admin/numeros',
   '/dashboard/admin/afiliados/desempenho',
+  '/dashboard/admin/contas',
 ];
 
 interface SavedUser {

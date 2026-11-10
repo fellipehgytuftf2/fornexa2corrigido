@@ -170,7 +170,7 @@ const selosDeSituacao: Record<string, { texto: string; cor: string }> = {
  * e não conecta marketplace: quatro das colunas não se aplicam a ele, e linha
  * cheia de traço só atrapalha a leitura das que importam.
  */
-export default function AcessosAdmin() {
+export default function AcessosAdmin({ somenteLeitura = false }: { somenteLeitura?: boolean }) {
   const [contas, setContas] = useState<Conta[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -708,32 +708,41 @@ export default function AcessosAdmin() {
                       </td>
 
                       <td className="py-3 text-right">
-                        <button
-                          onClick={(evento) => {
-                            // Sem isto, ajustar o plano abriria o detalhe junto.
-                            evento.stopPropagation();
-                            abrirEdicao(conta);
-                          }}
-                          className="text-xs font-semibold text-navy-900 dark:text-white underline underline-offset-2 hover:opacity-70 whitespace-nowrap"
-                        >
-                          Ajustar
-                        </button>
+                        {/* O co-produtor lê esta tela e não mexe nela. Os três
+                            botões somem para ele porque as funções por trás já
+                            o recusam — deixá-los à vista só renderia erro de
+                            permissão a cada clique. */}
+                        {!somenteLeitura && (
+                          <button
+                            onClick={(evento) => {
+                              // Sem isto, ajustar o plano abriria o detalhe junto.
+                              evento.stopPropagation();
+                              abrirEdicao(conta);
+                            }}
+                            className="text-xs font-semibold text-navy-900 dark:text-white underline underline-offset-2 hover:opacity-70 whitespace-nowrap"
+                          >
+                            Ajustar
+                          </button>
+                        )}
 
-                        <button
-                          onClick={(evento) => {
-                            evento.stopPropagation();
-                            setConfirmarEntrada(conta);
-                          }}
-                          className="ml-3 text-xs font-semibold text-navy-900 dark:text-white underline underline-offset-2 hover:opacity-70 whitespace-nowrap"
-                        >
-                          Entrar
-                        </button>
+                        {!somenteLeitura && (
+                          <button
+                            onClick={(evento) => {
+                              evento.stopPropagation();
+                              setConfirmarEntrada(conta);
+                            }}
+                            className="ml-3 text-xs font-semibold text-navy-900 dark:text-white underline underline-offset-2 hover:opacity-70 whitespace-nowrap"
+                          >
+                            Entrar
+                          </button>
+                        )}
 
                         {/* Só aparece onde a exclusão passaria: nunca pagou,
                             nunca vendeu, nunca publicou. Oferecer o botão numa
                             conta com histórico seria prometer o que o banco vai
                             recusar. */}
-                        {conta.nunca_pagou &&
+                        {!somenteLeitura &&
+                          conta.nunca_pagou &&
                           conta.total_pedidos === 0 &&
                           conta.total_produtos === 0 && (
                             <button
