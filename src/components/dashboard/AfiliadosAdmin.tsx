@@ -12,7 +12,7 @@ import {
   type AfiliadoDoAdmin,
   type NumerosDoAfiliado,
 } from '../../lib/afiliados';
-import { PLANOS } from '../../lib/planos';
+import { ehCheckoutDaCasa } from '../../lib/planos';
 import ModalPortal from '../ui/modal-portal';
 
 interface VendaPorCodigo {
@@ -54,11 +54,6 @@ const formatarData = (valor: string | null) => {
 
   return data.toLocaleDateString('pt-BR');
 };
-
-// A venda é do afiliado quando cai num checkout dele. Colar o checkout da
-// casa por engano passaria toda venda do FORNEXA para ele — e a comissão junto.
-const idDoCheckout = (url: string) => url.match(/\/checkout\/([^/?#]+)/)?.[1];
-const CHECKOUTS_DA_CASA = PLANOS.map((plano) => idDoCheckout(plano.checkout)).filter(Boolean);
 
 // Sem acento dos dois lados: quem digita "joao" tem que achar o "João".
 const semAcento = (texto: string) =>
@@ -282,8 +277,8 @@ function AfiliadoAceito({
   };
 
   const salvar = async () => {
-    if ([basico, premium].some((url) => CHECKOUTS_DA_CASA.includes(idDoCheckout(url)))) {
-      setErro('Esse é o checkout do FORNEXA, não o da conta dele. Cole os checkouts criados para este afiliado.');
+    if ([basico, premium].some((url) => url.trim() && ehCheckoutDaCasa(url))) {
+      setErro('Esse é o checkout da casa, sem o ?code= de ninguém. Cole o link com o código deste afiliado.');
       return;
     }
 

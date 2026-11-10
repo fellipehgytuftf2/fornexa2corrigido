@@ -222,6 +222,33 @@ export interface LinksDeCheckout {
   valorPremium?: number | null;
 }
 
+const idDoCheckout = (url: string) => url.match(/\/checkout\/([^/?#]+)/)?.[1];
+
+/** O `?code=` do endereço, que é como a Applyfy sabe de quem é a venda. */
+const codigoNoCheckout = (url: string) => url.match(/[?&]code=([^&\s]+)/)?.[1];
+
+const CHECKOUTS_DA_CASA = [checkoutBasico, checkoutPremium].map(idDoCheckout).filter(Boolean);
+
+/**
+ * O link da casa colado no cadastro de um afiliado.
+ *
+ * NÃO basta o checkout ser o mesmo. O link do afiliado é o MESMO checkout da
+ * FORNEXA com o `?code=` dele no fim -- é assim que a Applyfy sabe a quem
+ * creditar. Comparar só o trecho `/checkout/<id>`, como se fazia aqui,
+ * recusava todo link de afiliado como se fosse o da casa.
+ *
+ * O que distingue os dois é a presença do código, e não o checkout.
+ */
+export function ehCheckoutDaCasa(url: string): boolean {
+  const id = idDoCheckout(url);
+
+  if (!id || !CHECKOUTS_DA_CASA.includes(id)) {
+    return false;
+  }
+
+  return !codigoNoCheckout(url);
+}
+
 /** "R$ 139,00", do jeito que a landing escreve. */
 const comoDinheiro = (valor: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);

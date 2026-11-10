@@ -24,7 +24,7 @@ import {
   trocarApelido,
   type AfiliadoDoAdmin,
 } from '../../lib/afiliados';
-import { PLANOS } from '../../lib/planos';
+import { ehCheckoutDaCasa } from '../../lib/planos';
 
 /**
  * O que foi digitado no campo de preço, como número.
@@ -86,21 +86,6 @@ const precoNoCampo = (valor: number | null | undefined) =>
 /** A mesma regra que a coluna `apelido` cobra no banco. */
 const CODIGO_VALIDO = /^[a-z0-9-]{3,40}$/;
 
-/**
- * O checkout da casa colado no cadastro de um afiliado.
- *
- * É o engano mais caro desta tela: os dois links são parecidos, moram na
- * mesma plataforma, e o errado não dá erro nenhum — passa a mandar TODA
- * venda da FORNEXA para a conta dele, comissão junto.
- */
-const idDoCheckout = (url: string) => url.match(/\/checkout\/([^/?#]+)/)?.[1];
-
-const CHECKOUTS_DA_CASA = PLANOS.map((plano) => idDoCheckout(plano.checkout)).filter(Boolean);
-
-const ehCheckoutDaCasa = (url: string) => {
-  const id = idDoCheckout(url);
-  return Boolean(id) && CHECKOUTS_DA_CASA.includes(id);
-};
 
 const AGORA_EM_PT = (valor: string | null) =>
   valor ? new Date(valor).toLocaleDateString('pt-BR') : '—';
