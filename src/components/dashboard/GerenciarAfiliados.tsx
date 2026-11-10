@@ -25,7 +25,6 @@ import {
   type AfiliadoDoAdmin,
 } from '../../lib/afiliados';
 import { ehCheckoutDaCasa, PLANOS } from '../../lib/planos';
-import { supabase } from '../../lib/supabase';
 
 /**
  * O preço da casa, como texto-fantasma do campo.
@@ -197,11 +196,9 @@ function Selo({ afiliado }: { afiliado: AfiliadoDoAdmin }) {
 function Cartao({
   afiliado,
   aoMudar,
-  somenteLeitura,
 }: {
   afiliado: AfiliadoDoAdmin;
   aoMudar: () => void;
-  somenteLeitura: boolean;
 }) {
   const [editando, setEditando] = useState(false);
   const [apelido, setApelido] = useState(afiliado.apelido);
@@ -290,10 +287,7 @@ function Cartao({
           </p>
         </div>
 
-        {/* O co-produtor lê a área inteira de afiliados e não altera nada.
-            Os três botões somem porque a tabela recusa a gravação dele de
-            qualquer jeito — deixá-los à vista só renderia erro a cada clique. */}
-        <div className={`flex items-center gap-1 shrink-0 ${somenteLeitura ? 'hidden' : ''}`}>
+        <div className="flex items-center gap-1 shrink-0">
           {/* A chave só aparece depois que a pessoa foi aceita: enquanto o
               pedido está pendente, quem decide é a tela de Aceitar pedido. */}
           {afiliado.situacao !== 'pendente' && (
@@ -730,43 +724,9 @@ export default function GerenciarAfiliados() {
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
 
-  /**
-   * Quem está olhando.
-   *
-   * O co-produtor enxerga a área inteira de afiliados e não muda nada. A
-   * trava não é esta: a tabela `afiliados` só aceita gravação de admin, e ele
-   * nem lê a tabela direto. Aqui é só para não oferecer botão que o banco
-   * recusaria.
-   *
-   * Começa como nulo para a tela não piscar os botões antes de saber.
-   */
-  const [ehAdmin, setEhAdmin] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-
-    const conferir = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user || !vivo) return;
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle<{ role: string | null }>();
-
-      if (vivo) setEhAdmin(data?.role === 'admin');
-    };
-
-    conferir();
-
-    return () => {
-      vivo = false;
-    };
-  }, []);
+  // Esta tela não pergunta o papel de ninguém: quem chega aqui é admin ou
+  // co-produtor, e os dois fazem as mesmas coisas com afiliado. Quem decide
+  // isso é a política da tabela `afiliados`, não o navegador.
 
   const carregar = async () => {
     try {
@@ -809,7 +769,7 @@ export default function GerenciarAfiliados() {
           </div>
         </div>
 
-        {ehAdmin && <NovoAfiliado aoCriar={carregar} />}
+        <NovoAfiliado aoCriar={carregar} />
       </div>
 
       <div className="relative">
@@ -848,12 +808,7 @@ export default function GerenciarAfiliados() {
       ) : (
         <div className="space-y-3">
           {filtrados.map((afiliado) => (
-            <Cartao
-              key={afiliado.conta}
-              afiliado={afiliado}
-              aoMudar={carregar}
-              somenteLeitura={!ehAdmin}
-            />
+            <Cartao key={afiliado.conta} afiliado={afiliado} aoMudar={carregar} />
           ))}
         </div>
       )}

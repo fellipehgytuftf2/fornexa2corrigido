@@ -139,7 +139,7 @@ const navigationItems: NavigationItem[] = [
         coprodutor: true,
         children: [
           { path: '/dashboard/admin/afiliados/gerenciar', label: 'Gerenciar', coprodutor: true },
-          { path: '/dashboard/admin/afiliados/pedidos', label: 'Aceitar pedido' },
+          { path: '/dashboard/admin/afiliados/pedidos', label: 'Aceitar pedido', coprodutor: true },
           {
             path: '/dashboard/admin/afiliados/desempenho',
             label: 'Desempenho',
@@ -156,16 +156,21 @@ const navigationItems: NavigationItem[] = [
 const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
 
 /**
- * As únicas telas de dentro do Admin que o co-produtor abre.
+ * O que o co-produtor abre dentro do Admin.
  *
  * Escrita como lista fechada, e não como "tudo menos X": lista de exceções
  * envelhece mal — a próxima tela do Admin entraria liberada por esquecimento.
- * Aqui, tela nova nasce fechada para ele, que é o lado seguro do erro.
+ * Tela nova nasce fechada para ele, que é o lado seguro do erro.
+ *
+ * Com uma exceção deliberada: `/dashboard/admin/afiliados` é um PREFIXO, e
+ * não uma tela. A área de afiliados foi entregue inteira a ele — inclusive
+ * criar, aprovar e editar —, então subtela nova ali nasce liberada. É o que
+ * se pediu; se um dia aparecer ali algo que ele não deva ver, o lugar de
+ * cortar é aqui.
  */
 const caminhosDoCoprodutor = [
   '/dashboard/admin/numeros',
-  '/dashboard/admin/afiliados/desempenho',
-  '/dashboard/admin/afiliados/gerenciar',
+  '/dashboard/admin/afiliados',
   '/dashboard/admin/contas',
 ];
 
