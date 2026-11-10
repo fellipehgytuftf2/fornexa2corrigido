@@ -33,6 +33,15 @@ interface NavigationSubItem {
   label: string;
   /** Submenu dentro do submenu (ex.: Admin → Afiliados → Desempenho). */
   children?: NavigationSubItem[];
+  /**
+   * O co-produtor também vê este item.
+   *
+   * Sem a marca, não vê. O papel nasce enxergando nada e cada coisa é
+   * liberada de propósito — o contrário de admin, que abre tudo. Aqui é só
+   * o menu; a trava de verdade está nas funções do banco, porque esconder
+   * link não impede ninguém de digitar o endereço.
+   */
+  coprodutor?: boolean;
 }
 
 interface NavigationItem {
@@ -40,6 +49,8 @@ interface NavigationItem {
   label: string;
   icon: typeof LayoutDashboard;
   adminOnly?: boolean;
+  /** Ver NavigationSubItem.coprodutor. */
+  coprodutor?: boolean;
   /** Chave da novidade em teste. Sem liberação, o item não aparece. */
   funcionalidade?: string;
   /** Item vira um grupo expansível na barra lateral em vez de um link direto. */
@@ -115,7 +126,9 @@ const navigationItems: NavigationItem[] = [
     label: 'Admin',
     icon: Store,
     adminOnly: true,
+    coprodutor: true,
     children: [
+      { path: '/dashboard/admin/numeros', label: 'Números', coprodutor: true },
       { path: '/dashboard/admin/catalogo', label: 'Catálogo' },
       { path: '/dashboard/admin/avisos', label: 'Avisos' },
       { path: '/dashboard/admin/impressao', label: 'Impressão' },
@@ -123,9 +136,14 @@ const navigationItems: NavigationItem[] = [
       {
         path: '/dashboard/admin/afiliados',
         label: 'Afiliados',
+        coprodutor: true,
         children: [
           { path: '/dashboard/admin/afiliados/pedidos', label: 'Aceitar pedido' },
-          { path: '/dashboard/admin/afiliados/desempenho', label: 'Desempenho' },
+          {
+            path: '/dashboard/admin/afiliados/desempenho',
+            label: 'Desempenho',
+            coprodutor: true,
+          },
         ],
       },
       { path: '/dashboard/admin/repasses', label: 'Repasses' },
@@ -135,6 +153,18 @@ const navigationItems: NavigationItem[] = [
 ];
 
 const adminOnlyPaths = ['/dashboard/admin', '/dashboard/suppliers'];
+
+/**
+ * As únicas telas de dentro do Admin que o co-produtor abre.
+ *
+ * Escrita como lista fechada, e não como "tudo menos X": lista de exceções
+ * envelhece mal — a próxima tela do Admin entraria liberada por esquecimento.
+ * Aqui, tela nova nasce fechada para ele, que é o lado seguro do erro.
+ */
+const caminhosDoCoprodutor = [
+  '/dashboard/admin/numeros',
+  '/dashboard/admin/afiliados/desempenho',
+];
 
 interface SavedUser {
   id?: string;
@@ -379,8 +409,15 @@ export default function DashboardLayout() {
     location.pathname.startsWith(path)
   );
 
+  const coprodutorPodeAbrir =
+    userRole === 'coprodutor' &&
+    caminhosDoCoprodutor.some((path) => location.pathname.startsWith(path));
+
   const shouldBlockAdminRoute =
-    !checkingRole && isAdminOnlyRoute && userRole !== 'admin';
+    !checkingRole &&
+    isAdminOnlyRoute &&
+    userRole !== 'admin' &&
+    !coprodutorPodeAbrir;
 
   const firstName = savedUser?.name?.split(' ')[0] || 'Vendedor';
 
@@ -451,17 +488,42 @@ export default function DashboardLayout() {
   };
 
   const renderNavigation = () => {
-    const visibleItems = navigationItems.filter((item) => {
-      if (item.adminOnly && userRole !== 'admin') {
-        return false;
-      }
+    const ehCoprodutor = userRole === 'coprodutor';
 
-      if (item.funcionalidade && !liberadas.has(item.funcionalidade)) {
-        return false;
-      }
+    /**
+     * Poda o submenu até sobrar só o que o co-produtor pode ver.
+     *
+     * Vai fundo porque Admin → Afiliados tem filhos: ele enxerga Desempenho,
+     * e não Aceitar pedido. Grupo que ficou sem nenhum filho visível some.
+     */
+    const podar = (itens: NavigationSubItem[]): NavigationSubItem[] =>
+      itens
+        .filter((filho) => filho.coprodutor)
+        .map((filho) =>
+          filho.children ? { ...filho, children: podar(filho.children) } : filho
+        )
+        .filter((filho) => !filho.children || filho.children.length > 0);
 
-      return true;
-    });
+    const visibleItems = navigationItems
+      .filter((item) => {
+        if (item.adminOnly && userRole !== 'admin') {
+          if (!(ehCoprodutor && item.coprodutor)) {
+            return false;
+          }
+        }
+
+        if (item.funcionalidade && !liberadas.has(item.funcionalidade)) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((item) =>
+        ehCoprodutor && item.children
+          ? { ...item, children: podar(item.children) }
+          : item
+      )
+      .filter((item) => !item.children || item.children.length > 0);
 
     return (
       <nav className="space-y-1">

@@ -24,6 +24,7 @@ const AdminCatalogo = lazy(() => import('./pages/dashboard/AdminCatalogo'));
 const AdminAvisos = lazy(() => import('./pages/dashboard/AdminAvisos'));
 const AdminImpressao = lazy(() => import('./pages/dashboard/AdminImpressao'));
 const AdminContas = lazy(() => import('./pages/dashboard/AdminContas'));
+const AdminNumeros = lazy(() => import('./pages/dashboard/AdminNumeros'));
 const DesempenhoDosAfiliados = lazy(() =>
   import('./components/dashboard/AfiliadosAdmin').then((m) => ({ default: m.DesempenhoDosAfiliados }))
 );
@@ -352,6 +353,7 @@ function App() {
           <Route path="admin/avisos" element={<AdminAvisos />} />
           <Route path="admin/impressao" element={<AdminImpressao />} />
           <Route path="admin/contas" element={<AdminContas />} />
+          <Route path="admin/numeros" element={<AdminNumeros />} />
           <Route
             path="admin/afiliados"
             element={<Navigate to="/dashboard/admin/afiliados/pedidos" replace />}
