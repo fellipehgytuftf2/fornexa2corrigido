@@ -210,7 +210,21 @@ export function pegarCodigoDoAfiliado(): string | null {
 export interface LinksDeCheckout {
   basico: string;
   premium: string;
+  /**
+   * O preço que este afiliado anuncia. Nulo é o preço da casa.
+   *
+   * Anda junto do checkout de propósito: quem cobra é o link, e o número que
+   * a tela escreve tem de vir do mesmo lugar. Separados, o afiliado monta um
+   * checkout de R$ 119 e a landing continua prometendo R$ 139 -- a pessoa
+   * descobre a diferença na hora de pagar.
+   */
+  valorBasico?: number | null;
+  valorPremium?: number | null;
 }
+
+/** "R$ 139,00", do jeito que a landing escreve. */
+const comoDinheiro = (valor: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
 /**
  * Quais links de checkout usar nos botões de comprar.
@@ -237,10 +251,24 @@ export async function buscarLinksDeCheckout(
   return { basico: checkoutBasico, premium: checkoutPremium };
 }
 
-/** PLANOS com o `checkout` de cada um trocado pelo link configurado. */
+/**
+ * PLANOS com o `checkout` e o preço de cada um trocados pelo do afiliado.
+ *
+ * O `precoAntigo` do Premium cai junto quando há preço próprio: ele é o "De
+ * R$ 497,00" riscado, uma comparação com o preço da casa. Mantido ao lado de
+ * outro valor, viraria um desconto que ninguém prometeu.
+ */
 export function planosComCheckout(links: LinksDeCheckout): Plano[] {
-  return PLANOS.map((plano) => ({
-    ...plano,
-    checkout: plano.id === 'basico' ? links.basico : links.premium,
-  }));
+  return PLANOS.map((plano) => {
+    const ehBasico = plano.id === 'basico';
+    const valor = ehBasico ? links.valorBasico : links.valorPremium;
+
+    return {
+      ...plano,
+      checkout: ehBasico ? links.basico : links.premium,
+      ...(valor
+        ? { preco: comoDinheiro(valor), precoAntigo: undefined }
+        : {}),
+    };
+  });
 }

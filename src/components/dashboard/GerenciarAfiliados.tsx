@@ -20,9 +20,37 @@ import {
   podeDivulgar,
   removerAfiliado,
   salvarCheckoutDoAfiliado,
+  salvarValoresDoAfiliado,
   trocarApelido,
   type AfiliadoDoAdmin,
 } from '../../lib/afiliados';
+
+/**
+ * O que foi digitado no campo de preço, como número.
+ *
+ * Campo vazio vira nulo, que é o preço da casa -- não zero, que seria
+ * anunciar de graça. Aceita "139", "139,00" e "1.139,00" porque é assim que
+ * se escreve dinheiro aqui; e aceita "139.00" de quem tem o teclado em
+ * inglês. Com vírgula presente, o ponto é separador de milhar; sem vírgula,
+ * um ponto sozinho é a casa decimal.
+ */
+const precoDigitado = (texto: string): number | null => {
+  const bruto = texto.replace(/[^\d.,]/g, '').trim();
+
+  if (!bruto) return null;
+
+  const normalizado = bruto.includes(',')
+    ? bruto.replace(/\./g, '').replace(',', '.')
+    : bruto;
+
+  const numero = Number(normalizado);
+
+  return Number.isFinite(numero) && numero > 0 ? numero : null;
+};
+
+/** O número gravado, de volta no campo do jeito que se escreve. */
+const precoNoCampo = (valor: number | null | undefined) =>
+  valor == null ? '' : valor.toFixed(2).replace('.', ',');
 
 /**
  * Todos os afiliados numa tela só, cada um num cartão.
@@ -161,6 +189,8 @@ function Cartao({
   const [apelido, setApelido] = useState(afiliado.apelido);
   const [basico, setBasico] = useState(afiliado.checkout_basico);
   const [premium, setPremium] = useState(afiliado.checkout_premium);
+  const [valorBasico, setValorBasico] = useState(precoNoCampo(afiliado.valor_basico));
+  const [valorPremium, setValorPremium] = useState(precoNoCampo(afiliado.valor_premium));
 
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
@@ -191,6 +221,19 @@ function Cartao({
 
       if (basico !== afiliado.checkout_basico || premium !== afiliado.checkout_premium) {
         await salvarCheckoutDoAfiliado(afiliado.conta, { basico, premium });
+      }
+
+      const novoBasico = precoDigitado(valorBasico);
+      const novoPremium = precoDigitado(valorPremium);
+
+      if (
+        novoBasico !== (afiliado.valor_basico ?? null) ||
+        novoPremium !== (afiliado.valor_premium ?? null)
+      ) {
+        await salvarValoresDoAfiliado(afiliado.conta, {
+          basico: novoBasico,
+          premium: novoPremium,
+        });
       }
 
       setEditando(false);
@@ -341,6 +384,48 @@ function Cartao({
             />
           </div>
 
+          <div className="rounded-[14px] border border-gray-200 dark:border-navy-600 bg-gray-50/60 dark:bg-navy-900/40 p-3 space-y-3">
+            <div>
+              <p className="text-[10px] font-semibold tracking-wider text-gray-500 dark:text-slate-400 uppercase">
+                Preço que a landing dele mostra
+              </p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                Em branco usa o preço da casa. Tem de bater com o que o checkout dele cobra —
+                o sistema não consegue conferir isso sozinho.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+                  Básico
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={valorBasico}
+                  onChange={(e) => setValorBasico(e.target.value)}
+                  placeholder="139,00"
+                  className={campo}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 dark:text-slate-400 mb-1 block">
+                  Premium
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={valorPremium}
+                  onChange={(e) => setValorPremium(e.target.value)}
+                  placeholder="229,00"
+                  className={campo}
+                />
+              </div>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={salvar}
@@ -382,6 +467,16 @@ function Cartao({
 
           <Bloco titulo="Código">
             <BotaoCopiar texto={afiliado.apelido} rotulo={afiliado.apelido} />
+
+            {/* Preço próprio é exceção, então só aparece quando existe: num
+                cartão onde todo mundo mostra "padrão", a palavra deixa de ser
+                lida e a exceção se esconde no meio. */}
+            {(afiliado.valor_basico != null || afiliado.valor_premium != null) && (
+              <span className="text-xs text-gray-500 dark:text-slate-400">
+                Preço próprio: {precoNoCampo(afiliado.valor_basico) || 'padrão'} /{' '}
+                {precoNoCampo(afiliado.valor_premium) || 'padrão'}
+              </span>
+            )}
           </Bloco>
         </div>
       )}

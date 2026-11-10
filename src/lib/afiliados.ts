@@ -17,6 +17,12 @@ export interface MeuAfiliado {
   checkout_basico: string;
   checkout_premium: string;
   decidido_em?: string | null;
+  /**
+   * O preço que a landing dele anuncia. Nulo é o preço da casa, e não zero:
+   * quem não mexe acompanha o padrão para sempre, inclusive nos reajustes.
+   */
+  valor_basico?: number | null;
+  valor_premium?: number | null;
 }
 
 /** Quem foi recusado espera isso antes de poder pedir de novo. */
@@ -187,6 +193,35 @@ export async function criarAfiliado(email: string, apelido: string): Promise<voi
   }
 }
 
+/**
+ * O preço que a landing deste afiliado anuncia.
+ *
+ * Nulo devolve o afiliado ao preço da casa -- é como o campo em branco chega
+ * aqui, e é o que deve acontecer quando o admin apaga o que havia digitado.
+ * Gravar zero faria a landing anunciar de graça.
+ *
+ * Quem cobra continua sendo o checkout dele na Applyfy. Este número só
+ * escreve na tela, e combinar os dois é trabalho de quem preenche: não há
+ * como ler o preço de dentro do checkout do afiliado para conferir.
+ */
+export async function salvarValoresDoAfiliado(
+  conta: string,
+  valores: { basico: number | null; premium: number | null }
+): Promise<void> {
+  const { error } = await supabase
+    .from('afiliados')
+    .update({
+      valor_basico: valores.basico,
+      valor_premium: valores.premium,
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq('conta', conta);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 /** Troca o apelido, e com ele o endereço que o afiliado divulga. */
 export async function trocarApelido(conta: string, apelido: string): Promise<void> {
   const { error } = await supabase
@@ -206,7 +241,12 @@ export async function trocarApelido(conta: string, apelido: string): Promise<voi
  */
 export async function buscarCheckoutDoAfiliado(
   apelido: string
-): Promise<{ basico: string; premium: string } | null> {
+): Promise<{
+  basico: string;
+  premium: string;
+  valorBasico: number | null;
+  valorPremium: number | null;
+} | null> {
   try {
     const { data, error } = await supabase.rpc('checkout_do_afiliado', { p_codigo: apelido });
 
@@ -216,7 +256,12 @@ export async function buscarCheckoutDoAfiliado(
 
     const linha = data[0] as MeuAfiliado;
 
-    return { basico: linha.checkout_basico, premium: linha.checkout_premium };
+    return {
+      basico: linha.checkout_basico,
+      premium: linha.checkout_premium,
+      valorBasico: linha.valor_basico ?? null,
+      valorPremium: linha.valor_premium ?? null,
+    };
   } catch {
     return null;
   }
