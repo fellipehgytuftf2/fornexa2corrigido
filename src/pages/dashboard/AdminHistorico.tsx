@@ -20,6 +20,7 @@ interface Linha {
   user_id: string | null;
   nome: string | null;
   email: string | null;
+  papel: string | null;
   plano: string | null;
   plan_status: string | null;
   acao: string;
@@ -37,6 +38,15 @@ const ACOES: Record<string, { rotulo: string; cor: string }> = {
   anuncio_reativado: { rotulo: 'Reativou', cor: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
   pausado_sem_estoque: { rotulo: 'Pausado por falta de estoque', cor: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
   anuncio_excluido: { rotulo: 'Excluiu', cor: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' },
+
+  // A area de afiliados, que e onde o co-produtor trabalha.
+  afiliado_criado: { rotulo: 'Criou afiliado', cor: 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' },
+  afiliado_aprovado: { rotulo: 'Aprovou afiliado', cor: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' },
+  afiliado_pausado: { rotulo: 'Pausou afiliado', cor: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' },
+  afiliado_codigo_alterado: { rotulo: 'Mudou o código', cor: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+  afiliado_checkout_alterado: { rotulo: 'Trocou o checkout', cor: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+  afiliado_preco_alterado: { rotulo: 'Mudou o preço do afiliado', cor: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400' },
+  afiliado_removido: { rotulo: 'Removeu afiliado', cor: 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' },
 };
 
 const POR_PAGINA = 100;
@@ -95,6 +105,7 @@ export default function AdminHistorico() {
   const [acabou, setAcabou] = useState(false);
   const [erro, setErro] = useState('');
   const [acao, setAcao] = useState('');
+  const [papel, setPapel] = useState('');
   const [busca, setBusca] = useState('');
 
   const buscar = useCallback(
@@ -104,13 +115,14 @@ export default function AdminHistorico() {
         p_antes_de: antesDe,
         p_user: null,
         p_acao: acao || null,
+        p_papel: papel || null,
       });
 
       if (error) throw new Error(error.message);
 
       return (data as Linha[]) || [];
     },
-    [acao]
+    [acao, papel]
   );
 
   useEffect(() => {
@@ -190,6 +202,36 @@ export default function AdminHistorico() {
             O que cada vendedor fez com os anúncios dele, do mais recente para o mais antigo.
           </p>
         </div>
+      </div>
+
+      {/* Primeiro QUEM, depois O QUÊ.
+          A pergunta que trouxe esta tela foi "o que os co-produtores andaram
+          fazendo?", e ela se responde pelo autor, não pelo tipo de ação. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mr-1">
+          Quem
+        </span>
+
+        {[
+          { id: '', rotulo: 'Todos' },
+          { id: 'admin', rotulo: 'Admin' },
+          { id: 'coprodutor', rotulo: 'Co-produtores' },
+          { id: 'user', rotulo: 'Vendedores' },
+          { id: 'sistema', rotulo: 'Sistema' },
+        ].map(({ id, rotulo }) => (
+          <button
+            key={id || 'todos'}
+            type="button"
+            onClick={() => setPapel(id)}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              papel === id
+                ? 'bg-gold text-navy-900'
+                : 'border border-gray-200 dark:border-navy-600 text-gray-600 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-navy-700'
+            }`}
+          >
+            {rotulo}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -279,11 +321,21 @@ export default function AdminHistorico() {
                 </span>
 
                 <span className="ml-auto flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400">
-                  <span className="truncate max-w-[220px]">
-                    {linha.nome}
-                    {linha.plano && (
-                      <span className="ml-1.5 text-[10px] uppercase tracking-wide">
-                        {linha.plano}
+                  <span className="truncate max-w-[260px]">
+                    {linha.papel === 'sistema' ? 'Sistema' : linha.nome}
+
+                    {/* Vendedor não ganha selo: é quase toda linha da tela.
+                        O selo marca quem é exceção — e é por ele que se lê a
+                        tela de cima para baixo procurando co-produtor. */}
+                    {linha.papel === 'coprodutor' && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">
+                        Co-produtor
+                      </span>
+                    )}
+
+                    {linha.papel === 'admin' && (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+                        Admin
                       </span>
                     )}
                   </span>
