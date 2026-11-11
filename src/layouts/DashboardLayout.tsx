@@ -5,6 +5,7 @@ import Notificacoes from '../components/dashboard/Notificacoes';
 import SuporteFlutuante from '../components/dashboard/SuporteFlutuante';
 import {
   AlertCircle,
+  Ticket,
   ArrowLeft,
   BarChart3,
   Bell,
@@ -173,6 +174,7 @@ const afiliadosNavigationItems: NavigationItem[] = [
   { path: '/afiliados/gerenciar', label: 'Gerenciar', icon: UsersRound },
   { path: '/afiliados/pedidos', label: 'Aceitar pedido', icon: UserCog },
   { path: '/afiliados/desempenho', label: 'Desempenho', icon: BarChart3 },
+  { path: '/afiliados/influenciadores', label: 'Influenciadores', icon: Ticket },
 ];
 
 /** O menu de quem está numa área de gestão, já filtrado pelo papel. */

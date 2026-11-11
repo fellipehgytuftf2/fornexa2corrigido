@@ -40,6 +40,8 @@ const Suporte = lazy(() => import('./pages/dashboard/Suporte'));
 const Tools = lazy(() => import('./pages/dashboard/Tools'));
 const Tutorials = lazy(() => import('./pages/dashboard/Tutorials'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
+// PRÉVIA (feat/cupom-influenciador)
+const Influenciadores = lazy(() => import('./components/dashboard/Influenciadores'));
 
 /**
  * /dashboard/admin/<tela> → /admin/<tela>.
@@ -453,6 +455,7 @@ function App() {
           <Route path="pedidos" element={<PedidosDeAfiliado />} />
           <Route path="desempenho" element={<DesempenhoDosAfiliados />} />
           <Route path="gerenciar" element={<GerenciarAfiliados />} />
+          <Route path="influenciadores" element={<Influenciadores />} />
         </Route>
 
         {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
