@@ -7,9 +7,13 @@ import {
   buscarLinksDeCheckout,
   planosComCheckout,
 } from '../../lib/planos';
+import { precoComDesconto, type Influenciador } from '../../lib/cupons';
+import CupomDeInfluenciador from './CupomDeInfluenciador';
 
 export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
   const [planos, setPlanos] = useState(PLANOS);
+  // PRÉVIA (feat/cupom-influenciador): o cupom aplicado, se houver.
+  const [influenciador, setInfluenciador] = useState<Influenciador | null>(null);
 
   // Quem chegou por fornexa.site/CODIGO compra no checkout daquele afiliado.
   // Sem código na rota, vale o que ficou guardado de uma visita anterior.
@@ -39,6 +43,10 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
           </p>
         </div>
 
+        <div className="mb-10">
+          <CupomDeInfluenciador escuro aoMudar={setInfluenciador} />
+        </div>
+
         <div className="grid md:grid-cols-2 gap-6 items-stretch justify-items-center">
           {/* Basic plan */}
           <div className="bg-navy-700 rounded-[28px] border border-navy-600 p-10 w-full max-w-sm h-full flex flex-col">
@@ -46,6 +54,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
             <div className="mb-8">
               <span className="text-white text-4xl font-bold">{basico.preco}</span>
               <span className="text-slate-400">{basico.periodo}</span>
+              <PrecoComCupom preco={basico.preco} influenciador={influenciador} />
             </div>
             <ul className="space-y-4 mb-10">
               {basico.beneficios.map((feature) => (
@@ -79,6 +88,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
                 </span>
                 <span className="text-white text-4xl font-bold">{premium.preco}</span>
                 <span className="text-slate-400 block text-sm mt-1">{premium.periodo}</span>
+                <PrecoComCupom preco={premium.preco} influenciador={influenciador} />
               </div>
               <ul className="space-y-4 mb-10">
                 {premium.beneficios.map((feature) => (
@@ -162,5 +172,21 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
         }
       `}</style>
     </section>
+  );
+}
+
+/** O preço com o desconto do cupom, quando o cupom dá desconto. */
+export function PrecoComCupom({ preco, influenciador }: { preco: string; influenciador: Influenciador | null }) {
+  const comDesconto = influenciador ? precoComDesconto(preco, influenciador.desconto) : null;
+  if (!comDesconto || !influenciador) return null;
+
+  return (
+    <span className="acesso-aviso mt-3 flex items-center gap-2 rounded-xl bg-gold/15 border border-gold/40 px-3 py-2 text-sm">
+      <span className="font-mono text-[11px] font-bold tracking-wider bg-gold text-navy-900 rounded px-1.5 py-0.5">
+        {influenciador.cupom}
+      </span>
+      <span className="text-gold font-bold">{comDesconto}</span>
+      <span className="text-slate-400 text-xs">com o cupom</span>
+    </span>
   );
 }
