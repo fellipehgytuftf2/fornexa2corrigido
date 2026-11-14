@@ -24,7 +24,7 @@ export interface Influenciador {
 export const INFLUENCIADORES_DE_EXEMPLO: Influenciador[] = [
   { cupom: 'BRUNO50', nome: 'Bruno Costa', perfil: '@brunovendeonline', desconto: 50, ativo: true },
   { cupom: 'MARI50', nome: 'Mariana Lopes', perfil: '@mariempreende', desconto: 50, ativo: true },
-  { cupom: 'LUCAS40', nome: 'Lucas Andrade', perfil: '@lucasdrop', desconto: 40, ativo: true },
+  { cupom: 'LUCAS50', nome: 'Lucas Andrade', perfil: '@lucasdrop', desconto: 50, ativo: true },
   { cupom: 'RAFA50', nome: 'Rafaela Nunes', perfil: '@rafanomercado', desconto: 50, ativo: false },
 ]
 

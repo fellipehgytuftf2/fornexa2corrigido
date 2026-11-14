@@ -40,7 +40,7 @@ const DESEMPENHO: Record<string, Desempenho> = {
       { cliente: 'Carlos E.', plano: 'Premium', quando: 'ontem' },
     ],
   },
-  LUCAS40: {
+  LUCAS50: {
     cadastros: 41,
     vendas: 14,
     faturamento: 3012.65,
@@ -276,7 +276,7 @@ function NovoInfluenciador({
   const [perfil, setPerfil] = useState('');
   const [cupom, setCupom] = useState('');
   const [cupomMexido, setCupomMexido] = useState(false);
-  const [desconto, setDesconto] = useState<number | null>(50);
+  const desconto = 50;
   const [erro, setErro] = useState('');
   const [pronto, setPronto] = useState<Influenciador | null>(null);
 
@@ -358,26 +358,13 @@ function NovoInfluenciador({
                 className={`${campo} font-mono tracking-wider uppercase`}
               />
             </div>
-            <fieldset>
-              <legend className="block text-sm font-semibold text-navy-900 dark:text-white mb-2">O cupom dá desconto?</legend>
-              <div className="flex flex-wrap gap-2">
-                {[null, 30, 40, 50].map((valor) => (
-                  <button
-                    key={String(valor)}
-                    type="button"
-                    aria-pressed={desconto === valor}
-                    onClick={() => setDesconto(valor)}
-                    className={`min-h-[40px] px-4 rounded-full text-sm font-semibold border ${
-                      desconto === valor
-                        ? 'bg-navy-900 text-white border-navy-900 dark:bg-gold dark:text-navy-900 dark:border-gold'
-                        : 'border-gray-200 text-navy-900 dark:border-white/15 dark:text-white'
-                    }`}
-                  >
-                    {valor ? `${valor}%` : 'Não, só rastrear'}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <div className="rounded-xl bg-gray-50 dark:bg-navy-900 p-4 text-sm text-gray-600 dark:text-slate-300">
+              <p className="font-semibold text-navy-900 dark:text-white">Desconto: 50%</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                Na landing de oferta o cupom leva cada plano ao preço de sempre (R$ 338 → R$ 169/mês e R$ 594 → R$ 297).
+                Outro desconto precisaria de outro checkout na Applyfy.
+              </p>
+            </div>
             {erro && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
             <button type="submit" className="mt-1 h-12 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-navy-900 font-bold hover:bg-gold-hover">
               <Copy className="w-4 h-4" aria-hidden="true" />
