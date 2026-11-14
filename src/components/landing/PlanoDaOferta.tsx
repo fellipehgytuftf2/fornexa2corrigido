@@ -272,7 +272,7 @@ function CartaoDoPlano({
               className={`btn-fnx ${destacado ? 'btn-fnx-primario font-semibold' : 'btn-fnx-secundario font-medium'} flex w-full items-center justify-center py-3`}
             >
               <span>
-                {mensal ? `Assinar por ${reais(precoFinal)}/mês` : `Pagar ${reais(precoFinal)}`}
+                {mensal ? 'Comprar Mensal' : 'Comprar Vitalício'}
               </span>
             </a>
           ) : (
