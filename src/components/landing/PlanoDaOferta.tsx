@@ -267,7 +267,7 @@ function CartaoDoPlano({
         <div className="mt-auto">
           {cupom ? (
             <a
-              href={`/checkout?plano=${plano.id}`}
+              href={`/checkout?plano=${plano.id}&cupom=${cupom.cupom}`}
               className={`btn-fnx ${destacado ? 'btn-fnx-primario font-semibold' : 'btn-fnx-secundario font-medium'} flex w-full items-center justify-center py-3`}
             >
               <span>

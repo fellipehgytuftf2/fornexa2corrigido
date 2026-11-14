@@ -10,7 +10,7 @@ import {
   planosComCheckout,
   type Plano,
 } from '../lib/planos';
-import { PRECO_CHEIO_DA_OFERTA, conferirCupom, cupomGuardado, type Influenciador } from '../lib/cupons';
+import { PRECO_CHEIO_DA_OFERTA, conferirCupom, type Influenciador } from '../lib/cupons';
 
 /**
  * O checkout da FORNEXA (fornexa.site/checkout?plano=basico|premium).
@@ -59,8 +59,11 @@ export default function Checkout() {
   const [semCheckout, setSemCheckout] = useState(false);
 
   useEffect(() => {
-    const guardado = cupomGuardado();
-    const resultado = guardado ? conferirCupom(guardado) : null;
+    // O cupom vem no endereço, posto pelo botão da landing de oferta. Não se
+    // lê do navegador: um cupom esquecido de outra visita não pode mudar uma
+    // compra feita pela landing normal ou pelo link de um afiliado.
+    const doLink = new URLSearchParams(window.location.search).get('cupom');
+    const resultado = doLink ? conferirCupom(doLink) : null;
     const comCupom = resultado?.ok ? resultado.influenciador : null;
     setCupom(comCupom);
 
