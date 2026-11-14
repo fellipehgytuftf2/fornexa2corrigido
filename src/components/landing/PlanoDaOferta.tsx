@@ -279,10 +279,10 @@ function CartaoDoPlano({
             <button
               type="button"
               onClick={aoPedirCupom}
-              className="w-full py-3 rounded-full border border-dashed border-gold/60 text-gold font-semibold inline-flex items-center justify-center gap-2 hover:bg-gold/10 transition-colors"
+              className="group flex w-full h-12 items-center justify-center gap-2 rounded-full bg-white/[0.06] border border-white/10 text-slate-300 text-sm font-semibold whitespace-nowrap hover:bg-white/10 hover:text-white hover:border-gold/40 transition-colors"
             >
-              <Lock className="w-4 h-4" aria-hidden="true" />
-              Coloque o cupom para continuar
+              <Lock className="w-4 h-4 text-gold flex-shrink-0" aria-hidden="true" />
+              <span>Insira o cupom para liberar</span>
             </button>
           )}
         </div>
