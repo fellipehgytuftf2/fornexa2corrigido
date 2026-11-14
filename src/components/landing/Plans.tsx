@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Check, Shield, Headphones } from 'lucide-react';
 import {
   PLANOS,
-  montarCheckout,
   buscarLinksDeCheckout,
   planosComCheckout,
 } from '../../lib/planos';
@@ -20,11 +19,9 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
 
   const [basico, premium] = planos;
 
-  // Visitante da landing ainda não tem conta, então o checkout vai sem e-mail:
-  // quem digita é ele, no formulário da Applyfy. Depois de pagar, a plataforma
-  // devolve para /register e o cadastro reencontra a compra por esse e-mail.
-  const linkBasico = montarCheckout(basico);
-  const linkPremium = montarCheckout(premium);
+  // Os botões levam ao checkout da FORNEXA (/checkout). É lá que a pessoa
+  // escreve nome e e-mail; de lá ela segue para a Applyfy já com os dois
+  // preenchidos.
 
   return (
     <section id="planos" className="bg-navy-900 py-24 scroll-mt-28">
@@ -57,7 +54,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
 
             <div className="mt-auto">
               <a
-                href={linkBasico || '/register'}
+                href="/checkout?plano=basico"
                 className="btn-fnx btn-fnx-secundario flex w-full items-center justify-center py-3 font-medium"
               >
                 <span>{basico.chamada}</span>
@@ -90,7 +87,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
 
               <div className="mt-auto">
                 <a
-                  href={linkPremium || '/register'}
+                  href="/checkout?plano=premium"
                   className="btn-fnx btn-fnx-primario flex w-full items-center justify-center py-3 font-semibold"
                 >
                   <span>{premium.chamada}</span>

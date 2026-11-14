@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AlertCircle, Check, Lock, Ticket, X } from 'lucide-react';
-import { PLANOS, montarCheckout, type Plano } from '../../lib/planos';
+import { PLANOS, type Plano } from '../../lib/planos';
 import {
+  PRECO_CHEIO_DA_OFERTA,
   conferirCupom,
   cupomDoLink,
   cupomGuardado,
@@ -26,7 +27,7 @@ import {
  */
 
 /** O preço cheio de cada plano nesta landing. */
-const PRECO_CHEIO: Record<Plano['id'], number> = { basico: 338, premium: 594 };
+const PRECO_CHEIO: Record<Plano['id'], number> = PRECO_CHEIO_DA_OFERTA;
 
 const reais = (valor: number) =>
   valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -211,8 +212,6 @@ function CartaoDoPlano({
   const desconto = cupom?.desconto ?? 0;
   const precoFinal = Math.round(cheio * (1 - desconto / 100) * 100) / 100;
   const precoNaTela = useValorAnimado(precoFinal);
-  // Com cupom, a compra segue para o checkout de sempre do plano.
-  const link = montarCheckout(plano);
   const mensal = plano.id === 'basico';
 
   return (
@@ -268,7 +267,7 @@ function CartaoDoPlano({
         <div className="mt-auto">
           {cupom ? (
             <a
-              href={link || '/register'}
+              href={`/checkout?plano=${plano.id}`}
               className={`btn-fnx ${destacado ? 'btn-fnx-primario font-semibold' : 'btn-fnx-secundario font-medium'} flex w-full items-center justify-center py-3`}
             >
               <span>

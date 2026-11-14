@@ -8,6 +8,7 @@ import SupplierLogin from './pages/SupplierLogin';
 import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Assinar from './pages/Assinar';
+import Checkout from './pages/Checkout';
 import Obrigado from './pages/Obrigado';
 const SupplierPortal = lazy(() => import('./pages/supplier/SupplierPortal'));
 
@@ -351,6 +352,7 @@ function App() {
         {/* Escolha de plano: exige sessão, mas de propósito não passa pelo
             ProtectedRoute — é justamente para onde ele manda quem não pagou. */}
         <Route path="/planos" element={<Assinar />} />
+        <Route path="/checkout" element={<Checkout />} />
 
         {/* Portal do Fornecedor — área separada, não usa o DashboardLayout */}
         <Route path="/fornecedor/login" element={<SupplierLogin />} />

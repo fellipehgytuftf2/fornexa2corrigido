@@ -31,6 +31,9 @@ export const INFLUENCIADORES_DE_EXEMPLO: Influenciador[] = [
 const CHAVE = 'fornexa_cupom';
 
 /** Só letras e números, em maiúsculas: "bruno 10" e "BRUNO10" são o mesmo cupom. */
+/** O preço cheio de cada plano na landing de oferta; o cupom traz de volta ao preço de sempre. */
+export const PRECO_CHEIO_DA_OFERTA = { basico: 338, premium: 594 } as const;
+
 export const normalizarCupom = (texto: string) =>
   texto.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
 
