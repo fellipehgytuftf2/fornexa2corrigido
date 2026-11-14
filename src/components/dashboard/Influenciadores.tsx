@@ -30,7 +30,7 @@ interface Desempenho {
 }
 
 const DESEMPENHO: Record<string, Desempenho> = {
-  BRUNO10: {
+  BRUNO50: {
     cadastros: 64,
     vendas: 23,
     faturamento: 5121.3,
@@ -40,7 +40,7 @@ const DESEMPENHO: Record<string, Desempenho> = {
       { cliente: 'Carlos E.', plano: 'Premium', quando: 'ontem' },
     ],
   },
-  LUCASDROP: {
+  LUCAS40: {
     cadastros: 41,
     vendas: 14,
     faturamento: 3012.65,
@@ -49,13 +49,13 @@ const DESEMPENHO: Record<string, Desempenho> = {
       { cliente: 'Diego F.', plano: 'Premium', quando: '09/11' },
     ],
   },
-  MARI: {
+  MARI50: {
     cadastros: 37,
     vendas: 9,
     faturamento: 1999,
     ultimas: [{ cliente: 'Patrícia S.', plano: 'Premium', quando: '08/11' }],
   },
-  RAFA: { cadastros: 12, vendas: 2, faturamento: 338, ultimas: [] },
+  RAFA50: { cadastros: 12, vendas: 2, faturamento: 338, ultimas: [] },
 };
 
 const reais = (valor: number) =>
@@ -63,7 +63,7 @@ const reais = (valor: number) =>
 
 export default function Influenciadores() {
   const [lista, setLista] = useState<Influenciador[]>(INFLUENCIADORES_DE_EXEMPLO);
-  const [aberto, setAberto] = useState<string | null>('BRUNO10');
+  const [aberto, setAberto] = useState<string | null>('BRUNO50');
   const [copiado, setCopiado] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
 
@@ -149,7 +149,7 @@ export default function Influenciadores() {
           {comNumeros.map((item, posicao) => {
             const estaAberto = aberto === item.cupom;
             const conversao = item.cadastros ? Math.round((item.vendas / item.cadastros) * 100) : 0;
-            const link = `fornexa.site/?cupom=${item.cupom}`;
+            const link = `fornexa.site/oferta?cupom=${item.cupom}`;
 
             return (
               <li key={item.cupom} className={`border-b last:border-b-0 border-gray-100 dark:border-white/10 ${item.ativo ? '' : 'opacity-60'}`}>
@@ -276,7 +276,7 @@ function NovoInfluenciador({
   const [perfil, setPerfil] = useState('');
   const [cupom, setCupom] = useState('');
   const [cupomMexido, setCupomMexido] = useState(false);
-  const [desconto, setDesconto] = useState<number | null>(null);
+  const [desconto, setDesconto] = useState<number | null>(50);
   const [erro, setErro] = useState('');
   const [pronto, setPronto] = useState<Influenciador | null>(null);
 
@@ -332,7 +332,7 @@ function NovoInfluenciador({
               <p className="text-xs uppercase tracking-wider text-slate-400">Cupom</p>
               <p className="font-mono text-2xl font-bold text-gold tracking-wider">{pronto.cupom}</p>
               <p className="text-xs uppercase tracking-wider text-slate-400 mt-3">Link com o cupom</p>
-              <p className="font-mono text-gold break-all">fornexa.site/?cupom={pronto.cupom}</p>
+              <p className="font-mono text-gold break-all">fornexa.site/oferta?cupom={pronto.cupom}</p>
             </div>
             <button type="button" onClick={aoFechar} className="h-12 rounded-full bg-navy-900 text-white dark:bg-white dark:text-navy-900 font-semibold">
               Pronto
@@ -354,14 +354,14 @@ function NovoInfluenciador({
                 id="inf-cupom"
                 value={cupomFinal}
                 onChange={(e) => { setCupom(normalizarCupom(e.target.value)); setCupomMexido(true); setErro(''); }}
-                placeholder="Ex.: BRUNO10"
+                placeholder="Ex.: BRUNO50"
                 className={`${campo} font-mono tracking-wider uppercase`}
               />
             </div>
             <fieldset>
               <legend className="block text-sm font-semibold text-navy-900 dark:text-white mb-2">O cupom dá desconto?</legend>
               <div className="flex flex-wrap gap-2">
-                {[null, 5, 10, 15].map((valor) => (
+                {[null, 30, 40, 50].map((valor) => (
                   <button
                     key={String(valor)}
                     type="button"

@@ -458,6 +458,10 @@ function App() {
           <Route path="influenciadores" element={<Influenciadores />} />
         </Route>
 
+        {/* Landing de oferta: a mesma da home, com o Premium de R$ 594 e a
+            caixa de cupom aberta. PRÉVIA (feat/cupom-influenciador). */}
+        <Route path="/oferta" element={<LandingPage oferta />} />
+
         {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
             endereço de um pedaço só (sem barra), então nunca esbarra em
             /dashboard, /fornecedor etc., que são rotas de verdade. */}

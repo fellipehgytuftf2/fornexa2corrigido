@@ -13,9 +13,6 @@ import {
   planosComCheckout,
   type PerfilDePlano,
 } from '../lib/planos';
-import CupomDeInfluenciador from '../components/landing/CupomDeInfluenciador';
-import { PrecoComCupom } from '../components/landing/Plans';
-import type { Influenciador } from '../lib/cupons';
 
 /**
  * Onde para quem está logado mas sem plano em dia.
@@ -34,8 +31,6 @@ export default function Assinar() {
   const [verificando, setVerificando] = useState(false);
   const [avisoDeEspera, setAvisoDeEspera] = useState('');
   const [planos, setPlanos] = useState(PLANOS);
-  // PRÉVIA (feat/cupom-influenciador): o cupom aplicado, se houver.
-  const [influenciador, setInfluenciador] = useState<Influenciador | null>(null);
 
   const carregarPerfil = async () => {
     const { data } = await supabase.auth.getSession();
@@ -190,10 +185,6 @@ export default function Assinar() {
           )}
         </div>
 
-        <div className="mb-8">
-          <CupomDeInfluenciador escuro aoMudar={setInfluenciador} />
-        </div>
-
         <div className="grid md:grid-cols-2 gap-6 items-stretch">
           {planos.map((plano) => {
             const link = montarCheckout(plano, {
@@ -234,7 +225,6 @@ export default function Assinar() {
                   ) : (
                     <span className="text-slate-400">{plano.periodo}</span>
                   )}
-                  <PrecoComCupom preco={plano.preco} influenciador={influenciador} />
                 </div>
 
                 <ul className="space-y-4 mb-10">

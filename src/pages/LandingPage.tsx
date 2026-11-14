@@ -7,10 +7,21 @@ import FornexaMotion from '../components/landing/FornexaMotion';
 import Benefits from '../components/landing/Benefits';
 import ZoomMonitor from '../components/landing/ZoomMonitor';
 import Plans from '../components/landing/Plans';
+import PlanoDaOferta from '../components/landing/PlanoDaOferta';
 import FAQ from '../components/landing/FAQ';
 import FinalCTA from '../components/landing/FinalCTA';
 
-export default function LandingPage({ codigoDaRota }: { codigoDaRota?: string }) {
+export default function LandingPage({
+  codigoDaRota,
+  oferta = false,
+}: {
+  codigoDaRota?: string;
+  /**
+   * Landing de oferta (fornexa.site/oferta): a mesma página, mas os planos
+   * dão lugar ao Premium de R$ 594 com a caixa de cupom já aberta.
+   */
+  oferta?: boolean;
+}) {
   /**
    * De quem é esta visita.
    *
@@ -41,7 +52,7 @@ export default function LandingPage({ codigoDaRota }: { codigoDaRota?: string })
         <FornexaMotion />
         <Benefits />
         <ZoomMonitor />
-        <Plans codigoAfiliado={codigoAfiliado} />
+        {oferta ? <PlanoDaOferta /> : <Plans codigoAfiliado={codigoAfiliado} />}
         <FAQ />
         <FinalCTA />
       </main>

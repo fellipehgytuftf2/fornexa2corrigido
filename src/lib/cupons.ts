@@ -1,9 +1,10 @@
 /**
- * Cupom de influenciador.
+ * Cupom de desconto da landing de oferta (fornexa.site/oferta).
  *
- * Cada influenciador tem um cupom (BRUNO10, MARI15...). Quem compra digita o
- * cupom antes de escolher o plano, ou chega por um link que já traz ele
- * (fornexa.site/?cupom=BRUNO10). O cupom fica guardado no navegador e vai
+ * Cada influenciador tem um cupom (BRUNO50, MARI50...). Quem compra digita o
+ * cupom na landing de oferta, ou chega por um link que já traz ele
+ * (fornexa.site/oferta?cupom=BRUNO50). Na tela, a palavra "influenciador"
+ * não aparece: para quem compra é só um cupom de desconto. O cupom fica guardado no navegador e vai
  * para a conta quando a pessoa se cadastra; quando o pagamento dessa conta
  * chega, a venda conta para o influenciador.
  *
@@ -21,11 +22,11 @@ export interface Influenciador {
 }
 
 export const INFLUENCIADORES_DE_EXEMPLO: Influenciador[] = [
-  { cupom: 'BRUNO10', nome: 'Bruno Costa', perfil: '@brunovendeonline', desconto: 10, ativo: true },
-  { cupom: 'MARI', nome: 'Mariana Lopes', perfil: '@mariempreende', desconto: null, ativo: true },
-  { cupom: 'LUCASDROP', nome: 'Lucas Andrade', perfil: '@lucasdrop', desconto: 15, ativo: true },
-  { cupom: 'RAFA', nome: 'Rafaela Nunes', perfil: '@rafanomercado', desconto: null, ativo: false },
-];
+  { cupom: 'BRUNO50', nome: 'Bruno Costa', perfil: '@brunovendeonline', desconto: 50, ativo: true },
+  { cupom: 'MARI50', nome: 'Mariana Lopes', perfil: '@mariempreende', desconto: 50, ativo: true },
+  { cupom: 'LUCAS40', nome: 'Lucas Andrade', perfil: '@lucasdrop', desconto: 40, ativo: true },
+  { cupom: 'RAFA50', nome: 'Rafaela Nunes', perfil: '@rafanomercado', desconto: 50, ativo: false },
+]
 
 const CHAVE = 'fornexa_cupom';
 
