@@ -16,8 +16,7 @@ import { PRECO_CHEIO_DA_OFERTA, conferirCupom, cupomGuardado, type Influenciador
  * O checkout da FORNEXA (fornexa.site/checkout?plano=basico|premium).
  *
  * Fica entre a landing e a Applyfy. Aqui a pessoa confere o plano, vê o
- * cupom e escreve os dados com calma — o e-mail digitado duas vezes, porque
- * é por ele que o pagamento reencontra a conta. Depois ela segue para a
+ * cupom e escreve os dados com calma. Depois ela segue para a
  * Applyfy, que já abre com nome e e-mail preenchidos: lá só falta pagar.
  *
  * PRÉVIA — branch feat/checkout-proprio. Os dados ficam só no navegador.
@@ -42,7 +41,7 @@ function mascaraDeTelefone(texto: string) {
 
 const emailValido = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 
-type Campo = 'nome' | 'email' | 'confirmacao' | 'whatsapp';
+type Campo = 'nome' | 'email' | 'whatsapp';
 
 export default function Checkout() {
   const [parametros, setParametros] = useSearchParams();
@@ -53,7 +52,6 @@ export default function Checkout() {
 
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
-  const [confirmacao, setConfirmacao] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [tocados, setTocados] = useState<Partial<Record<Campo, boolean>>>({});
   const [tremer, setTremer] = useState(0);
@@ -77,7 +75,6 @@ export default function Checkout() {
       const usuario = data.session?.user;
       if (usuario?.email) {
         setEmail(usuario.email);
-        setConfirmacao(usuario.email);
         setNome((atual) => atual || (usuario.user_metadata?.name as string) || '');
       }
     });
@@ -87,7 +84,6 @@ export default function Checkout() {
       if (salvo) {
         setNome((atual) => atual || salvo.nome || '');
         setEmail((atual) => atual || salvo.email || '');
-        setConfirmacao((atual) => atual || salvo.email || '');
         setWhatsapp((atual) => atual || salvo.whatsapp || '');
       }
     } catch {
@@ -104,12 +100,10 @@ export default function Checkout() {
     const lista: Partial<Record<Campo, string>> = {};
     if (nome.trim().length < 3) lista.nome = 'Escreva seu nome.';
     if (!emailValido(email)) lista.email = 'Confira o e-mail.';
-    if (!lista.email && confirmacao.trim().toLowerCase() !== email.trim().toLowerCase())
-      lista.confirmacao = 'Os dois e-mails precisam ser iguais.';
     const digitos = soDigitos(whatsapp).length;
     if (digitos < 10 || digitos > 11) lista.whatsapp = 'Coloque o WhatsApp com DDD.';
     return lista;
-  }, [nome, email, confirmacao, whatsapp]);
+  }, [nome, email, whatsapp]);
 
   const trocarPlano = (id: Plano['id']) => {
     const novos = new URLSearchParams(parametros);
@@ -121,7 +115,7 @@ export default function Checkout() {
     evento.preventDefault();
 
     if (Object.keys(erros).length) {
-      setTocados({ nome: true, email: true, confirmacao: true, whatsapp: true });
+      setTocados({ nome: true, email: true, whatsapp: true });
       setTremer((vezes) => vezes + 1);
       return;
     }
@@ -147,7 +141,6 @@ export default function Checkout() {
 
   const erroDe = (campo: Campo) => (tocados[campo] ? erros[campo] : undefined);
   const marcar = (campo: Campo) => () => setTocados((atual) => ({ ...atual, [campo]: true }));
-  const emailsBatem = emailValido(email) && confirmacao.trim().toLowerCase() === email.trim().toLowerCase();
 
   return (
     <div className="relative min-h-screen bg-navy-950 text-white overflow-hidden">
@@ -261,32 +254,7 @@ export default function Checkout() {
                   />
                 </CampoDoForm>
 
-                <CampoDoForm id="ck-confirmacao" rotulo="Confirme o e-mail" erro={erroDe('confirmacao')}>
-                  <div className="relative">
-                    <input
-                      id="ck-confirmacao"
-                      type="email"
-                      inputMode="email"
-                      autoComplete="off"
-                      onPaste={(e) => e.preventDefault()}
-                      value={confirmacao}
-                      onChange={(e) => setConfirmacao(e.target.value)}
-                      onBlur={marcar('confirmacao')}
-                      placeholder="Digite de novo"
-                      className={`${classeDoCampo(erroDe('confirmacao'))} pr-11`}
-                      disabled={indo}
-                    />
-                    {emailsBatem && (
-                      <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-                        <span className="acesso-pop w-6 h-6 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                          <Check className="w-4 h-4 text-emerald-400" strokeWidth={3} aria-label="E-mails iguais" />
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                </CampoDoForm>
-
-                <CampoDoForm id="ck-whatsapp" rotulo="WhatsApp" erro={erroDe('whatsapp')} className="sm:col-span-2">
+                <CampoDoForm id="ck-whatsapp" rotulo="WhatsApp" erro={erroDe('whatsapp')}>
                   <input
                     id="ck-whatsapp"
                     type="tel"
