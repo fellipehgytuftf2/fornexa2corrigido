@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { esquecerCodigoDoAfiliado } from '../lib/planos';
 import Header from '../components/landing/Header';
 import Hero from '../components/landing/Hero';
 import FornexaMotion from '../components/landing/FornexaMotion';
@@ -17,8 +19,19 @@ export default function LandingPage({ codigoDaRota }: { codigoDaRota?: string })
    * histórico da aba continua valendo para quem chegou antes desta mudança,
    * quando o endereço era limpo e a indicação viajava só ali.
    */
-  const doHistorico = (useLocation().state as { afiliado?: string } | null)?.afiliado;
-  const codigoAfiliado = codigoDaRota || doHistorico;
+  const local = useLocation();
+  const doHistorico = (local.state as { afiliado?: string } | null)?.afiliado;
+  const doRef = new URLSearchParams(local.search).get('ref')?.trim() || undefined;
+  const codigoAfiliado = codigoDaRota || doHistorico || doRef;
+
+  // O endereço principal (fornexa.site, sem afiliado) vende sempre pelo
+  // checkout da casa — mesmo que antes, nesta aba, a pessoa tenha passado
+  // pela página de algum afiliado.
+  useEffect(() => {
+    if (!codigoAfiliado) {
+      esquecerCodigoDoAfiliado();
+    }
+  }, [codigoAfiliado]);
 
   return (
     <div className="min-h-screen bg-navy-900">

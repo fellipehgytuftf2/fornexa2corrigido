@@ -3,7 +3,6 @@ import { Check, Shield, Headphones } from 'lucide-react';
 import {
   PLANOS,
   montarCheckout,
-  pegarCodigoDoAfiliado,
   buscarLinksDeCheckout,
   planosComCheckout,
 } from '../../lib/planos';
@@ -12,8 +11,8 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
   const [planos, setPlanos] = useState(PLANOS);
 
   // Quem chegou por fornexa.site/CODIGO compra no checkout daquele afiliado.
-  // Sem código na rota, vale o que ficou guardado de uma visita anterior.
-  const codigo = codigoAfiliado || pegarCodigoDoAfiliado();
+  // Sem código na rota é o endereço principal: checkout da casa, sempre.
+  const codigo = codigoAfiliado;
 
   useEffect(() => {
     buscarLinksDeCheckout(codigo).then((links) => setPlanos(planosComCheckout(links)));

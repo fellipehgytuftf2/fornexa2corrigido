@@ -176,32 +176,63 @@ export function montarCheckout(
 const CHAVE_AFILIADO_NO_NAVEGADOR = 'fornexa_afiliado';
 
 /**
- * Guarda o código de quem indicou, pra sobreviver a navegar entre páginas
- * (a home tem os links de assinar, mas /planos também tem os dela — o
- * visitante pode cair em qualquer uma das duas primeiro).
+ * Onde o código do afiliado fica guardado: só na aba desta visita.
  *
- * Chamado uma vez, na raiz do app. `codigoDaRota` vem de um link tipo
- * fornexa.site/joao (o formato que o afiliado divulga); `?ref=` continua
- * valendo também, pra quem monta o link na mão. Sem nenhum dos dois, não
- * grava nada — assim visitar o site sem link de afiliado nunca apaga um
- * código que já estava guardado de uma visita anterior.
+ * Antes ficava no localStorage, que não expira. Quem entrasse UMA vez por
+ * fornexa.site/fulano ficava preso ao checkout do fulano para sempre — inclusive
+ * ao voltar dias depois pelo endereço principal. Foi assim que uma compra feita
+ * pelo link principal da FORNEXA caiu como venda de afiliada (50% a menos).
+ *
+ * Agora a indicação vale da página do afiliado até o pagamento, na mesma aba.
+ * Fechou a aba ou entrou pelo endereço principal, o checkout é o da casa.
+ */
+function armazenamento(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Guarda o código de quem indicou, para sobreviver à navegação dentro da
+ * visita (da página do afiliado para /planos, /register etc.).
+ *
+ * `codigoDaRota` vem de um link tipo fornexa.site/joao (o formato que o
+ * afiliado divulga); `?ref=` continua valendo também, pra quem monta o link
+ * na mão. Sem nenhum dos dois, não grava nada.
  */
 export function capturarCodigoDoAfiliado(codigoDaRota?: string): void {
+  try {
+    // Limpa o que a versão antiga deixou para sempre no navegador.
+    localStorage.removeItem(CHAVE_AFILIADO_NO_NAVEGADOR);
+  } catch {
+    /* sem localStorage, não há o que limpar */
+  }
+
   try {
     const codigo = codigoDaRota || new URLSearchParams(window.location.search).get('ref');
 
     if (codigo && codigo.trim()) {
-      localStorage.setItem(CHAVE_AFILIADO_NO_NAVEGADOR, codigo.trim());
+      armazenamento()?.setItem(CHAVE_AFILIADO_NO_NAVEGADOR, codigo.trim());
     }
   } catch {
-    // localStorage pode falhar (aba anônima, storage bloqueado) — sem
-    // código de afiliado a venda só conta como direta, não quebra nada.
+    // Storage bloqueado (aba anônima etc.): a venda só conta como direta.
+  }
+}
+
+/** Esquece o afiliado desta visita: quem abriu o endereço principal compra da casa. */
+export function esquecerCodigoDoAfiliado(): void {
+  try {
+    armazenamento()?.removeItem(CHAVE_AFILIADO_NO_NAVEGADOR);
+  } catch {
+    /* nada a esquecer */
   }
 }
 
 export function pegarCodigoDoAfiliado(): string | null {
   try {
-    return localStorage.getItem(CHAVE_AFILIADO_NO_NAVEGADOR);
+    return armazenamento()?.getItem(CHAVE_AFILIADO_NO_NAVEGADOR) ?? null;
   } catch {
     return null;
   }
