@@ -16,7 +16,8 @@ import {
  * Na landing principal o Premium sai por R$ 297. Aqui ele aparece por
  * R$ 594, com a caixa de cupom já aberta em cima: o cupom do influenciador
  * (a maioria de 50%) derruba o preço, e os R$ 594 vão para o lugar do
- * "preço antigo", riscados.
+ * "preço antigo", riscados. O Básico fica do lado, com o preço de sempre:
+ * o cupom vale só para o Premium.
  *
  * PRÉVIA — branch feat/cupom-influenciador. Os cupons são de exemplo, e o
  * checkout de R$ 594 ainda não existe na Applyfy.
@@ -57,6 +58,8 @@ function useValorAnimado(alvo: number) {
 
 export default function PlanoDaOferta() {
   const premium = PLANOS.find((plano) => plano.id === 'premium') ?? PLANOS[PLANOS.length - 1];
+  const basico = PLANOS.find((plano) => plano.id === 'basico') ?? PLANOS[0];
+  const linkBasico = montarCheckout(basico);
 
   const [texto, setTexto] = useState('');
   const [cupom, setCupom] = useState<Influenciador | null>(null);
@@ -110,14 +113,14 @@ export default function PlanoDaOferta() {
 
   return (
     <section id="planos" className="bg-navy-900 py-24 scroll-mt-28">
-      <div className="max-w-xl mx-auto px-6">
+      <div className="max-w-3xl mx-auto px-6">
         <div className="text-center mb-10">
-          <h2 className="text-white text-4xl font-bold mb-4">Sua oferta</h2>
-          <p className="text-slate-400 text-lg">Tem um cupom? Coloque abaixo e veja o preço cair.</p>
+          <h2 className="text-white text-4xl font-bold mb-4">Escolha seu plano</h2>
+          <p className="text-slate-400 text-lg">Tem um cupom? Coloque abaixo e veja o preço do Premium cair.</p>
         </div>
 
         {/* A caixa do cupom já vem aberta: nada para clicar antes de digitar. */}
-        <div className="mb-10">
+        <div className="mb-12 max-w-xl mx-auto">
           {cupom ? (
             <div role="status" className="acesso-aviso flex items-center gap-3 rounded-2xl border-2 border-gold bg-navy-800/80 p-3 pr-2">
               <span className="w-11 h-11 rounded-xl bg-gold text-navy-900 flex items-center justify-center shrink-0">
@@ -178,8 +181,38 @@ export default function PlanoDaOferta() {
           )}
         </div>
 
-        <div className="relative">
-          <div className="relative bg-navy-700 rounded-[28px] border-2 border-gold p-10 flex flex-col">
+        <div className="grid md:grid-cols-2 gap-6 items-stretch justify-items-center">
+        <div className="bg-navy-700 rounded-[28px] border border-navy-600 p-10 w-full max-w-sm h-full flex flex-col">
+          <h3 className="text-white font-semibold text-xl mb-3">{basico.nome}</h3>
+          <div className="mb-8">
+            {/* Mesmo espaço do "De R$ 594" do Premium, para os dois preços
+                ficarem na mesma altura. */}
+            <span className="block text-lg mb-1 invisible" aria-hidden="true">
+              —
+            </span>
+            <span className="text-white text-4xl font-bold">{basico.preco}</span>
+            <span className="text-slate-400">{basico.periodo}</span>
+          </div>
+          <ul className="space-y-4 mb-10">
+            {basico.beneficios.map((beneficio) => (
+              <li key={beneficio} className="flex items-center gap-3 text-slate-300 text-sm">
+                <Check className="w-4 h-4 text-gold flex-shrink-0" aria-hidden="true" />
+                {beneficio}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-auto">
+            <a
+              href={linkBasico || '/register'}
+              className="btn-fnx btn-fnx-secundario flex w-full items-center justify-center py-3 font-medium"
+            >
+              <span>{basico.chamada}</span>
+            </a>
+          </div>
+        </div>
+
+        <div className="relative w-full max-w-sm h-full">
+          <div className="relative bg-navy-700 rounded-[28px] border-2 border-gold p-10 h-full flex flex-col">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gold text-black text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap">
               {premium.destaque}
             </div>
@@ -217,18 +250,21 @@ export default function PlanoDaOferta() {
               ))}
             </ul>
 
-            <a
-              href={cupom ? linkComCupom || '/register' : '#cupom-oferta'}
-              className="btn-fnx btn-fnx-primario flex w-full items-center justify-center py-3 font-semibold"
-            >
-              <span>Pagar {reais(precoFinal)}</span>
-            </a>
-            {!cupom && (
-              <p className="mt-3 text-center text-xs text-slate-500">
-                Prévia: o checkout de {reais(PRECO_DA_OFERTA)} ainda não foi criado na Applyfy.
-              </p>
-            )}
+            <div className="mt-auto">
+              <a
+                href={cupom ? linkComCupom || '/register' : '#cupom-oferta'}
+                className="btn-fnx btn-fnx-primario flex w-full items-center justify-center py-3 font-semibold"
+              >
+                <span>Pagar {reais(precoFinal)}</span>
+              </a>
+              {!cupom && (
+                <p className="mt-3 text-center text-xs text-slate-500">
+                  Prévia: o checkout de {reais(PRECO_DA_OFERTA)} ainda não foi criado na Applyfy.
+                </p>
+              )}
+            </div>
           </div>
+        </div>
         </div>
       </div>
     </section>
