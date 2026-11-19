@@ -51,6 +51,11 @@ create policy "admin e co-produtor cuidam dos cupons"
     )
   );
 
+-- O painel (logado) lê e grava; a regra acima decide quem pode de fato.
+-- Visitante sem login não lê a tabela: usa a função abaixo.
+grant select, insert, update on public.cupons to authenticated;
+revoke all on public.cupons from anon;
+
 -- A landing confere um cupom por vez, sem login.
 drop function if exists public.conferir_cupom(text);
 
@@ -70,5 +75,8 @@ $function$;
 revoke all on function public.conferir_cupom(text) from public;
 grant execute on function public.conferir_cupom(text) to anon, authenticated;
 
+-- Aplicada em 18/11/2026 pelo conector do Supabase (com os cupons FORNEXA e
+-- FORNEXA10, criados à parte).
+--
 -- Para conferir depois de aplicar:
 -- select * from public.conferir_cupom('fornexa');
