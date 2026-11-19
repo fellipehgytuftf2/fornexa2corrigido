@@ -63,13 +63,12 @@ export default function Checkout() {
     // lê do navegador: um cupom esquecido de outra visita não pode mudar uma
     // compra feita pela landing normal ou pelo link de um afiliado.
     const doLink = new URLSearchParams(window.location.search).get('cupom');
-    const resultado = doLink ? conferirCupom(doLink) : null;
-    const comCupom = resultado?.ok ? resultado.influenciador : null;
-    setCupom(comCupom);
 
     // Com cupom, a compra vai pelos checkouts da casa (é o que a landing de
     // oferta promete). Sem cupom, vale a regra de sempre: afiliado compra no dele.
-    if (!comCupom) {
+    if (doLink) {
+      conferirCupom(doLink).then((resultado) => setCupom(resultado.ok ? resultado.influenciador : null));
+    } else {
       buscarLinksDeCheckout(pegarCodigoDoAfiliado()).then((links) => setPlanos(planosComCheckout(links)));
     }
 

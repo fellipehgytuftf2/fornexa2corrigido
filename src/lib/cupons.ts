@@ -1,54 +1,98 @@
+import { supabase } from './supabase';
+
 /**
  * Cupom de desconto da landing de oferta (fornexa.site/oferta).
  *
- * Cada influenciador tem um cupom (BRUNO50, MARI50...). Quem compra digita o
- * cupom na landing de oferta, ou chega por um link que já traz ele
- * (fornexa.site/oferta?cupom=BRUNO50). Na tela, a palavra "influenciador"
- * não aparece: para quem compra é só um cupom de desconto. O cupom fica guardado no navegador e vai
- * para a conta quando a pessoa se cadastra; quando o pagamento dessa conta
- * chega, a venda conta para o influenciador.
+ * Cada influenciador tem um cupom (ex.: FORNEXA). Quem compra digita o cupom
+ * na landing de oferta, ou chega por um link que já traz ele
+ * (fornexa.site/oferta?cupom=FORNEXA). Na tela, a palavra "influenciador"
+ * não aparece: para quem compra é só um cupom de desconto.
  *
- * PRÉVIA — branch feat/cupom-influenciador: a lista abaixo é de exemplo e
- * nada é gravado no banco ainda.
+ * Os cupons moram na tabela `cupons` (migration 20261118220000). Admin e
+ * co-produtor cuidam deles na tela Afiliados → Influenciadores; a landing só
+ * pergunta, um por vez, pela função `conferir_cupom`.
  */
 
 export interface Influenciador {
   cupom: string;
   nome: string;
   perfil: string;
-  /** Desconto que o cupom dá. Nulo: o cupom só rastreia, não muda o preço. */
+  /** Desconto que o cupom dá. Hoje sempre 50. */
   desconto: number | null;
   ativo: boolean;
 }
 
-export const INFLUENCIADORES_DE_EXEMPLO: Influenciador[] = [
-  { cupom: 'BRUNO50', nome: 'Bruno Costa', perfil: '@brunovendeonline', desconto: 50, ativo: true },
-  { cupom: 'MARI50', nome: 'Mariana Lopes', perfil: '@mariempreende', desconto: 50, ativo: true },
-  { cupom: 'LUCAS50', nome: 'Lucas Andrade', perfil: '@lucasdrop', desconto: 50, ativo: true },
-  { cupom: 'RAFA50', nome: 'Rafaela Nunes', perfil: '@rafanomercado', desconto: 50, ativo: false },
-]
-
 const CHAVE = 'fornexa_cupom';
 
-/** Só letras e números, em maiúsculas: "bruno 10" e "BRUNO10" são o mesmo cupom. */
 /** O preço cheio de cada plano na landing de oferta; o cupom traz de volta ao preço de sempre. */
 export const PRECO_CHEIO_DA_OFERTA = { basico: 338, premium: 594 } as const;
 
+/** Só letras e números, em maiúsculas: "bruno 10" e "BRUNO10" são o mesmo cupom. */
 export const normalizarCupom = (texto: string) =>
   texto.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
 
 export type ResultadoDoCupom =
   | { ok: true; influenciador: Influenciador }
-  | { ok: false; motivo: 'nao-existe' | 'inativo' };
+  | { ok: false; motivo: 'nao-existe' | 'inativo' | 'sem-conexao' };
 
-/** Confere o cupom. Na versão de verdade, pergunta ao banco. */
-export function conferirCupom(texto: string): ResultadoDoCupom {
+/** Pergunta ao banco se o cupom existe e está ativo. */
+export async function conferirCupom(texto: string): Promise<ResultadoDoCupom> {
   const cupom = normalizarCupom(texto);
-  const influenciador = INFLUENCIADORES_DE_EXEMPLO.find((item) => item.cupom === cupom);
+  if (!cupom) return { ok: false, motivo: 'nao-existe' };
 
-  if (!influenciador) return { ok: false, motivo: 'nao-existe' };
-  if (!influenciador.ativo) return { ok: false, motivo: 'inativo' };
-  return { ok: true, influenciador };
+  const { data, error } = await supabase.rpc('conferir_cupom', { p_codigo: cupom });
+  if (error) return { ok: false, motivo: 'sem-conexao' };
+
+  const achado = (data as { codigo: string; nome: string; desconto: number; ativo: boolean }[] | null)?.[0];
+  if (!achado) return { ok: false, motivo: 'nao-existe' };
+  if (!achado.ativo) return { ok: false, motivo: 'inativo' };
+
+  return {
+    ok: true,
+    influenciador: { cupom: achado.codigo, nome: achado.nome, perfil: '', desconto: achado.desconto, ativo: true },
+  };
+}
+
+interface LinhaDoCupom {
+  codigo: string;
+  nome: string;
+  perfil: string;
+  desconto: number;
+  ativo: boolean;
+}
+
+const daLinha = (linha: LinhaDoCupom): Influenciador => ({
+  cupom: linha.codigo,
+  nome: linha.nome,
+  perfil: linha.perfil,
+  desconto: linha.desconto,
+  ativo: linha.ativo,
+});
+
+/** Todos os cupons, para a tela Influenciadores (admin e co-produtor). */
+export async function listarCupons(): Promise<Influenciador[]> {
+  const { data, error } = await supabase
+    .from('cupons')
+    .select('codigo, nome, perfil, desconto, ativo')
+    .order('criado_em', { ascending: true });
+  if (error) throw error;
+  return (data as LinhaDoCupom[]).map(daLinha);
+}
+
+/** Cria o cupom. Erro com code 23505 = esse cupom já existe. */
+export async function criarCupom(novo: Influenciador): Promise<Influenciador> {
+  const { data, error } = await supabase
+    .from('cupons')
+    .insert({ codigo: novo.cupom, nome: novo.nome, perfil: novo.perfil, desconto: 50, ativo: true })
+    .select('codigo, nome, perfil, desconto, ativo')
+    .single();
+  if (error) throw error;
+  return daLinha(data as LinhaDoCupom);
+}
+
+export async function mudarAtivo(cupom: string, ativo: boolean): Promise<void> {
+  const { error } = await supabase.from('cupons').update({ ativo }).eq('codigo', cupom);
+  if (error) throw error;
 }
 
 export function guardarCupom(cupom: string | null) {

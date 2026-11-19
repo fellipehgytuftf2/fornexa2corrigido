@@ -73,14 +73,21 @@ export default function PlanoDaOferta() {
   useEffect(() => {
     const inicial = cupomDoLink() || cupomGuardado();
     if (!inicial) return;
-    const resultado = conferirCupom(inicial);
-    if (resultado.ok) {
-      setCupom(resultado.influenciador);
-      guardarCupom(resultado.influenciador.cupom);
-    }
+    let valendo = true;
+    conferirCupom(inicial).then((resultado) => {
+      if (valendo && resultado.ok) {
+        setCupom(resultado.influenciador);
+        guardarCupom(resultado.influenciador.cupom);
+      }
+    });
+    return () => {
+      valendo = false;
+    };
   }, []);
 
-  const aplicar = (evento: FormEvent) => {
+  const [conferindo, setConferindo] = useState(false);
+
+  const aplicar = async (evento: FormEvent) => {
     evento.preventDefault();
 
     if (!texto) {
@@ -89,9 +96,17 @@ export default function PlanoDaOferta() {
       return;
     }
 
-    const resultado = conferirCupom(texto);
+    setConferindo(true);
+    const resultado = await conferirCupom(texto);
+    setConferindo(false);
     if (!resultado.ok) {
-      setErro(resultado.motivo === 'inativo' ? 'Este cupom não está mais valendo.' : 'Cupom não encontrado. Confira como está escrito.');
+      setErro(
+        resultado.motivo === 'inativo'
+          ? 'Este cupom não está mais valendo.'
+          : resultado.motivo === 'sem-conexao'
+            ? 'Não deu para conferir o cupom agora. Tente de novo.'
+            : 'Cupom não encontrado. Confira como está escrito.',
+      );
       setTremer((vezes) => vezes + 1);
       return;
     }
@@ -172,8 +187,12 @@ export default function PlanoDaOferta() {
                   aria-describedby="cupom-oferta-aviso"
                   className="flex-1 min-w-0 h-12 px-4 rounded-xl border border-navy-600 bg-navy-900 font-mono tracking-wider uppercase text-[15px] text-white placeholder:normal-case placeholder:tracking-normal placeholder:font-sans placeholder:text-slate-500 focus:outline-none focus:border-gold"
                 />
-                <button type="submit" className="h-12 px-5 rounded-xl bg-gold text-navy-900 text-sm font-bold hover:bg-gold-hover shrink-0">
-                  Aplicar
+                <button
+                  type="submit"
+                  disabled={conferindo}
+                  className="h-12 px-5 rounded-xl bg-gold text-navy-900 text-sm font-bold hover:bg-gold-hover shrink-0 disabled:opacity-70"
+                >
+                  {conferindo ? 'Conferindo…' : 'Aplicar'}
                 </button>
               </div>
               <p

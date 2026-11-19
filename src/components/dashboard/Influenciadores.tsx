@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
   Check,
   ChevronDown,
@@ -11,15 +11,17 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { INFLUENCIADORES_DE_EXEMPLO, normalizarCupom, type Influenciador } from '../../lib/cupons';
+import { criarCupom, listarCupons, mudarAtivo, normalizarCupom, type Influenciador } from '../../lib/cupons';
 
 /**
- * Influenciadores: quem tem cupom e quanto cada cupom vendeu.
+ * Influenciadores: quem tem cupom e o link de cada um.
  *
- * Mora em Afiliados (o dono e o co-produtor abrem). A conta é simples: venda
- * paga de uma conta que entrou com o cupom conta para o dono do cupom.
+ * Mora em Afiliados (o dono e o co-produtor abrem). Os cupons ficam na
+ * tabela `cupons`: o que se cria aqui já vale na landing de oferta.
  *
- * PRÉVIA — branch feat/cupom-influenciador: números e vendas de exemplo.
+ * As vendas por cupom ainda não são contadas: falta o cadastro guardar o
+ * cupom na conta e o webhook da Applyfy creditar a venda. Até lá, as colunas
+ * de vendas mostram zero.
  */
 
 interface Desempenho {
@@ -29,65 +31,57 @@ interface Desempenho {
   ultimas: { cliente: string; plano: string; quando: string }[];
 }
 
-const DESEMPENHO: Record<string, Desempenho> = {
-  BRUNO50: {
-    cadastros: 64,
-    vendas: 23,
-    faturamento: 5121.3,
-    ultimas: [
-      { cliente: 'Thiago M.', plano: 'Premium', quando: 'hoje, 14:02' },
-      { cliente: 'Aline R.', plano: 'Básico', quando: 'hoje, 09:40' },
-      { cliente: 'Carlos E.', plano: 'Premium', quando: 'ontem' },
-    ],
-  },
-  LUCAS50: {
-    cadastros: 41,
-    vendas: 14,
-    faturamento: 3012.65,
-    ultimas: [
-      { cliente: 'Renata P.', plano: 'Básico', quando: 'ontem' },
-      { cliente: 'Diego F.', plano: 'Premium', quando: '09/11' },
-    ],
-  },
-  MARI50: {
-    cadastros: 37,
-    vendas: 9,
-    faturamento: 1999,
-    ultimas: [{ cliente: 'Patrícia S.', plano: 'Premium', quando: '08/11' }],
-  },
-  RAFA50: { cadastros: 12, vendas: 2, faturamento: 338, ultimas: [] },
-};
+const SEM_VENDAS: Desempenho = { cadastros: 0, vendas: 0, faturamento: 0, ultimas: [] };
 
 const reais = (valor: number) =>
   valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function Influenciadores() {
-  const [lista, setLista] = useState<Influenciador[]>(INFLUENCIADORES_DE_EXEMPLO);
-  const [aberto, setAberto] = useState<string | null>('BRUNO50');
+  const [lista, setLista] = useState<Influenciador[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [falha, setFalha] = useState('');
+  const [aberto, setAberto] = useState<string | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
 
-  const comNumeros = lista
-    .map((item) => ({ ...item, ...(DESEMPENHO[item.cupom] ?? { cadastros: 0, vendas: 0, faturamento: 0, ultimas: [] }) }))
-    .sort((a, b) => b.vendas - a.vendas);
+  useEffect(() => {
+    listarCupons()
+      .then(setLista)
+      .catch(() => setFalha('Não deu para carregar os cupons. Recarregue a página.'))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  const comNumeros = lista.map((item) => ({ ...item, ...SEM_VENDAS }));
 
   const totalVendas = comNumeros.reduce((soma, item) => soma + item.vendas, 0);
   const totalFaturamento = comNumeros.reduce((soma, item) => soma + item.faturamento, 0);
   const maisVendas = Math.max(...comNumeros.map((item) => item.vendas), 1);
-  const melhor = comNumeros[0];
+  const melhor = comNumeros.find((item) => item.vendas > 0 && item.vendas === maisVendas);
 
   const copiar = async (texto: string, chave: string) => {
     try {
       await navigator.clipboard.writeText(texto);
     } catch {
-      // Na prévia, só mostra o retorno.
+      // Sem permissão de área de transferência: só mostra o retorno.
     }
     setCopiado(chave);
     window.setTimeout(() => setCopiado(null), 1600);
   };
 
-  const alternarAtivo = (cupom: string) =>
-    setLista((atual) => atual.map((item) => (item.cupom === cupom ? { ...item, ativo: !item.ativo } : item)));
+  const alternarAtivo = async (cupom: string) => {
+    const atual = lista.find((item) => item.cupom === cupom);
+    if (!atual) return;
+    const ativo = !atual.ativo;
+    setLista((todos) => todos.map((item) => (item.cupom === cupom ? { ...item, ativo } : item)));
+    try {
+      await mudarAtivo(cupom, ativo);
+      setFalha('');
+    } catch {
+      // Volta como estava: a tela não pode mostrar ligado o que no banco está desligado.
+      setLista((todos) => todos.map((item) => (item.cupom === cupom ? { ...item, ativo: !ativo } : item)));
+      setFalha(`Não deu para ${ativo ? 'ligar' : 'desligar'} o cupom ${cupom}. Tente de novo.`);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -95,12 +89,9 @@ export default function Influenciadores() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-navy-900 dark:text-white">Influenciadores</h1>
-            <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-gold/20 text-navy-900 dark:text-gold">
-              Dados de exemplo
-            </span>
           </div>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-            Cada influenciador tem um cupom. Toda venda paga com o cupom conta para ele.
+            Cada influenciador tem um cupom. O cupom criado aqui já vale na landing de oferta.
           </p>
         </div>
         <button
@@ -141,9 +132,23 @@ export default function Influenciadores() {
 
       <div className="bg-white dark:bg-navy-800 rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
-          <h2 className="font-semibold text-navy-900 dark:text-white">Ranking do mês</h2>
-          <span className="text-xs text-gray-500 dark:text-slate-400">Clique num influenciador para ver as vendas</span>
+          <h2 className="font-semibold text-navy-900 dark:text-white">Cupons</h2>
+          <span className="text-xs text-gray-500 dark:text-slate-400">Vendas por cupom: em breve</span>
         </div>
+
+        {falha && (
+          <p role="alert" className="px-5 py-3 text-sm text-red-600 dark:text-red-400 border-b border-gray-100 dark:border-white/10">
+            {falha}
+          </p>
+        )}
+
+        {carregando ? (
+          <p className="px-5 py-8 text-sm text-gray-500 dark:text-slate-400">Carregando cupons…</p>
+        ) : lista.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-gray-500 dark:text-slate-400">
+            Nenhum cupom ainda. Clique em <strong>Novo influenciador</strong> para criar o primeiro.
+          </p>
+        ) : null}
 
         <ul>
           {comNumeros.map((item, posicao) => {
@@ -252,6 +257,7 @@ export default function Influenciadores() {
       {criando && (
         <NovoInfluenciador
           existentes={lista.map((item) => item.cupom)}
+          salvar={criarCupom}
           aoFechar={() => setCriando(false)}
           aoCriar={(novo) => {
             setLista((atual) => [...atual, novo]);
@@ -265,10 +271,12 @@ export default function Influenciadores() {
 
 function NovoInfluenciador({
   existentes,
+  salvar,
   aoFechar,
   aoCriar,
 }: {
   existentes: string[];
+  salvar: (novo: Influenciador) => Promise<Influenciador>;
   aoFechar: () => void;
   aoCriar: (novo: Influenciador) => void;
 }) {
@@ -279,12 +287,13 @@ function NovoInfluenciador({
   const desconto = 50;
   const [erro, setErro] = useState('');
   const [pronto, setPronto] = useState<Influenciador | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
   // Sugere o cupom pelo primeiro nome até a pessoa mexer no campo.
   const sugestao = normalizarCupom(nome.split(' ')[0] ?? '');
   const cupomFinal = cupomMexido ? cupom : sugestao;
 
-  const criar = (evento: FormEvent) => {
+  const criar = async (evento: FormEvent) => {
     evento.preventDefault();
     if (!nome.trim() || !cupomFinal) {
       setErro('Preencha o nome e o cupom.');
@@ -301,8 +310,17 @@ function NovoInfluenciador({
       desconto,
       ativo: true,
     };
-    aoCriar(novo);
-    setPronto(novo);
+    setSalvando(true);
+    try {
+      const gravado = await salvar(novo);
+      aoCriar(gravado);
+      setPronto(gravado);
+    } catch (falhou) {
+      const codigo = (falhou as { code?: string } | null)?.code;
+      setErro(codigo === '23505' ? `O cupom ${cupomFinal} já existe.` : 'Não deu para salvar o cupom. Tente de novo.');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   const campo =
@@ -366,9 +384,9 @@ function NovoInfluenciador({
               </p>
             </div>
             {erro && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
-            <button type="submit" className="mt-1 h-12 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-navy-900 font-bold hover:bg-gold-hover">
+            <button type="submit" disabled={salvando} className="mt-1 h-12 inline-flex items-center justify-center gap-2 rounded-full bg-gold text-navy-900 font-bold hover:bg-gold-hover disabled:opacity-70">
               <Copy className="w-4 h-4" aria-hidden="true" />
-              Criar cupom
+              {salvando ? 'Salvando…' : 'Criar cupom'}
             </button>
           </form>
         )}
