@@ -209,7 +209,7 @@ Deno.serve(async (req: Request) => {
   const aceitos = [
     Deno.env.get("APPLYFY_WEBHOOK_TOKEN"),
     Deno.env.get("APPLYFY_WEBHOOK_TOKEN_2"),
-  ].filter((t): t is string => !!t && t.trim().length > 0).map((t) => t.trim());
+  ].filter((t): t is string => !!t && t.trim().length > 0);
 
   // Sem o token configurado, qualquer um na internet libera acesso pago
   // mandando um POST. Falha fechada de propósito.
