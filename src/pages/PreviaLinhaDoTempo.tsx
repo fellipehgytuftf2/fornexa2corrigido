@@ -110,7 +110,6 @@ export default function PreviaLinhaDoTempo() {
                       )}
                     </div>
                     <h3 className="text-lg font-bold mt-3">Mini Processador de Alimentos Tomate SRQ-017B 45W Portátil USB</h3>
-                    <LinhaDoTempoDoPedido pedido={pedido} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3 lg:w-56 self-start">
@@ -124,6 +123,7 @@ export default function PreviaLinhaDoTempo() {
                   </div>
                 </div>
               </div>
+              <LinhaDoTempoDoPedido pedido={pedido} />
             </article>
           ))}
         </div>

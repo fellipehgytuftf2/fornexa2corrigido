@@ -535,3 +535,22 @@ body {
   .divulgar-frase-nova,
   .dark .divulgar-frase-nova { animation: none; }
 }
+
+/* Pedidos: linha do tempo do pedido do vendedor */
+@keyframes pedido-trilho { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+@keyframes pedido-trilho-v { from { transform: scaleY(0) } to { transform: scaleY(1) } }
+@keyframes pedido-entra { 0% { transform: scale(0.5); opacity: 0 } 70% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(1) } }
+@keyframes pedido-pulso { 0% { box-shadow: 0 0 0 0 rgba(255, 211, 0, 0.55) } 70% { box-shadow: 0 0 0 12px rgba(255, 211, 0, 0) } 100% { box-shadow: 0 0 0 0 rgba(255, 211, 0, 0) } }
+@keyframes pedido-pulso-verde { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5) } 70% { box-shadow: 0 0 0 12px rgba(34, 197, 94, 0) } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0) } }
+@keyframes pedido-caminhao { 0%, 100% { transform: translateX(0) } 50% { transform: translateX(3px) } }
+
+.pedido-trilho { transform-origin: left; animation: pedido-trilho 0.9s 0.15s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.pedido-trilho-v { transform-origin: top; animation: pedido-trilho-v 0.35s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.pedido-entra { animation: pedido-entra 0.45s cubic-bezier(0.2, 0.8, 0.2, 1.2) both; }
+.pedido-pulso { animation: pedido-pulso 1.8s ease-out 0.9s infinite; }
+.pedido-pulso-verde { animation: pedido-pulso-verde 1.8s ease-out 0.9s 3; }
+.pedido-caminhao { animation: pedido-caminhao 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pedido-trilho, .pedido-trilho-v, .pedido-entra, .pedido-pulso, .pedido-pulso-verde, .pedido-caminhao { animation: none !important; }
+}

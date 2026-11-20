@@ -1067,12 +1067,6 @@ export default function Orders() {
                         <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 break-all">
                           Código: {order.id}
                         </p>
-
-                        {/* Por onde o pedido já passou. O selo sozinho dizia
-                            "Pendente" por dias, e o vendedor achava que nada
-                            estava acontecendo. Pedido desfeito não tem
-                            andamento para mostrar. */}
-                        {!foiCancelado(order) && <LinhaDoTempoDoPedido pedido={order} />}
                       </div>
                     </div>
 
@@ -1124,6 +1118,10 @@ export default function Orders() {
                       </div>
                     </div>
                   </div>
+                  {/* Por onde o pedido já passou, na largura toda do cartão. O selo
+                      sozinho dizia "Pendente" por dias, e o vendedor achava que nada
+                      estava acontecendo. Pedido desfeito não tem andamento para mostrar. */}
+                  {!foiCancelado(order) && <LinhaDoTempoDoPedido pedido={order} />}
 
 
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-5">
