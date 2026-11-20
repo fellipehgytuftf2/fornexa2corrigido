@@ -61,6 +61,110 @@ async function lancarNavegador() {
   });
 }
 
+const AGENTE = "Mozilla/5.0";
+
+/**
+ * Login sem navegador nenhum.
+ *
+ * A tela de login da loja é uma aplicação Vue: não há formulário HTML que o
+ * navegador precise preencher. O que ela faz, ao clicar em entrar, é um POST
+ * de formulário comum para um endereço de ação que vem escrito na própria
+ * página -- e isso o fetch() faz sozinho.
+ *
+ * POR QUE ISTO EXISTE
+ *
+ * Subir o Chromium, abrir a página, digitar e esperar a navegação custava
+ * mais do que os 40s de orçamento do login. O resultado é que o caminho com
+ * login falhava SEMPRE, há 45 dias, e a sincronização caía no feed público --
+ * que não tem preço de custo. Os preços da FORNEXA congelaram aí.
+ *
+ * O endereço de ação é lido da página a cada rodada, e não fixado aqui: ele
+ * tem cara de coisa que muda (hoje é um número de telefone no caminho), e
+ * fixá-lo trocaria uma quebra barulhenta por uma silenciosa.
+ */
+function juntarCookies(pote) {
+  return Object.entries(pote)
+    .map(([nome, valor]) => `${nome}=${valor}`)
+    .join("; ");
+}
+
+function guardarCookies(pote, resposta) {
+  const linhas =
+    typeof resposta.headers.getSetCookie === "function"
+      ? resposta.headers.getSetCookie()
+      : [resposta.headers.get("set-cookie")].filter(Boolean);
+
+  for (const linha of linhas) {
+    const [par] = String(linha).split(";");
+    const corte = par.indexOf("=");
+    if (corte > 0) pote[par.slice(0, corte).trim()] = par.slice(corte + 1).trim();
+  }
+}
+
+async function logarPorHttp(email, senha) {
+  const pote = {};
+
+  const pagina = await fetch(`${URL_LOJA}/login`, {
+    headers: { "User-Agent": AGENTE },
+    redirect: "follow",
+  });
+  guardarCookies(pote, pagina);
+
+  const html = await pagina.text();
+  const achado = html.match(/"acao"\s*:\s*"(https:\/\/[^"]+)"/);
+
+  if (!achado) {
+    throw new Error("endereco de acao do login nao encontrado na pagina");
+  }
+
+  const urlAcao = achado[1];
+
+  const postar = async (dados) => {
+    const resposta = await fetch(urlAcao, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": AGENTE,
+        "X-Requested-With": "XMLHttpRequest",
+        Cookie: juntarCookies(pote),
+      },
+      body: new URLSearchParams(dados),
+    });
+
+    guardarCookies(pote, resposta);
+
+    const texto = await resposta.text();
+
+    try {
+      return JSON.parse(texto);
+    } catch {
+      throw new Error(`login respondeu algo que nao e json (${resposta.status})`);
+    }
+  };
+
+  // A tela faz esta chamada antes de pedir a senha. Vai junto porque é o que
+  // o servidor espera ver na sessão antes do login.
+  await postar({ acao: "valida_cliente_login", tipo_login: "email", cliente_email: email });
+
+  const entrada = await postar({
+    acao: "cliente_login",
+    tipo_login: "email",
+    cliente_email: email,
+    senha_login: senha,
+    codigo_login: senha,
+  });
+
+  if (entrada && entrada.sucesso === false) {
+    throw new Error(entrada.erro || "login recusado pela loja");
+  }
+
+  if (!pote.ci_session) {
+    throw new Error("login por http nao devolveu cookie de sessao");
+  }
+
+  return pote;
+}
+
 async function logarEObterCookies(email, senha) {
   const browser = await lancarNavegador();
   try {
@@ -207,9 +311,27 @@ export async function extrairViaLogin(email, senha) {
   if (!email || !senha) {
     throw new Error("MSDIGITAL_EMAIL / MSDIGITAL_SENHA nao configurados");
   }
-  const cookies = await logarEObterCookies(email, senha);
-  const headersCookie = cabecalhoCookie(cookies);
-  const token = await descobrirTokenDaLoja(headersCookie);
+  /**
+   * Tenta sem navegador; se não der, sobe o Chromium como antes.
+   *
+   * A validação é o token da loja: ele só aparece na página inicial para quem
+   * está logado. Um cookie de sessão que não autentica passaria pelo login e
+   * só quebraria lá na frente -- aqui ele é pego antes de desistir do
+   * navegador.
+   */
+  const entrar = async () => {
+    try {
+      const cookies = await logarPorHttp(email, senha);
+      const headers = cabecalhoCookie(cookies);
+      return { headersCookie: headers, token: await descobrirTokenDaLoja(headers) };
+    } catch {
+      const cookies = await logarEObterCookies(email, senha);
+      const headers = cabecalhoCookie(cookies);
+      return { headersCookie: headers, token: await descobrirTokenDaLoja(headers) };
+    }
+  };
+
+  const { headersCookie, token } = await entrar();
 
   const produtosBrutos = [];
   let pagina = 1;
