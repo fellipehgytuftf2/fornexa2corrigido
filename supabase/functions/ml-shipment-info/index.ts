@@ -54,7 +54,9 @@ function json(body: unknown, status = 200) {
  * resposta possível era "espera" — sem dizer até quando.
  */
 function dataDeLiberacao(envio: Record<string, unknown>): string | null {
-  const buffering = envio.buffering as Record<string, unknown> | null | undefined;
+  // O Mercado Livre manda a data em shipping_option.buffering (formato atual
+  // da API); na raiz do envio ela não vem, e a data ficava sempre vazia.
+  const buffering = ((envio?.shipping_option as Record<string, unknown> | undefined)?.buffering ?? envio?.buffering) as Record<string, unknown> | null | undefined;
   const data = buffering?.date;
 
   return typeof data === 'string' && data ? data : null;

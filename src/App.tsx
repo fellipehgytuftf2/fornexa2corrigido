@@ -9,6 +9,7 @@ import EsqueciSenha from './pages/EsqueciSenha';
 import RedefinirSenha from './pages/RedefinirSenha';
 import Assinar from './pages/Assinar';
 import Checkout from './pages/Checkout';
+import PreviaLinhaDoTempo from './pages/PreviaLinhaDoTempo';
 import Obrigado from './pages/Obrigado';
 const SupplierPortal = lazy(() => import('./pages/supplier/SupplierPortal'));
 
@@ -463,6 +464,8 @@ function App() {
         {/* Landing de oferta: a mesma da home, com o Premium de R$ 594 e a
             caixa de cupom aberta. PRÉVIA (feat/cupom-influenciador). */}
         <Route path="/oferta" element={<LandingPage oferta />} />
+        {/* PRÉVIA — sai antes de ir para o ar. */}
+        <Route path="/previa/pedidos" element={<PreviaLinhaDoTempo />} />
 
         {/* fornexa.site/joao — o link que o afiliado divulga. Só pega
             endereço de um pedaço só (sem barra), então nunca esbarra em

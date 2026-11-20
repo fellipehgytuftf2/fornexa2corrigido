@@ -175,7 +175,9 @@ Deno.serve(async (req: Request) => {
         .join(', ')
     : null;
 
-  const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+  // O Mercado Livre manda a data em shipping_option.buffering (formato atual
+  // da API); na raiz do envio ela não vem, e a data ficava sempre vazia.
+  const buffering = ((envio?.shipping_option as Record<string, unknown> | undefined)?.buffering ?? envio?.buffering) as Record<string, unknown> | null | undefined;
 
   await admin
     .from('orders')

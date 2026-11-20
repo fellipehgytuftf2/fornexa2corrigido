@@ -23,6 +23,8 @@ import ModalPortal from '../../components/ui/modal-portal';
 import Pagination from '../../components/ui/pagination';
 import { situacaoDoCorte } from '../../lib/horarioDeCorte';
 
+import LinhaDoTempoDoPedido, { rotuloDaEtapa } from '../../components/dashboard/LinhaDoTempoDoPedido';
+
 const PEDIDOS_POR_PAGINA = 8;
 
 type OrderStatus =
@@ -68,6 +70,12 @@ interface Order {
   pago_ao_fornecedor_em: string | null;
   comprovante_path: string | null;
   recebimento_confirmado_em: string | null;
+  /** O fornecedor separou o produto e pôs o pedido na prateleira. */
+  reservado_em: string | null;
+  /** Etapa do envio no Mercado Livre (buffered = venda agendada, etiqueta ainda não saiu). */
+  ml_shipment_substatus: string | null;
+  /** Quando o Mercado Livre solta a etiqueta de uma venda agendada. */
+  ml_liberacao_em: string | null;
   repasse_id: string | null;
   status: OrderStatus;
   tracking_code: string | null;
@@ -478,6 +486,9 @@ export default function Orders() {
         pago_ao_fornecedor_em,
         comprovante_path,
         recebimento_confirmado_em,
+        reservado_em,
+        ml_shipment_substatus,
+        ml_liberacao_em,
         repasse_id,
         status,
         tracking_code,
@@ -1033,7 +1044,9 @@ export default function Orders() {
                           >
                             {foiCancelado(order)
                               ? 'Cancelado'
-                              : statusLabels[order.status] || order.status}
+                              : order.status === 'pending' || order.status === 'separating'
+                                ? rotuloDaEtapa(order)
+                                : statusLabels[order.status] || order.status}
                           </span>
 
                           {order.tracking_code && (
@@ -1054,6 +1067,12 @@ export default function Orders() {
                         <p className="text-xs text-gray-400 dark:text-slate-500 mt-1 break-all">
                           Código: {order.id}
                         </p>
+
+                        {/* Por onde o pedido já passou. O selo sozinho dizia
+                            "Pendente" por dias, e o vendedor achava que nada
+                            estava acontecendo. Pedido desfeito não tem
+                            andamento para mostrar. */}
+                        {!foiCancelado(order) && <LinhaDoTempoDoPedido pedido={order} />}
                       </div>
                     </div>
 

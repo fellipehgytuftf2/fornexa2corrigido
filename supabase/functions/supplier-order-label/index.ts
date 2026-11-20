@@ -324,7 +324,9 @@ const mesmaCidade = (uma: string, outra: string) => {
  * clicando num botão que ainda não vai funcionar.
  */
 function quandoLibera(envio: Record<string, unknown> | null): string | null {
-  const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+  // O Mercado Livre manda a data em shipping_option.buffering (formato atual
+  // da API); na raiz do envio ela não vem, e a data ficava sempre vazia.
+  const buffering = ((envio?.shipping_option as Record<string, unknown> | undefined)?.buffering ?? envio?.buffering) as Record<string, unknown> | null | undefined;
   const data = buffering?.date;
 
   if (typeof data !== 'string' || !data) return null;
@@ -613,7 +615,9 @@ Deno.serve(async (req: Request) => {
   // sincronização, porque acabou de acontecer. Guardar aqui é o que faz o
   // cartão parar de dizer "pronto" logo depois de o Mercado Livre recusar.
   if (envio?.substatus) {
-    const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+    // O Mercado Livre manda a data em shipping_option.buffering (formato atual
+    // da API); na raiz do envio ela não vem, e a data ficava sempre vazia.
+    const buffering = ((envio?.shipping_option as Record<string, unknown> | undefined)?.buffering ?? envio?.buffering) as Record<string, unknown> | null | undefined;
 
     await admin
       .from('orders')

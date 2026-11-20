@@ -171,7 +171,9 @@ Deno.serve(async (req: Request) => {
       // Quando o Mercado Livre solta um envio que está segurando. Sem esta
       // data o cartão dizia "segurando" e o fornecedor voltava de hora em
       // hora para descobrir se já tinha soltado.
-      const buffering = envio?.buffering as Record<string, unknown> | null | undefined;
+      // O Mercado Livre manda a data em shipping_option.buffering (formato atual
+      // da API); na raiz do envio ela não vem, e a data ficava sempre vazia.
+      const buffering = ((envio?.shipping_option as Record<string, unknown> | undefined)?.buffering ?? envio?.buffering) as Record<string, unknown> | null | undefined;
       const liberaEm = typeof buffering?.date === 'string' ? buffering.date : null;
 
       await admin
