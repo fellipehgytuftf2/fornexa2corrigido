@@ -1423,29 +1423,31 @@ export default function SupplierPortal() {
     const montados = [...porEnvio.entries()].map(([chave, pedidos]) => ({ chave, pedidos }));
 
     /**
-     * Pronto para despachar sobe. O mais antigo pronto sobe mais ainda.
+     * O mais recente primeiro, em toda aba e em todo estágio.
      *
-     * A lista vinha por data da venda, e o Mercado Livre segura pedido por
-     * horas — às vezes por um dia. Quando ele solta, o pedido continua lá
-     * embaixo, onde a data o colocou: "se a gente não ficar rolando tudinho,
-     * procurando lá pra baixo, acaba não imprimindo aquele pedido".
+     * ESTA REGRA JÁ FOI O CONTRÁRIO, E VALE SABER POR QUÊ
      *
-     * Então o que dá para despachar agora vem primeiro. E, entre os prontos, o
-     * mais velho na frente: é o que já esperou e o que corre risco de passar
-     * do prazo. O resto segue como estava, mais recente primeiro, porque ali a
-     * ordem não decide nada — nenhum deles pode ser despachado.
+     * Antes, "pronto para despachar" subia ao topo e, entre os prontos, o mais
+     * antigo subia mais ainda. A razão era real: o Mercado Livre segura o
+     * pedido por horas, às vezes um dia, e quando soltava ele continuava lá
+     * embaixo, onde a data o tinha posto — "se a gente não ficar rolando
+     * tudinho, procurando lá pra baixo, acaba não imprimindo aquele pedido".
+     *
+     * O fornecedor pediu o contrário: "pode deixar todos os estágios mostrando
+     * primeiro os últimos pedidos criados". Quem usa a tela todo dia é ele.
+     *
+     * O que protegia não se perde junto: o selo verde "Pronto para despachar"
+     * continua no cartão, então dá para varrer a lista achando o que pode
+     * sair. O que muda é a ordem, não a informação.
+     *
+     * Se voltar a escapar pedido antigo pronto, o caminho é um filtro "só os
+     * prontos" — e não reordenar tudo de novo, que foi o que incomodou.
      */
-    return montados.sort((a, b) => {
-      const prontoA = prontoParaDespachar(a.pedidos[0]);
-      const prontoB = prontoParaDespachar(b.pedidos[0]);
-
-      if (prontoA !== prontoB) return prontoA ? -1 : 1;
-
-      const dataA = new Date(a.pedidos[0].created_at).getTime();
-      const dataB = new Date(b.pedidos[0].created_at).getTime();
-
-      return prontoA ? dataA - dataB : dataB - dataA;
-    });
+    return montados.sort(
+      (a, b) =>
+        new Date(b.pedidos[0].created_at).getTime() -
+        new Date(a.pedidos[0].created_at).getTime()
+    );
   }, [visibleOrders]);
   const contagemPorFase = useMemo(() => {
     const contagem = { aguardando: 0, conferir: 0, confirmados: 0, reembolsados: 0 };
