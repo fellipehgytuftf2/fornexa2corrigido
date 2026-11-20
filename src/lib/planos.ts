@@ -34,10 +34,17 @@ export interface Plano {
   checkout: string;
 }
 
-// O checkout da empresa. Fica no ambiente de propósito: muda com deploy, não
-// com clique — o de cada afiliado é que se cadastra por tela.
-const checkoutBasico = import.meta.env.VITE_CHECKOUT_BASICO || '';
-const checkoutPremium = import.meta.env.VITE_CHECKOUT_PREMIUM || '';
+// O checkout da empresa. Muda com deploy, não com clique — o de cada afiliado
+// é que se cadastra por tela.
+//
+// As vendas da casa passaram para a conta nova da Applyfy (Patricia Milazzo).
+// Os links antigos, que ainda estão no ambiente (`VITE_CHECKOUT_*`), seguem
+// valendo só para reconhecer o checkout da casa: os links dos afiliados são
+// aquele checkout antigo com o `?code=` deles no fim.
+const checkoutBasico = 'https://checkout.applyfy.com.br/checkout/cmwpirotc0unz01pqldwx9i1x?offer=5HILYOJ';
+const checkoutPremium = 'https://checkout.applyfy.com.br/checkout/cmwpiwl7p102y01ojq2gi8km7?offer=G22XNA5';
+const checkoutBasicoAntigo = import.meta.env.VITE_CHECKOUT_BASICO || '';
+const checkoutPremiumAntigo = import.meta.env.VITE_CHECKOUT_PREMIUM || '';
 
 /**
  * Os dois planos dão o MESMO acesso. A diferença é só a forma de pagar.
@@ -258,7 +265,9 @@ const idDoCheckout = (url: string) => url.match(/\/checkout\/([^/?#]+)/)?.[1];
 /** O `?code=` do endereço, que é como a Applyfy sabe de quem é a venda. */
 const codigoNoCheckout = (url: string) => url.match(/[?&]code=([^&\s]+)/)?.[1];
 
-const CHECKOUTS_DA_CASA = [checkoutBasico, checkoutPremium].map(idDoCheckout).filter(Boolean);
+const CHECKOUTS_DA_CASA = [checkoutBasico, checkoutPremium, checkoutBasicoAntigo, checkoutPremiumAntigo]
+  .map(idDoCheckout)
+  .filter(Boolean);
 
 /**
  * O link da casa colado no cadastro de um afiliado.
@@ -292,7 +301,7 @@ const comoDinheiro = (valor: number) =>
  * dele.
  *
  * Sem código — ou com um código que não está cadastrado — vale o nosso, que
- * mora no ambiente (`VITE_CHECKOUT_*`) e não se mexe por tela nenhuma: é o
+ * fica no código e não se mexe por tela nenhuma: é o
  * checkout da empresa, não uma preferência.
  */
 export async function buscarLinksDeCheckout(

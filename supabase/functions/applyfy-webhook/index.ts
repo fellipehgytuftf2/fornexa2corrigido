@@ -150,6 +150,20 @@ function calcularValidade(assinatura: Assinatura | null | undefined): string | n
 }
 
 /**
+ * Ofertas da conta nova da Applyfy (Patricia Milazzo), que passou a receber as
+ * vendas da landing. A conta antiga continua valendo pelos segredos, porque
+ * afiliados e renovações de quem já assinava seguem cobrados por lá.
+ * Código de oferta não é segredo — aparece no link do checkout.
+ */
+const OFERTAS_CONTA_NOVA = { basico: "5HILYOJ", premium: "G22XNA5" };
+
+/** Códigos aceitos para um plano: os do segredo (separados por vírgula) e o da conta nova. */
+function codigosDaOferta(segredo: string, daContaNova: string): string[] {
+  const doSegredo = (Deno.env.get(segredo) || "").split(",").map((c) => c.trim()).filter(Boolean);
+  return [...doSegredo, daContaNova];
+}
+
+/**
  * Qual plano foi comprado.
  *
  * O `offerCode` é o caminho confiável. A queda para a presença de assinatura
@@ -160,13 +174,11 @@ function descobrirPlano(
   offerCode: string | null | undefined,
   assinatura: Assinatura | null | undefined
 ): string | null {
-  const basico = (Deno.env.get("APPLYFY_OFERTA_BASICO") || "").trim();
-  const premium = (Deno.env.get("APPLYFY_OFERTA_PREMIUM") || "").trim();
   const codigo = (offerCode || "").trim();
 
   if (codigo) {
-    if (basico && codigo === basico) return "basico";
-    if (premium && codigo === premium) return "premium";
+    if (codigosDaOferta("APPLYFY_OFERTA_BASICO", OFERTAS_CONTA_NOVA.basico).includes(codigo)) return "basico";
+    if (codigosDaOferta("APPLYFY_OFERTA_PREMIUM", OFERTAS_CONTA_NOVA.premium).includes(codigo)) return "premium";
   }
 
   return assinatura ? "basico" : "premium";
@@ -192,11 +204,16 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const esperado = Deno.env.get("APPLYFY_WEBHOOK_TOKEN");
+  // Um token por conta da Applyfy: _TOKEN é a conta antiga (afiliados e
+  // renovações antigas), _TOKEN_2 é a conta nova que recebe as vendas da landing.
+  const aceitos = [
+    Deno.env.get("APPLYFY_WEBHOOK_TOKEN"),
+    Deno.env.get("APPLYFY_WEBHOOK_TOKEN_2"),
+  ].filter((t): t is string => !!t && t.trim().length > 0).map((t) => t.trim());
 
   // Sem o token configurado, qualquer um na internet libera acesso pago
   // mandando um POST. Falha fechada de propósito.
-  if (!esperado) {
+  if (aceitos.length === 0) {
     console.error("APPLYFY_WEBHOOK_TOKEN não configurado — recusando chamada.");
 
     return new Response(JSON.stringify({ erro: "webhook não configurado" }), {
@@ -210,7 +227,11 @@ Deno.serve(async (req: Request) => {
   try {
     const aviso = (await req.json().catch(() => ({}))) as AvisoApplyfy;
 
-    if (!tokenConfere(aviso.token || "", esperado)) {
+    const recebido = aviso.token || "";
+    // Confere contra todos, sem parar no primeiro, para o tempo não denunciar qual bateu.
+    const confere = aceitos.map((t) => tokenConfere(recebido, t)).some(Boolean);
+
+    if (!confere) {
       console.warn("Chamada recusada: token inválido.");
 
       return new Response(JSON.stringify({ erro: "não autorizado" }), {
