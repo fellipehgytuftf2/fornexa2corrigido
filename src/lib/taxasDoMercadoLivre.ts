@@ -130,6 +130,38 @@ export interface OpcoesDaConta {
   freteRapido?: boolean;
   /** Imposto sobre a venda, em porcentagem (ex.: 4 para 4%). */
   impostoPct?: number;
+  /**
+   * Comissão como fração do preço, quando o Mercado Livre já respondeu para
+   * este anúncio (a porcentagem é da categoria e não muda com o preço).
+   */
+  taxaPct?: number;
+  /**
+   * Um custo de envio que o Mercado Livre respondeu para um preço. Vale para
+   * qualquer preço da mesma faixa da tabela; fora dela, volta à tabela.
+   */
+  freteReferencia?: { preco: number; valor: number };
+}
+
+/** Em qual coluna de preço da tabela de envio um preço cai. */
+function colunaDoPreco(preco: number): number {
+  const coluna = COLUNAS_DE_PRECO.findIndex((ate) => preco <= ate);
+  return coluna === -1 ? COLUNAS_DE_PRECO.length - 1 : coluna;
+}
+
+function freteDaConta(preco: number, opcoes: OpcoesDaConta): number {
+  if (opcoes.frete !== undefined) return opcoes.frete;
+
+  const referencia = opcoes.freteReferencia;
+  // Abaixo de R$ 19 o custo é "no máximo metade do preço": muda com o preço
+  // dentro da faixa, então a referência só vale para o mesmo preço.
+  const mesmaFaixa =
+    referencia &&
+    (opcoes.freteRapido && preco < LIMITE_FRETE_GRATIS
+      ? referencia.preco < LIMITE_FRETE_GRATIS
+      : colunaDoPreco(referencia.preco) === colunaDoPreco(preco) &&
+        (preco >= LIMITE_PRODUTO_BARATO || referencia.preco === preco));
+
+  return mesmaFaixa ? referencia.valor : custoDeEnvioPelaTabela(preco, opcoes.pesoG, opcoes.freteRapido);
 }
 
 /**
@@ -154,8 +186,8 @@ export function calcularVenda(
   const custo = Number(custoDoFornecedor) || 0;
   const tipo = opcoes.tipo ?? 'classico';
 
-  const comissao = opcoes.comissao ?? preco * comissaoEstimada(preco, tipo);
-  const frete = opcoes.frete ?? custoDeEnvioPelaTabela(preco, opcoes.pesoG, opcoes.freteRapido);
+  const comissao = opcoes.comissao ?? preco * (opcoes.taxaPct ?? comissaoEstimada(preco, tipo));
+  const frete = freteDaConta(preco, opcoes);
   const imposto = preco * ((Number(opcoes.impostoPct) || 0) / 100);
 
   const lucro = preco - custo - comissao - frete - imposto;
@@ -250,4 +282,31 @@ export function sugestaoDoDegrau79(
   return sugerido.lucro >= agora.lucro
     ? { preco: 78.9, lucroAgora: agora.lucro, lucroSugerido: sugerido.lucro }
     : null;
+}
+
+/**
+ * O menor preço em que o lucro é pelo menos `margemPct` % do preço de venda.
+ *
+ * É o "lucro (%)" da calculadora: o vendedor diz quanto quer que sobre, sobre
+ * o preço, e o preço sai pronto. Busca de centavo em centavo, porque comissão
+ * e envio mudam por faixa.
+ */
+export function precoParaMargemDesejada(
+  custoDoFornecedor: number,
+  margemPct: number,
+  opcoes?: OpcoesDaConta
+): number | null {
+  const custo = Number(custoDoFornecedor) || 0;
+  const alvo = Number(margemPct) || 0;
+  if (alvo >= 80) return null;
+
+  const teto = Math.max(100, custo * 10 + 300);
+
+  for (let centavos = Math.max(100, Math.round(custo * 100)); centavos <= teto * 100; centavos += 1) {
+    const preco = centavos / 100;
+    const conta = calcularVenda(preco, custo, { ...opcoes, comissao: undefined, frete: undefined });
+    if (conta.lucro > 0 && conta.margemReal >= alvo) return preco;
+  }
+
+  return null;
 }

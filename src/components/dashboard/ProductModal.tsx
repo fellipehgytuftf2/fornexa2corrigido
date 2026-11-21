@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -25,8 +25,7 @@ import {
   LIMITE_FRETE_GRATIS,
   LIMITE_PRODUTO_BARATO,
   calcularVenda,
-  custoDeEnvioPelaTabela,
-  margemMinimaSemPrejuizo,
+  precoParaMargemDesejada,
   sugestaoDoDegrau79,
   type OpcoesDaConta,
 } from '../../lib/taxasDoMercadoLivre';
@@ -52,8 +51,6 @@ interface MlConnection {
  * preço sai calculado. Os outros dois existem porque quem já trabalha com
  * margem tem o número na cabeça e não quer converter.
  */
-/** Atalhos da barra de margem. */
-const PRESETS_DE_MARGEM = [30, 50, 80, 100];
 
 /** Limite do Mercado Livre: acima disso o título é cortado no anúncio. */
 const MAX_TITULO = 60;
@@ -135,7 +132,6 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   // O modal existe só enquanto está aberto, então a trava vale sempre.
   useTravaScrollDeFundo(true);
 
-  const [margemEscolhida, setMargemEscolhida] = useState<string>('40');
 
   /**
    * Título e fotos do anúncio, editáveis. Começam no que veio do catálogo e o
@@ -264,30 +260,22 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const taxaEmbalagem = Number(product.supplierPackagingFee || 0);
   const custoDoFornecedor = supplierPrice + taxaEmbalagem;
 
-  const margem = Math.max(0, Number(margemEscolhida) || 0);
-
-  // Preço pela margem sobre o custo, como a tela sempre fez.
-  //
-  // Esta conta não sabe nada sobre o que o Mercado Livre retém — e é
-  // justamente por isso que a decomposição abaixo dela existe. Com 40% num
-  // custo de R$ 97 o preço sai R$ 135,80 e o lucro real é negativo; antes o
-  // vendedor só descobria no extrato, agora vê em vermelho antes de publicar.
-  const precoDeVenda = custoDoFornecedor * (1 + margem / 100);
-
   /**
-   * Frete grátis RÁPIDO abaixo de R$ 79.
+   * A calculadora funciona como a de quem vende todo dia: três números na
+   * mesma linha — preço, imposto e lucro (%) — e mexer em um ajusta o outro.
    *
-   * Pela regra do Mercado Livre, o custo de envio é cobrado em toda venda
-   * (Coleta, Agência, Full), mesmo quando o comprador paga. De R$ 19 a
-   * R$ 78,99 o frete grátis padrão é oferecido pelo próprio Mercado Livre. O
-   * que é opcional abaixo de R$ 79 é o frete grátis RÁPIDO — e quem liga paga
-   * a tarifa da faixa de R$ 79 (R$ 12,95 ou mais). Começa desligado, e a
-   * publicação manda desligado também.
+   * `motor` diz qual dos dois manda. Digitou o lucro, o preço sai calculado
+   * ("preço para 30% de lucro"); digitou o preço, o lucro aparece. O lucro é
+   * sobre o PREÇO DE VENDA, depois de comissão, envio e imposto — é o que
+   * sobra de fato de cada venda.
    */
-  const [freteRapido, setFreteRapido] = useState(false);
+  const [motor, setMotor] = useState<'lucro' | 'preco'>('lucro');
+  const [lucroTexto, setLucroTexto] = useState('30');
+  const [precoTexto, setPrecoTexto] = useState('');
+  const [tipoAnuncio, setTipoAnuncio] = useState<'classico' | 'premium'>('classico');
 
-  const freteObrigatorio = precoDeVenda >= LIMITE_FRETE_GRATIS;
-  const usaFreteRapido = !freteObrigatorio && freteRapido;
+  /** Frete grátis RÁPIDO abaixo de R$ 79: opcional e caro. Começa desligado. */
+  const [freteRapido, setFreteRapido] = useState(false);
 
   /** Imposto sobre a venda, em %. Lembrado entre anúncios. */
   const [impostoTexto, setImpostoTexto] = useState<string>(() => {
@@ -307,140 +295,152 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     }
   }, [impostoTexto]);
 
-  /** Peso da embalagem, para a tabela oficial de envio quando o ML não responde. */
-  const [pesoG, setPesoG] = useState<number | null>(null);
+  /** Medidas da embalagem: entram no custo de envio e aparecem na tela. */
+  const [embalagem, setEmbalagem] = useState<{
+    pesoG: number | null;
+    altura: number | null;
+    largura: number | null;
+    comprimento: number | null;
+  }>({ pesoG: null, altura: null, largura: null, comprimento: null });
+  const pesoG = embalagem.pesoG;
 
   useEffect(() => {
     if (!product.id) return;
     supabase
       .from('catalog_products')
-      .select('peso_g')
+      .select('peso_g, altura_cm, largura_cm, comprimento_cm')
       .eq('id', product.id)
       .maybeSingle()
-      .then(({ data }) => setPesoG(data?.peso_g ? Number(data.peso_g) : null));
+      .then(({ data }) =>
+        setEmbalagem({
+          pesoG: data?.peso_g ? Number(data.peso_g) : null,
+          altura: data?.altura_cm ? Number(data.altura_cm) : null,
+          largura: data?.largura_cm ? Number(data.largura_cm) : null,
+          comprimento: data?.comprimento_cm ? Number(data.comprimento_cm) : null,
+        })
+      );
   }, [product.id]);
 
   /**
-   * O custo de envio exato, perguntado ao Mercado Livre com as medidas do
-   * catálogo e a reputação deste vendedor (`ml-custo-de-envio`). Nulo
-   * enquanto não responde; aí vale a tabela oficial (reputação verde).
+   * A comissão exata, perguntada ao Mercado Livre (`ml-taxa-do-anuncio`), para
+   * os dois tipos de anúncio. Guarda o preço consultado: a porcentagem é da
+   * categoria e vale para os outros preços também.
    */
+  const [taxas, setTaxas] = useState<{ preco: number; classico: number | null; premium: number | null } | null>(null);
+
+  /** O custo de envio exato do Mercado Livre (`ml-custo-de-envio`). */
   const [envioReal, setEnvioReal] = useState<{
+    preco: number;
     custo: number;
     rapido: number | null;
     reputacao: string | null;
   } | null>(null);
 
+  const taxaPct = (() => {
+    const valor = tipoAnuncio === 'premium' ? taxas?.premium : taxas?.classico;
+    return taxas && valor != null && taxas.preco > 0 ? valor / taxas.preco : undefined;
+  })();
+
+  const opcoesBase: OpcoesDaConta = {
+    tipo: tipoAnuncio,
+    pesoG,
+    freteRapido,
+    impostoPct,
+    taxaPct,
+    freteReferencia: envioReal
+      ? { preco: envioReal.preco, valor: freteRapido && envioReal.rapido != null ? envioReal.rapido : envioReal.custo }
+      : undefined,
+  };
+
+  const lucroAlvo = Math.max(0, Number(lucroTexto.replace(',', '.')) || 0);
+
+  const precoPeloLucro = useMemo(
+    () => precoParaMargemDesejada(custoDoFornecedor, lucroAlvo, opcoesBase),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [custoDoFornecedor, lucroAlvo, tipoAnuncio, pesoG, freteRapido, impostoPct, taxaPct, envioReal]
+  );
+
+  const precoDigitado = Number(precoTexto.replace(/\./g, '').replace(',', '.')) || 0;
+  const precoDeVenda = motor === 'lucro' ? precoPeloLucro ?? 0 : precoDigitado;
+
+  const freteObrigatorio = precoDeVenda >= LIMITE_FRETE_GRATIS;
+  const usaFreteRapido = !freteObrigatorio && freteRapido;
+
   useEffect(() => {
-    if (!(precoDeVenda > 0) || !product.id) {
-      setEnvioReal(null);
-      return;
-    }
+    if (!(precoDeVenda > 0)) return;
 
+    // Espera a pessoa parar de digitar: sem isso seria uma chamada por tecla.
     const relogio = setTimeout(async () => {
-      const { data } = await supabase.functions.invoke('ml-custo-de-envio', {
-        body: { preco: Number(precoDeVenda.toFixed(2)), catalog_product_id: product.id },
-      });
+      const preco = Number(precoDeVenda.toFixed(2));
 
-      const resposta = data as {
+      const [taxa, envio] = await Promise.all([
+        supabase.functions.invoke('ml-taxa-do-anuncio', { body: { preco } }),
+        product.id
+          ? supabase.functions.invoke('ml-custo-de-envio', {
+              body: {
+                preco,
+                catalog_product_id: product.id,
+                tipo: tipoAnuncio === 'premium' ? 'gold_pro' : 'gold_special',
+              },
+            })
+          : Promise.resolve({ data: null }),
+      ]);
+
+      const tipos = (taxa.data as { tipos?: { listing_type_id: string; taxa: number }[] } | null)?.tipos;
+      if (tipos?.length) {
+        setTaxas({
+          preco,
+          classico: tipos.find((t) => t.listing_type_id === 'gold_special')?.taxa ?? null,
+          premium: tipos.find((t) => t.listing_type_id === 'gold_pro')?.taxa ?? null,
+        });
+      }
+
+      const resposta = envio.data as {
         custo_envio?: number;
         custo_frete_gratis_rapido?: number | null;
         reputacao?: string | null;
       } | null;
 
-      setEnvioReal(
-        typeof resposta?.custo_envio === 'number'
-          ? {
-              custo: resposta.custo_envio,
-              rapido: resposta.custo_frete_gratis_rapido ?? null,
-              reputacao: resposta.reputacao ?? null,
-            }
-          : null
-      );
-    }, 400);
+      if (typeof resposta?.custo_envio === 'number') {
+        setEnvioReal({
+          preco,
+          custo: resposta.custo_envio,
+          rapido: resposta.custo_frete_gratis_rapido ?? null,
+          reputacao: resposta.reputacao ?? null,
+        });
+      }
+    }, 450);
 
     return () => clearTimeout(relogio);
-  }, [precoDeVenda, product.id]);
+  }, [precoDeVenda, product.id, tipoAnuncio]);
 
-  const freteDaConta = envioReal
-    ? usaFreteRapido
-      ? envioReal.rapido ?? undefined
-      : envioReal.custo
-    : undefined;
-
-  const reputacaoRuim = envioReal?.reputacao === 'orange' || envioReal?.reputacao === 'red';
-
-  /**
-   * A comissão exata, perguntada ao Mercado Livre.
-   *
-   * As faixas medidas das vendas reais foram um avanço sobre os 12% fixos, mas
-   * continuam sendo média: punem quem vende numa categoria barata e enganam
-   * quem vende numa cara. O Mercado Livre responde o valor exato por preço em
-   * `/sites/MLB/listing_prices` — exige token, então passa pela função
-   * `ml-taxa-do-anuncio`.
-   *
-   * Nulo enquanto não responde, ou quando a conta não está conectada. Aí vale
-   * a estimativa, que é o que havia antes e não é pior do que era.
-   */
-  const [taxaReal, setTaxaReal] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!(precoDeVenda > 0)) {
-      setTaxaReal(null);
-      return;
-    }
-
-    // Espera a pessoa parar de arrastar o controle. Sem isso seria uma
-    // chamada por pixel de movimento.
-    const relogio = setTimeout(async () => {
-      const { data } = await supabase.functions.invoke('ml-taxa-do-anuncio', {
-        body: { preco: Number(precoDeVenda.toFixed(2)) },
-      });
-
-      const tipos = (data as { tipos?: { listing_type_id: string; taxa: number }[] } | null)
-        ?.tipos;
-
-      // `gold_special` é o clássico, que é como o FORNEXA publica quando o
-      // grátis não está disponível. Sem ele, o primeiro tipo pago serve.
-      const classico =
-        tipos?.find((t) => t.listing_type_id === 'gold_special') ??
-        tipos?.find((t) => t.taxa > 0);
-
-      setTaxaReal(classico?.taxa ?? null);
-    }, 400);
-
-    return () => clearTimeout(relogio);
-  }, [precoDeVenda]);
-
-  const opcoesDaConta: OpcoesDaConta = {
-    tipo: 'classico',
-    pesoG,
-    freteRapido: usaFreteRapido,
-    impostoPct,
+  const informadoPeloML = {
+    comissao: taxaPct !== undefined,
+    envio: Boolean(envioReal),
   };
 
-  const contaDaVenda = calcularVenda(precoDeVenda, custoDoFornecedor, {
-    ...opcoesDaConta,
-    frete: freteDaConta,
-    comissao: taxaReal ?? undefined,
-  });
+  const opcoesDaConta: OpcoesDaConta = { ...opcoesBase, freteRapido: usaFreteRapido };
 
-  const margemMinima = margemMinimaSemPrejuizo(custoDoFornecedor, opcoesDaConta);
+  const contaDaVenda = calcularVenda(precoDeVenda, custoDoFornecedor, opcoesDaConta);
 
   // Lucro zero ou negativo não publica. Antes era um "publicar mesmo assim?"
   // e 292 de 486 vendas desde março fecharam no prejuízo.
-  const vendeNoPrejuizo = contaDaVenda.lucro <= 0;
+  const vendeNoPrejuizo = !(precoDeVenda > 0) || contaDaVenda.lucro <= 0;
 
-  const degrau = sugestaoDoDegrau79(precoDeVenda, custoDoFornecedor, {
-    ...opcoesDaConta,
-    frete: freteDaConta,
-  });
+  const degrau = sugestaoDoDegrau79(precoDeVenda, custoDoFornecedor, opcoesDaConta);
 
-  /** Ajusta a margem para cair exatamente num preço. */
+  const reputacaoRuim = envioReal?.reputacao === 'orange' || envioReal?.reputacao === 'red';
+
+  /** Fixa um preço exato (botão do degrau dos R$ 79). */
   const irParaOPreco = (preco: number) => {
-    if (custoDoFornecedor > 0) {
-      setMargemEscolhida(String(Math.round(((preco / custoDoFornecedor) - 1) * 10000) / 100));
-    }
+    setMotor('preco');
+    setPrecoTexto(preco.toFixed(2).replace('.', ','));
+  };
+
+  /** Volta para o lucro sugerido. */
+  const usarLucroSugerido = () => {
+    setMotor('lucro');
+    setLucroTexto('30');
   };
 
 
@@ -574,7 +574,9 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         announcement_image_urls: fotos.slice(1),
         // Só vai preenchido na segunda tentativa, depois de o vendedor
         // escolher publicar como pago.
-        listing_type_id: listingTypeId,
+        // Premium escolhido na calculadora vai como premium; o resto segue o
+        // caminho de sempre (o tipo que a conta aceitar).
+        listing_type_id: listingTypeId ?? (tipoAnuncio === 'premium' ? 'gold_pro' : undefined),
         // Abaixo de R$ 79 o anúncio sai com o frete grátis rápido do jeito
         // que a calculadora mostrou: desligado, salvo se o vendedor ligou.
         frete_gratis_rapido: usaFreteRapido,
@@ -1047,148 +1049,126 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                   </div>
 
                   <div className="space-y-4">
-                    <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600">
-                      <div className="flex items-center justify-between mb-4">
-                        <label
-                          htmlFor="margem-desejada"
-                          className="text-sm font-medium text-navy-900 dark:text-white"
-                        >
-                          Margem desejada
-                        </label>
+                    {/* Como na calculadora de quem vende todo dia: preço,
+                        imposto e lucro lado a lado. Mexer em um ajusta o
+                        outro. */}
+                    <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600 space-y-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <CampoDaCalculadora id="calc-preco" rotulo="Preço de venda" prefixo="R$">
+                          <input
+                            id="calc-preco"
+                            inputMode="decimal"
+                            value={motor === 'preco' ? precoTexto : precoDeVenda > 0 ? precoDeVenda.toFixed(2).replace('.', ',') : ''}
+                            onChange={(evento) => {
+                              setMotor('preco');
+                              setPrecoTexto(evento.target.value.replace(/[^\d.,]/g, '').slice(0, 10));
+                            }}
+                            className={classeDoCampoDaCalculadora}
+                          />
+                        </CampoDaCalculadora>
 
-                        <span className="text-xl font-bold text-gold">{margem}%</span>
+                        <CampoDaCalculadora id="calc-imposto" rotulo="Imposto (%)">
+                          <input
+                            id="calc-imposto"
+                            inputMode="decimal"
+                            value={impostoTexto}
+                            onChange={(evento) => setImpostoTexto(evento.target.value.replace(/[^\d.,]/g, '').slice(0, 5))}
+                            className={classeDoCampoDaCalculadora}
+                          />
+                        </CampoDaCalculadora>
+
+                        <CampoDaCalculadora id="calc-lucro" rotulo="Lucro (%)" sufixo="%">
+                          <input
+                            id="calc-lucro"
+                            inputMode="decimal"
+                            value={motor === 'lucro' ? lucroTexto : precoDeVenda > 0 ? contaDaVenda.margemReal.toFixed(1).replace('.', ',') : ''}
+                            onChange={(evento) => {
+                              setMotor('lucro');
+                              setLucroTexto(evento.target.value.replace(/[^\d.,]/g, '').slice(0, 5));
+                            }}
+                            className={classeDoCampoDaCalculadora}
+                          />
+                        </CampoDaCalculadora>
                       </div>
 
-                      <input
-                        id="margem-desejada"
-                        type="range"
-                        min={0}
-                        max={200}
-                        step={1}
-                        value={margem}
-                        onChange={(evento) => setMargemEscolhida(evento.target.value)}
-                        className="fornexa-slider w-full"
-                      />
-
-                      <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1.5">
-                        <span>0%</span>
-                        <span>200%</span>
-                      </div>
-
-                      <div className="grid grid-cols-4 gap-2 mt-4">
-                        {PRESETS_DE_MARGEM.map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setMargemEscolhida(String(preset))}
-                            className={
-                              margem === preset
-                                ? 'py-2 rounded-lg text-xs font-semibold border bg-gold border-gold text-black'
-                                : 'py-2 rounded-lg text-xs font-semibold border bg-white dark:bg-navy-900 border-gray-200 dark:border-navy-600 text-navy-900 dark:text-slate-300 hover:border-gold/60'
-                            }
+                      <div className="grid grid-cols-2 gap-2">
+                        <CampoDaCalculadora id="calc-tipo" rotulo="Tipo de anúncio">
+                          <select
+                            id="calc-tipo"
+                            value={tipoAnuncio}
+                            onChange={(evento) => setTipoAnuncio(evento.target.value as 'classico' | 'premium')}
+                            className={classeDoCampoDaCalculadora}
                           >
-                            {preset}%
-                          </button>
-                        ))}
+                            <option value="classico">Clássico</option>
+                            <option value="premium">Premium</option>
+                          </select>
+                        </CampoDaCalculadora>
+
+                        <CampoDaCalculadora id="calc-frete" rotulo="Frete">
+                          <select
+                            id="calc-frete"
+                            value={freteObrigatorio ? 'obrigatorio' : freteRapido ? 'rapido' : 'padrao'}
+                            onChange={(evento) => setFreteRapido(evento.target.value === 'rapido')}
+                            disabled={freteObrigatorio}
+                            className={classeDoCampoDaCalculadora}
+                          >
+                            {freteObrigatorio ? (
+                              <option value="obrigatorio">Grátis (você paga)</option>
+                            ) : (
+                              <>
+                                <option value="padrao">Comprador paga</option>
+                                <option value="rapido">Grátis rápido (você paga)</option>
+                              </>
+                            )}
+                          </select>
+                        </CampoDaCalculadora>
                       </div>
 
-                    </div>
+                      <div className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
+                        {motor === 'lucro' ? (
+                          precoPeloLucro ? (
+                            <p className="font-semibold text-navy-900 dark:text-white">
+                              Preço para {lucroAlvo.toFixed(1).replace('.', ',')}% de lucro.
+                            </p>
+                          ) : (
+                            <p className="font-semibold text-red-600 dark:text-red-400">
+                              Esse lucro não fecha com as taxas. Tente um número menor.
+                            </p>
+                          )
+                        ) : null}
+                        <p>
+                          Digite o lucro e o preço se ajusta, ou digite o preço e veja o lucro.
+                          {freteObrigatorio
+                            ? ' A partir de R$ 79 o frete grátis é obrigatório e quem paga é você.'
+                            : ' "Comprador paga" ainda tem o custo de envio do Mercado Livre, que é cobrado em toda venda.'}
+                        </p>
+                      </div>
 
-                    {/* A conta aberta, linha a linha. Ver de onde o dinheiro
-                        sai é o que impede o vendedor concluir que o preço
-                        subiu sem motivo. */}
-                    <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600">
-                      <dl className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400">
-                            Custo do produto
-                          </dt>
-                          <dd className="text-navy-900 dark:text-white tabular-nums">
-                            {formatCurrency(supplierPrice)}
-                          </dd>
-                        </div>
-
-                        {/* Linha própria, e não somada ao custo do produto: o
-                            vendedor precisa reconhecer o número quando ele
-                            aparecer no PIX do repasse. */}
+                      <dl className="rounded-lg border border-gray-200 dark:border-navy-600 divide-y divide-gray-200 dark:divide-navy-600 text-xs">
+                        <LinhaDaConta rotulo="Custo do produto (você paga ao fornecedor)" valor={formatCurrency(supplierPrice)} />
                         {taxaEmbalagem > 0 && (
-                          <div className="flex items-center justify-between gap-3">
-                            <dt className="text-gray-600 dark:text-slate-400">
-                              Embalagem do fornecedor
-                            </dt>
-                            <dd className="text-navy-900 dark:text-white tabular-nums">
-                              {formatCurrency(taxaEmbalagem)}
-                            </dd>
-                          </div>
+                          <LinhaDaConta rotulo="Embalagem do fornecedor" valor={formatCurrency(taxaEmbalagem)} />
                         )}
-
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400">
-                            Taxa Mercado Livre (
-                              {precoDeVenda > 0
-                                ? Math.round((contaDaVenda.comissao / precoDeVenda) * 100)
-                                : 0}
-                              %)
-                            {/* Dizer de onde veio o número muda como ele é
-                                lido: "informada" é o Mercado Livre falando,
-                                "estimada" é a nossa média das vendas. */}
-                            <span className="block text-[11px] text-gray-400 dark:text-slate-500">
-                              {taxaReal !== null
-                                ? 'informada pelo Mercado Livre'
-                                : 'estimada pelas suas vendas'}
-                            </span>
-                          </dt>
-                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
-                            −{formatCurrency(contaDaVenda.comissao)}
-                          </dd>
-                        </div>
-
-
-                        {/* O custo de envio entra em TODA venda pela regra do
-                            Mercado Livre — inclusive abaixo de R$ 79 e
-                            inclusive quando o comprador paga o frete. */}
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400">
-                            Envio Mercado Livre
-                            <span className="block text-[11px] text-gray-400 dark:text-slate-500">
-                              {freteDaConta !== undefined
-                                ? 'informado pelo Mercado Livre'
-                                : 'tabela oficial do Mercado Livre'}
-                              {usaFreteRapido ? ' · com frete grátis rápido' : ''}
-                            </span>
-                          </dt>
-                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
-                            −{formatCurrency(contaDaVenda.frete)}
-                          </dd>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-3">
-                          <dt className="text-gray-600 dark:text-slate-400 flex items-center gap-2">
-                            <label htmlFor="imposto-da-venda">Imposto</label>
-                            <span className="inline-flex items-center rounded-md border border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-900 px-1.5">
-                              <input
-                                id="imposto-da-venda"
-                                inputMode="decimal"
-                                value={impostoTexto}
-                                onChange={(evento) => setImpostoTexto(evento.target.value.replace(/[^\d.,]/g, '').slice(0, 5))}
-                                className="w-9 bg-transparent py-0.5 text-right text-xs text-navy-900 dark:text-white outline-none"
-                                aria-label="Imposto em porcentagem"
-                              />
-                              <span className="text-xs text-gray-400">%</span>
-                            </span>
-                          </dt>
-                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
-                            −{formatCurrency(contaDaVenda.imposto)}
-                          </dd>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-navy-600">
-                          <dt className="font-medium text-navy-900 dark:text-white">
-                            Lucro estimado
-                          </dt>
+                        <LinhaDaConta
+                          rotulo={`Tarifa de venda do Mercado Livre${precoDeVenda > 0 ? ` (${((contaDaVenda.comissao / precoDeVenda) * 100).toFixed(1).replace('.', ',')}%)` : ''}`}
+                          valor={`− ${formatCurrency(contaDaVenda.comissao)}`}
+                          negativo
+                        />
+                        <LinhaDaConta
+                          rotulo={`Custo de envio ${usaFreteRapido || freteObrigatorio ? '(frete grátis por sua conta)' : '(frete por conta do comprador)'}`}
+                          valor={`− ${formatCurrency(contaDaVenda.frete)}`}
+                          negativo
+                        />
+                        <LinhaDaConta
+                          rotulo={`Imposto (${impostoPct.toString().replace('.', ',')}%)`}
+                          valor={`− ${formatCurrency(contaDaVenda.imposto)}`}
+                          negativo
+                        />
+                        <div className="flex items-center justify-between gap-3 px-3 py-2">
+                          <dt className="font-semibold text-navy-900 dark:text-white">Lucro estimado</dt>
                           <dd
                             className={
-                              contaDaVenda.lucro < 0
+                              contaDaVenda.lucro <= 0
                                 ? 'font-bold tabular-nums text-red-600 dark:text-red-400'
                                 : 'font-bold tabular-nums text-green-600 dark:text-green-400'
                             }
@@ -1196,41 +1176,40 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                             {formatCurrency(contaDaVenda.lucro)}
                           </dd>
                         </div>
+                        <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 dark:bg-navy-900/60">
+                          <dt className="font-semibold text-navy-900 dark:text-white">
+                            Preço de venda (você cobra do comprador)
+                          </dt>
+                          <dd className="text-base font-bold tabular-nums text-navy-900 dark:text-white">
+                            {formatCurrency(precoDeVenda)}
+                          </dd>
+                        </div>
+                        <p className="px-3 py-2 text-[11px] text-gray-500 dark:text-slate-400">
+                          {informadoPeloML.comissao
+                            ? 'Comissão consultada agora no Mercado Livre, neste tipo de anúncio.'
+                            : 'Comissão estimada pelas vendas reais (conecte o Mercado Livre para ver a exata).'}{' '}
+                          {informadoPeloML.envio
+                            ? 'Envio informado pelo Mercado Livre para a sua conta.'
+                            : 'Envio pela tabela oficial do Mercado Livre.'}
+                        </p>
                       </dl>
-                    </div>
 
-                    {freteObrigatorio ? (
-                      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
-                        <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                          <strong>A partir de R$ 79 o frete grátis rápido é obrigatório</strong> e
-                          quem paga é você, pela tabela do Mercado Livre. Já está na conta acima.
+                      <div>
+                        <p className="text-xs font-semibold text-navy-900 dark:text-white">
+                          O que o Mercado Livre usa deste produto
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
+                          {embalagem.altura && embalagem.largura && embalagem.comprimento && embalagem.pesoG
+                            ? `Embalagem ${embalagem.comprimento} × ${embalagem.largura} × ${embalagem.altura} cm · ${embalagem.pesoG} g. É por ela que o Mercado Livre calcula o envio.`
+                            : 'Este produto ainda não tem as medidas da embalagem no catálogo; o envio usa a faixa de até 0,3 kg.'}
                         </p>
                       </div>
-                    ) : (
-                      <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-navy-600 p-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={freteRapido}
-                          onChange={(evento) => setFreteRapido(evento.target.checked)}
-                          className="mt-0.5 w-4 h-4 accent-black dark:accent-white"
-                        />
 
-                        <span className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed">
-                          <strong className="text-navy-900 dark:text-white">
-                            Oferecer frete grátis rápido (opcional)
-                          </strong>
-                          <br />
-                          O custo de envio normal já está na conta: o Mercado Livre cobra em
-                          toda venda. Ligar o frete grátis rápido abaixo de R$ 79 custa{' '}
-                          <strong className="text-red-600 dark:text-red-400">
-                            {formatCurrency(
-                              (envioReal?.rapido ?? custoDeEnvioPelaTabela(precoDeVenda, pesoG, true))
-                            )}
-                          </strong>{' '}
-                          por venda. Fica desligado ao publicar, a menos que você marque aqui.
-                        </span>
-                      </label>
-                    )}
+                      <p className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
+                        <strong className="text-navy-900 dark:text-white">Sugestão:</strong> 30% de lucro depois
+                        das taxas (comissão, envio e imposto). É só uma sugestão: você escolhe o preço ou o lucro.
+                      </p>
+                    </div>
 
                     {reputacaoRuim && (
                       <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
@@ -1271,43 +1250,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       </div>
                     )}
 
-                    <div className="bg-black dark:bg-white rounded-xl p-4">
-                      <p className="text-xs text-white/70 dark:text-navy-700">
-                        Preço de venda
-                      </p>
-
-                      <p className="text-3xl font-bold text-white dark:text-navy-900 mt-1">
-                        {formatCurrency(precoDeVenda)}
-                      </p>
-
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        <span
-                          className={
-                            contaDaVenda.lucro < 0
-                              ? 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/20 text-red-300 dark:bg-red-100 dark:text-red-700'
-                              : 'px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-500/20 text-green-300 dark:bg-green-100 dark:text-green-700'
-                          }
-                        >
-                          {contaDaVenda.lucro < 0
-                            ? 'Prejuízo'
-                            : 'Margem ' + contaDaVenda.margemReal.toFixed(0) + '%'}
-                        </span>
-
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-white/80 dark:bg-navy-100 dark:text-navy-700">
-                          {precoDeVenda > 0
-                            ? Math.round((contaDaVenda.comissao / precoDeVenda) * 100)
-                            : 0}
-                          % de comissão
-                        </span>
-
-                        {contaDaVenda.temFreteGratis && (
-                          <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/10 text-white/80 dark:bg-navy-100 dark:text-navy-700">
-                            Frete grátis obrigatório
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
                     {vendeNoPrejuizo && (
                       <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
                         <p className="text-sm font-semibold text-red-700 dark:text-red-300">
@@ -1316,25 +1258,17 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
                         <p className="text-sm text-red-700/80 dark:text-red-300/80 mt-1 leading-relaxed">
                           A FORNEXA não publica anúncio que dá prejuízo.
-                          {margemMinima ? ` Com pelo menos ${margemMinima}% de margem sobre o custo você para de perder dinheiro.` : ''}
                         </p>
-                        {margemMinima && (
-                          <button
-                            type="button"
-                            onClick={() => setMargemEscolhida(String(margemMinima))}
-                            className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
-                          >
-                            Usar margem mínima ({margemMinima}%)
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={usarLucroSugerido}
+                          className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
+                        >
+                          Usar a sugestão de 30% de lucro
+                        </button>
                       </div>
                     )}
 
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed">
-                      Comissão e envio são os que o Mercado Livre informa para
-                      a sua conta neste preço. O imposto é o seu. O valor
-                      final de cada venda aparece no Financeiro.
-                    </p>
 
                     <div className="flex flex-col gap-3 pt-2">
                       {!mercadoLivreConnected ? (
@@ -1470,5 +1404,52 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         `}</style>
     </>,
     document.body
+  );
+}
+
+/** Um campo da calculadora, com o rótulo em caixa alta como nas planilhas. */
+function CampoDaCalculadora({
+  id,
+  rotulo,
+  prefixo,
+  sufixo,
+  children,
+}: {
+  id: string;
+  rotulo: string;
+  prefixo?: string;
+  sufixo?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <label htmlFor={id} className="block text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-1">
+        {rotulo}
+      </label>
+      <div className="relative">
+        {prefixo && (
+          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400">{prefixo}</span>
+        )}
+        <div className={prefixo ? '[&>input]:pl-7' : sufixo ? '[&>input]:pr-6' : ''}>{children}</div>
+        {sufixo && (
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400">{sufixo}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const classeDoCampoDaCalculadora =
+  'w-full h-9 rounded-lg border border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-900 px-2 text-sm font-semibold text-navy-900 dark:text-white outline-none focus:border-gold focus:ring-2 focus:ring-gold/20 disabled:opacity-70';
+
+/** Uma linha da conta: rótulo à esquerda, valor à direita. */
+function LinhaDaConta({ rotulo, valor, negativo }: { rotulo: string; valor: string; negativo?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <dt className="text-gray-600 dark:text-slate-300">{rotulo}</dt>
+      <dd className={`tabular-nums whitespace-nowrap ${negativo ? 'text-red-600 dark:text-red-400' : 'text-navy-900 dark:text-white'}`}>
+        {valor}
+      </dd>
+    </div>
   );
 }
