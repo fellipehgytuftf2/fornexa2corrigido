@@ -234,12 +234,25 @@ export default function DevolucaoNoPedido({
     const restam = devolucao.prazo_cd ? diasUteisAte(devolucao.prazo_cd) : null;
     const venceu = esperando && restam !== null && restam < 0;
 
+    /**
+     * O produto chegou de verdade no CD do fornecedor.
+     *
+     * Isto ganhou cor e frase próprias a pedido da MS Digital: "o recebimento
+     * da devolução não reflete no painel do vendedor no pedido dele". Refletia
+     * — virava a palavra "Recebida no CD" num bloco cinza igual ao de antes,
+     * dentro de um pedido que o selo continua chamando de enviado. Quem olhava
+     * não via nada mudar, e o produto já estava de volta no estoque.
+     */
+    const chegou = devolucao.status === 'recebida' || devolucao.status === 'avariada';
+
     return (
       <div
         className={`mt-5 rounded-xl border p-4 ${
           venceu
             ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
-            : 'border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-700/40'
+            : chegou
+              ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20'
+              : 'border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-700/40'
         }`}
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -253,6 +266,19 @@ export default function DevolucaoNoPedido({
             {rotuloDoMotivo(devolucao.motivo)}
           </span>
         </div>
+
+        {chegou && (
+          <p className="text-sm mt-2 text-green-800 dark:text-green-300">
+            {devolucao.status === 'avariada'
+              ? 'O produto voltou para o CD do fornecedor, com a embalagem danificada'
+              : 'O produto voltou para o CD do fornecedor e já está disponível para revenda'}
+            {devolucao.recebida_em
+              ? `, em ${new Date(devolucao.recebida_em).toLocaleDateString('pt-BR')}`
+              : ''}
+            . O estoque dele já voltou ao catálogo: você não paga de novo por
+            este produto.
+          </p>
+        )}
 
         {esperando && restam !== null && (
           <p
