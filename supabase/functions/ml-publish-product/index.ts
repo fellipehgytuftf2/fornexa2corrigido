@@ -386,6 +386,12 @@ interface PublishBody {
    * `precisa_escolher_tipo_de_anuncio` mais abaixo.
    */
   listing_type_id?: string;
+  /**
+   * Frete grátis RÁPIDO abaixo de R$ 79. Opcional pela regra do Mercado Livre
+   * e caro: custa a tarifa da faixa de R$ 79 (R$ 12,95 ou mais). Ausente ou
+   * falso = o anúncio sai sem ele. Ver `shipping` no corpo do anúncio.
+   */
+  frete_gratis_rapido?: boolean;
 }
 
 /**
@@ -1414,6 +1420,14 @@ Deno.serve(async (req: Request) => {
       condition: "new",
       pictures: montarFotos(body),
       attributes: itemAttributes,
+      // Abaixo de R$ 79, o frete grátis rápido é opcional e quem paga é o
+      // vendedor, pela tarifa da faixa de R$ 79. Sem dizer nada, o anúncio
+      // herdava a preferência da conta — e 123 vendas de produto barato
+      // pagaram R$ 12,90 ou mais de frete assim. O frete grátis padrão de
+      // R$ 19 a R$ 78,99 continua: quem oferece esse é o Mercado Livre.
+      ...(precoFinal < 79
+        ? { shipping: { mode: "me2", free_shipping: Boolean(body.frete_gratis_rapido) } }
+        : {}),
     };
 
     /**

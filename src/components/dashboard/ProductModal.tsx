@@ -23,9 +23,16 @@ import { type PartesDoEndereco } from './EnderecoParaCopiar';
 import { useTravaScrollDeFundo } from '../../lib/useTravaScrollDeFundo';
 import {
   LIMITE_FRETE_GRATIS,
+  LIMITE_PRODUTO_BARATO,
   calcularVenda,
+  custoDeEnvioPelaTabela,
   margemMinimaSemPrejuizo,
+  sugestaoDoDegrau79,
+  type OpcoesDaConta,
 } from '../../lib/taxasDoMercadoLivre';
+
+/** Onde o imposto escolhido fica guardado entre um anúncio e outro. */
+const CHAVE_DO_IMPOSTO = 'fornexa_imposto_pct';
 
 interface ProductModalProps {
   product: Product;
@@ -268,24 +275,100 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const precoDeVenda = custoDoFornecedor * (1 + margem / 100);
 
   /**
-   * Quem paga o frete deste anúncio.
+   * Frete grátis RÁPIDO abaixo de R$ 79.
    *
-   * Acima de R$ 79 o Mercado Livre obriga frete grátis, e quem banca é o
-   * vendedor. Abaixo disso, depende da configuração da conta dele lá: o
-   * FORNEXA não define frete ao publicar, herda a preferência da conta.
-   *
-   * Isso importa porque a primeira versão desta conta descontava o frete
-   * medido de TODO mundo, inclusive de quem não tem frete grátis ligado e não
-   * paga nada. O resultado foi exigir 200% de margem em produto barato —
-   * número fora da realidade de quem vende sem frete grátis.
-   *
-   * A chave começa ligada só onde o frete é obrigatório. Quem tem frete grátis
-   * em produto barato liga e vê a conta de verdade; quem não tem, vê a dele.
+   * Pela regra do Mercado Livre, o custo de envio é cobrado em toda venda
+   * (Coleta, Agência, Full), mesmo quando o comprador paga. De R$ 19 a
+   * R$ 78,99 o frete grátis padrão é oferecido pelo próprio Mercado Livre. O
+   * que é opcional abaixo de R$ 79 é o frete grátis RÁPIDO — e quem liga paga
+   * a tarifa da faixa de R$ 79 (R$ 12,95 ou mais). Começa desligado, e a
+   * publicação manda desligado também.
    */
-  const [vendedorPagaFrete, setVendedorPagaFrete] = useState(false);
+  const [freteRapido, setFreteRapido] = useState(false);
 
   const freteObrigatorio = precoDeVenda >= LIMITE_FRETE_GRATIS;
-  const bancaOFrete = freteObrigatorio || vendedorPagaFrete;
+  const usaFreteRapido = !freteObrigatorio && freteRapido;
+
+  /** Imposto sobre a venda, em %. Lembrado entre anúncios. */
+  const [impostoTexto, setImpostoTexto] = useState<string>(() => {
+    try {
+      return localStorage.getItem(CHAVE_DO_IMPOSTO) ?? '4';
+    } catch {
+      return '4';
+    }
+  });
+  const impostoPct = Math.min(50, Math.max(0, Number(impostoTexto.replace(',', '.')) || 0));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAVE_DO_IMPOSTO, impostoTexto);
+    } catch {
+      /* sem armazenamento, só não lembra */
+    }
+  }, [impostoTexto]);
+
+  /** Peso da embalagem, para a tabela oficial de envio quando o ML não responde. */
+  const [pesoG, setPesoG] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!product.id) return;
+    supabase
+      .from('catalog_products')
+      .select('peso_g')
+      .eq('id', product.id)
+      .maybeSingle()
+      .then(({ data }) => setPesoG(data?.peso_g ? Number(data.peso_g) : null));
+  }, [product.id]);
+
+  /**
+   * O custo de envio exato, perguntado ao Mercado Livre com as medidas do
+   * catálogo e a reputação deste vendedor (`ml-custo-de-envio`). Nulo
+   * enquanto não responde; aí vale a tabela oficial (reputação verde).
+   */
+  const [envioReal, setEnvioReal] = useState<{
+    custo: number;
+    rapido: number | null;
+    reputacao: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!(precoDeVenda > 0) || !product.id) {
+      setEnvioReal(null);
+      return;
+    }
+
+    const relogio = setTimeout(async () => {
+      const { data } = await supabase.functions.invoke('ml-custo-de-envio', {
+        body: { preco: Number(precoDeVenda.toFixed(2)), catalog_product_id: product.id },
+      });
+
+      const resposta = data as {
+        custo_envio?: number;
+        custo_frete_gratis_rapido?: number | null;
+        reputacao?: string | null;
+      } | null;
+
+      setEnvioReal(
+        typeof resposta?.custo_envio === 'number'
+          ? {
+              custo: resposta.custo_envio,
+              rapido: resposta.custo_frete_gratis_rapido ?? null,
+              reputacao: resposta.reputacao ?? null,
+            }
+          : null
+      );
+    }, 400);
+
+    return () => clearTimeout(relogio);
+  }, [precoDeVenda, product.id]);
+
+  const freteDaConta = envioReal
+    ? usaFreteRapido
+      ? envioReal.rapido ?? undefined
+      : envioReal.custo
+    : undefined;
+
+  const reputacaoRuim = envioReal?.reputacao === 'orange' || envioReal?.reputacao === 'red';
 
   /**
    * A comissão exata, perguntada ao Mercado Livre.
@@ -329,19 +412,36 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     return () => clearTimeout(relogio);
   }, [precoDeVenda]);
 
-  const contaDaVenda = calcularVenda(
-    precoDeVenda,
-    custoDoFornecedor,
-    'classico',
-    bancaOFrete ? undefined : 0,
-    taxaReal ?? undefined
-  );
+  const opcoesDaConta: OpcoesDaConta = {
+    tipo: 'classico',
+    pesoG,
+    freteRapido: usaFreteRapido,
+    impostoPct,
+  };
 
-  const margemMinima = margemMinimaSemPrejuizo(
-    custoDoFornecedor,
-    'classico',
-    bancaOFrete ? undefined : 0
-  );
+  const contaDaVenda = calcularVenda(precoDeVenda, custoDoFornecedor, {
+    ...opcoesDaConta,
+    frete: freteDaConta,
+    comissao: taxaReal ?? undefined,
+  });
+
+  const margemMinima = margemMinimaSemPrejuizo(custoDoFornecedor, opcoesDaConta);
+
+  // Lucro zero ou negativo não publica. Antes era um "publicar mesmo assim?"
+  // e 292 de 486 vendas desde março fecharam no prejuízo.
+  const vendeNoPrejuizo = contaDaVenda.lucro <= 0;
+
+  const degrau = sugestaoDoDegrau79(precoDeVenda, custoDoFornecedor, {
+    ...opcoesDaConta,
+    frete: freteDaConta,
+  });
+
+  /** Ajusta a margem para cair exatamente num preço. */
+  const irParaOPreco = (preco: number) => {
+    if (custoDoFornecedor > 0) {
+      setMargemEscolhida(String(Math.round(((preco / custoDoFornecedor) - 1) * 10000) / 100));
+    }
+  };
 
 
 
@@ -475,6 +575,9 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         // Só vai preenchido na segunda tentativa, depois de o vendedor
         // escolher publicar como pago.
         listing_type_id: listingTypeId,
+        // Abaixo de R$ 79 o anúncio sai com o frete grátis rápido do jeito
+        // que a calculadora mostrou: desligado, salvo se o vendedor ligou.
+        frete_gratis_rapido: usaFreteRapido,
       },
     });
 
@@ -558,19 +661,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
    * existe para que publicar no prejuízo seja decisão, e não distração.
    */
   const handlePublishClick = () => {
-    if (contaDaVenda.lucro <= 0) {
-      const confirmado = window.confirm(
-        `Esta venda dá prejuízo de ${formatCurrency(Math.abs(contaDaVenda.lucro))} por unidade.\n\n` +
-          `Preço ${formatCurrency(precoDeVenda)} · custo ${formatCurrency(custoDoFornecedor)} · ` +
-          `taxa ${formatCurrency(contaDaVenda.comissao)} · frete ${formatCurrency(contaDaVenda.frete)}.\n\n` +
-          (margemMinima
-            ? `A partir de ${margemMinima}% de margem você para de perder dinheiro.\n\n`
-            : '') +
-          'Publicar mesmo assim?'
-      );
-
-      if (!confirmado) return;
-    }
+    if (vendeNoPrejuizo) return;
 
     // Publicar publica. A prévia virou um botão à parte, logo abaixo: ela era
     // uma parada obrigatória no meio do caminho, e obrigar quem já sabe o que
@@ -580,6 +671,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
   };
 
   const confirmarPublicacao = () => {
+    if (vendeNoPrejuizo) return;
     setFlowStage('publishing');
     handlePublish();
   };
@@ -1052,24 +1144,43 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </div>
 
 
-                        {/* O frete entra na conta.
-                            Ficava de fora por honestidade — ninguém sabe o
-                            peso antes da venda. Mas deixar ZERO na tela não
-                            era neutro: era afirmar que não há frete, e 108
-                            vendas das faixas mais baratas foram precificadas
-                            assim, quase todas no prejuízo. O valor agora é a
-                            mediana medida da faixa de preço, e o Financeiro
-                            continua mostrando o real depois da venda. */}
-                        {bancaOFrete && (
-                          <div className="flex items-center justify-between gap-3">
-                            <dt className="text-gray-600 dark:text-slate-400">
-                              Frete (média da faixa)
-                            </dt>
-                            <dd className="text-red-600 dark:text-red-400 tabular-nums">
-                              −{formatCurrency(contaDaVenda.frete)}
-                            </dd>
-                          </div>
-                        )}
+                        {/* O custo de envio entra em TODA venda pela regra do
+                            Mercado Livre — inclusive abaixo de R$ 79 e
+                            inclusive quando o comprador paga o frete. */}
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-gray-600 dark:text-slate-400">
+                            Envio Mercado Livre
+                            <span className="block text-[11px] text-gray-400 dark:text-slate-500">
+                              {freteDaConta !== undefined
+                                ? 'informado pelo Mercado Livre'
+                                : 'tabela oficial do Mercado Livre'}
+                              {usaFreteRapido ? ' · com frete grátis rápido' : ''}
+                            </span>
+                          </dt>
+                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
+                            −{formatCurrency(contaDaVenda.frete)}
+                          </dd>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-gray-600 dark:text-slate-400 flex items-center gap-2">
+                            <label htmlFor="imposto-da-venda">Imposto</label>
+                            <span className="inline-flex items-center rounded-md border border-gray-200 dark:border-navy-600 bg-gray-50 dark:bg-navy-900 px-1.5">
+                              <input
+                                id="imposto-da-venda"
+                                inputMode="decimal"
+                                value={impostoTexto}
+                                onChange={(evento) => setImpostoTexto(evento.target.value.replace(/[^\d.,]/g, '').slice(0, 5))}
+                                className="w-9 bg-transparent py-0.5 text-right text-xs text-navy-900 dark:text-white outline-none"
+                                aria-label="Imposto em porcentagem"
+                              />
+                              <span className="text-xs text-gray-400">%</span>
+                            </span>
+                          </dt>
+                          <dd className="text-red-600 dark:text-red-400 tabular-nums">
+                            −{formatCurrency(contaDaVenda.imposto)}
+                          </dd>
+                        </div>
 
                         <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-200 dark:border-navy-600">
                           <dt className="font-medium text-navy-900 dark:text-white">
@@ -1088,49 +1199,78 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       </dl>
                     </div>
 
-                    {/* O frete nao entra na conta porque ninguem sabe quanto
-                        e antes da venda: depende de peso, dimensoes e regiao.
-                        Antes havia um chute de R$ 25 fixo aqui, que aparecia
-                        como se fosse calculo. Avisar sem numero e honesto;
-                        inventar um numero nao era. */}
-                    {/* Quem paga o frete muda a conta inteira, e só o vendedor
-                        sabe. Acima de R$ 79 o Mercado Livre obriga frete
-                        grátis; abaixo, depende da configuração da conta dele
-                        lá — o FORNEXA não define isso ao publicar. */}
                     {freteObrigatorio ? (
                       <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                         <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                          <strong>Acima de R$ 79 o frete é por sua conta.</strong> O
-                          Mercado Livre exige frete grátis nessa faixa. O valor
-                          descontado aqui é a mediana das vendas reais; o exato
-                          depende do peso e da região, e o Financeiro mostra depois.
+                          <strong>A partir de R$ 79 o frete grátis rápido é obrigatório</strong> e
+                          quem paga é você, pela tabela do Mercado Livre. Já está na conta acima.
                         </p>
                       </div>
                     ) : (
                       <label className="flex items-start gap-3 rounded-xl border border-gray-200 dark:border-navy-600 p-3 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={vendedorPagaFrete}
-                          onChange={(evento) => setVendedorPagaFrete(evento.target.checked)}
+                          checked={freteRapido}
+                          onChange={(evento) => setFreteRapido(evento.target.checked)}
                           className="mt-0.5 w-4 h-4 accent-black dark:accent-white"
                         />
 
                         <span className="text-xs text-gray-600 dark:text-slate-300 leading-relaxed">
                           <strong className="text-navy-900 dark:text-white">
-                            Meu anúncio tem frete grátis
+                            Oferecer frete grátis rápido (opcional)
                           </strong>
                           <br />
-                          Abaixo de R$ 79 o frete só sai do seu bolso se você tiver
-                          ligado frete grátis na sua conta do Mercado Livre. Marcando
-                          aqui, a conta desconta a mediana real medida —{' '}
-                          {formatCurrency(
-                            calcularVenda(precoDeVenda, custoDoFornecedor).frete
-                          )}{' '}
-                          nesta faixa de preço. É o que fez muitas vendas baratas
-                          fecharem no vermelho.
+                          O custo de envio normal já está na conta: o Mercado Livre cobra em
+                          toda venda. Ligar o frete grátis rápido abaixo de R$ 79 custa{' '}
+                          <strong className="text-red-600 dark:text-red-400">
+                            {formatCurrency(
+                              (envioReal?.rapido ?? custoDeEnvioPelaTabela(precoDeVenda, pesoG, true))
+                            )}
+                          </strong>{' '}
+                          por venda. Fica desligado ao publicar, a menos que você marque aqui.
                         </span>
                       </label>
                     )}
+
+                    {reputacaoRuim && (
+                      <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+                        <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                          <strong>Sua reputação está {envioReal?.reputacao === 'red' ? 'vermelha' : 'laranja'}.</strong>{' '}
+                          O Mercado Livre cobra quase o dobro de envio a partir de R$ 79 nessa
+                          reputação. O valor acima já é o seu.
+                        </p>
+                      </div>
+                    )}
+
+                    {degrau && (
+                      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                        <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                          <strong>Vender a R$ 78,90 deixa mais dinheiro.</strong> Logo acima de
+                          R$ 79 o frete passa a ser seu. Aqui sobram{' '}
+                          {formatCurrency(degrau.lucroAgora)}; a R$ 78,90 sobram{' '}
+                          {formatCurrency(degrau.lucroSugerido)} — e o preço fica menor para o
+                          comprador.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => irParaOPreco(78.9)}
+                          className="mt-2 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-black hover:bg-amber-400"
+                        >
+                          Usar R$ 78,90
+                        </button>
+                      </div>
+                    )}
+
+                    {precoDeVenda > 0 && precoDeVenda < LIMITE_PRODUTO_BARATO && (
+                      <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                        <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                          <strong>Abaixo de R$ 19 quase toda venda dá prejuízo.</strong> Desde
+                          março, 91 de 99 vendas nessa faixa fecharam no vermelho. Venda em kit
+                          (2 ou 3 unidades): o Mercado Livre cobra um envio só por kit.
+                        </p>
+                      </div>
+                    )}
+
                     <div className="bg-black dark:bg-white rounded-xl p-4">
                       <p className="text-xs text-white/70 dark:text-navy-700">
                         Preço de venda
@@ -1168,25 +1308,32 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       </div>
                     </div>
 
-                    {contaDaVenda.lucro < 0 && (
+                    {vendeNoPrejuizo && (
                       <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
                         <p className="text-sm font-semibold text-red-700 dark:text-red-300">
                           Neste preço você vende no prejuízo
                         </p>
 
+                        <p className="text-sm text-red-700/80 dark:text-red-300/80 mt-1 leading-relaxed">
+                          A FORNEXA não publica anúncio que dá prejuízo.
+                          {margemMinima ? ` Com pelo menos ${margemMinima}% de margem sobre o custo você para de perder dinheiro.` : ''}
+                        </p>
                         {margemMinima && (
-                          <p className="text-sm text-red-700/80 dark:text-red-300/80 mt-1 leading-relaxed">
-                            Troque a regra para "quanto quero ganhar", ou suba a
-                            margem para pelo menos {margemMinima}% sobre o custo.
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setMargemEscolhida(String(margemMinima))}
+                            className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
+                          >
+                            Usar margem mínima ({margemMinima}%)
+                          </button>
                         )}
                       </div>
                     )}
 
                     <p className="text-[11px] text-gray-500 dark:text-slate-500 leading-relaxed">
-                      A comissão é estimativa: ela muda por categoria e o valor
-                      exato só sai depois da venda. O Financeiro mostra o real,
-                      buscado do próprio Mercado Livre.
+                      Comissão e envio são os que o Mercado Livre informa para
+                      a sua conta neste preço. O imposto é o seu. O valor
+                      final de cada venda aparece no Financeiro.
                     </p>
 
                     <div className="flex flex-col gap-3 pt-2">
@@ -1209,11 +1356,11 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                       ) : (
                         <button
                           onClick={handlePublishClick}
-                          disabled={publishing || loadingRequiredData}
+                          disabled={publishing || loadingRequiredData || vendeNoPrejuizo}
                           className="w-full px-4 py-3 rounded-lg bg-gold hover:bg-gold-hover text-black font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           <Rocket className="w-4 h-4" />
-                          Publicar Produto
+                          {vendeNoPrejuizo ? 'Ajuste o preço para publicar' : 'Publicar Produto'}
                         </button>
                       )}
 
