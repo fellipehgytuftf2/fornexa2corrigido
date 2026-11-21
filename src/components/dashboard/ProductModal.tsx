@@ -1053,7 +1053,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         imposto e lucro lado a lado. Mexer em um ajusta o
                         outro. */}
                     <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600 space-y-3">
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-3 gap-2 items-end">
                         <CampoDaCalculadora id="calc-preco" rotulo="Preço de venda" prefixo="R$">
                           <input
                             id="calc-preco"
@@ -1097,7 +1097,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                             id="calc-tipo"
                             value={tipoAnuncio}
                             onChange={(evento) => setTipoAnuncio(evento.target.value as 'classico' | 'premium')}
-                            className={classeDoCampoDaCalculadora}
+                            className={`${classeDoCampoDaCalculadora} text-xs`}
                           >
                             <option value="classico">Clássico</option>
                             <option value="premium">Premium</option>
@@ -1110,14 +1110,14 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                             value={freteObrigatorio ? 'obrigatorio' : freteRapido ? 'rapido' : 'padrao'}
                             onChange={(evento) => setFreteRapido(evento.target.value === 'rapido')}
                             disabled={freteObrigatorio}
-                            className={classeDoCampoDaCalculadora}
+                            className={`${classeDoCampoDaCalculadora} text-xs`}
                           >
                             {freteObrigatorio ? (
-                              <option value="obrigatorio">Grátis (você paga)</option>
+                              <option value="obrigatorio">Grátis (obrigatório)</option>
                             ) : (
                               <>
                                 <option value="padrao">Comprador paga</option>
-                                <option value="rapido">Grátis rápido (você paga)</option>
+                                <option value="rapido">Grátis rápido</option>
                               </>
                             )}
                           </select>
@@ -1180,7 +1180,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                           <dt className="font-semibold text-navy-900 dark:text-white">
                             Preço de venda (você cobra do comprador)
                           </dt>
-                          <dd className="text-base font-bold tabular-nums text-navy-900 dark:text-white">
+                          <dd className="text-base font-bold tabular-nums whitespace-nowrap text-navy-900 dark:text-white">
                             {formatCurrency(precoDeVenda)}
                           </dd>
                         </div>
