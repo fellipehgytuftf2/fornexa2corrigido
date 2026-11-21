@@ -206,7 +206,7 @@ export default function Checkout() {
       </header>
 
       <main className="relative max-w-5xl mx-auto px-5 py-10 md:py-14">
-        <div className="mb-8 md:mb-10">
+        <div className={`mb-8 md:mb-10 ${cobranca ? 'max-w-2xl mx-auto' : ''}`}>
           <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-[-0.02em]">Finalizar compra</h1>
           <p className="text-slate-400 mt-2">
             {cobranca ? 'Pague com Pix pelo app do seu banco.' : 'Confira o plano, seus dados e escolha como pagar.'}
@@ -226,10 +226,9 @@ export default function Checkout() {
         )}
 
         <form
-          hidden={Boolean(cobranca)}
           onSubmit={continuar}
           noValidate
-          className="grid lg:grid-cols-[1fr_380px] gap-6 lg:gap-8 items-start"
+          className={`${cobranca ? 'hidden' : 'grid'} lg:grid-cols-[1fr_380px] gap-6 lg:gap-8 items-start`}
         >
           <div className="space-y-6">
             {/* 1. Plano */}
