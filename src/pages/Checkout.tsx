@@ -214,7 +214,7 @@ export default function Checkout() {
         </div>
 
         {cobranca && (
-          <section className="max-w-2xl rounded-2xl border border-white/10 bg-navy-900/70 p-5 sm:p-8">
+          <section className="max-w-2xl mx-auto rounded-2xl border border-white/10 bg-navy-900/70 p-5 sm:p-8">
             <TelaDoPix
               cobranca={cobranca}
               email={email.trim().toLowerCase()}

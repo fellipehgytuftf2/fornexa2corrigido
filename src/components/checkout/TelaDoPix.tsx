@@ -138,9 +138,9 @@ export default function TelaDoPix({
           )}
 
           <ol className="mt-5 space-y-2.5 text-sm text-slate-300">
-            <li className="flex gap-3"><Passo n={1} />Abra o app do seu banco e escolha <strong className="text-white">Pix</strong>.</li>
-            <li className="flex gap-3"><Passo n={2} />Escaneie o QR Code ou use o <strong className="text-white">copia e cola</strong>.</li>
-            <li className="flex gap-3"><Passo n={3} />Confirme. O acesso libera aqui na hora.</li>
+            <li className="flex gap-3"><Passo n={1} /><span>Abra o app do seu banco e escolha <strong className="text-white">Pix</strong>.</span></li>
+            <li className="flex gap-3"><Passo n={2} /><span>Escaneie o QR Code ou use o <strong className="text-white">copia e cola</strong>.</span></li>
+            <li className="flex gap-3"><Passo n={3} /><span>Confirme. O acesso libera aqui na hora.</span></li>
           </ol>
         </div>
       </div>
