@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Check, CreditCard, Lock, Mail, ShieldCheck, Ticket, Zap } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, CreditCard, Lock, Mail, QrCode, ShieldCheck, Ticket, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   PLANOS,
@@ -11,15 +11,18 @@ import {
   type Plano,
 } from '../lib/planos';
 import { PRECO_CHEIO_DA_OFERTA, conferirCupom, type Influenciador } from '../lib/cupons';
+import { criarCobrancaPix, cpfValido, mascaraDeCpf, type CobrancaPix } from '../lib/pixDoCheckout';
+import TelaDoPix from '../components/checkout/TelaDoPix';
 
 /**
  * O checkout da FORNEXA (fornexa.site/checkout?plano=basico|premium).
  *
- * Fica entre a landing e a Applyfy. Aqui a pessoa confere o plano, vê o
- * cupom e escreve os dados com calma. Depois ela segue para a
- * Applyfy, que já abre com nome e e-mail preenchidos: lá só falta pagar.
+ * Aqui a pessoa confere o plano, vê o cupom, escreve os dados e escolhe como
+ * pagar. Pix é pago aqui mesmo (cobrança criada pela API da Applyfy). Cartão
+ * segue para o checkout da Applyfy, que abre com nome e e-mail preenchidos.
  *
- * PRÉVIA — branch feat/checkout-proprio. Os dados ficam só no navegador.
+ * Venda de afiliado não tem Pix aqui: ela precisa passar pelo link dele na
+ * Applyfy, que é o que credita a comissão.
  */
 
 const CHAVE_DOS_DADOS = 'fornexa_checkout_dados';
@@ -41,7 +44,8 @@ function mascaraDeTelefone(texto: string) {
 
 const emailValido = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 
-type Campo = 'nome' | 'email' | 'whatsapp';
+type Campo = 'nome' | 'email' | 'whatsapp' | 'cpf';
+type Forma = 'pix' | 'cartao';
 
 export default function Checkout() {
   const [parametros, setParametros] = useSearchParams();
@@ -58,6 +62,13 @@ export default function Checkout() {
   const [indo, setIndo] = useState(false);
   const [semCheckout, setSemCheckout] = useState(false);
 
+  const [forma, setForma] = useState<Forma>('pix');
+  const [cpf, setCpf] = useState('');
+  const [doAfiliado, setDoAfiliado] = useState(false);
+  const [gerandoPix, setGerandoPix] = useState(false);
+  const [erroPix, setErroPix] = useState('');
+  const [cobranca, setCobranca] = useState<CobrancaPix | null>(null);
+
   useEffect(() => {
     // O cupom vem no endereço, posto pelo botão da landing de oferta. Não se
     // lê do navegador: um cupom esquecido de outra visita não pode mudar uma
@@ -69,7 +80,12 @@ export default function Checkout() {
     if (doLink) {
       conferirCupom(doLink).then((resultado) => setCupom(resultado.ok ? resultado.influenciador : null));
     } else {
-      buscarLinksDeCheckout(pegarCodigoDoAfiliado()).then((links) => setPlanos(planosComCheckout(links)));
+      const codigo = pegarCodigoDoAfiliado();
+      buscarLinksDeCheckout(codigo).then((links) => {
+        setPlanos(planosComCheckout(links));
+        const daCasa = PLANOS.find((p) => p.id === 'premium')?.checkout;
+        setDoAfiliado(Boolean(codigo) && links.premium !== daCasa);
+      });
     }
 
     // Quem já tem conta não digita tudo de novo.
@@ -96,6 +112,8 @@ export default function Checkout() {
   const plano = planos.find((p) => p.id === idDoPlano) ?? planos[planos.length - 1];
   const mensal = plano.id === 'basico';
   const precoFinal = valorDoTexto(plano.preco);
+  const pixAqui = !doAfiliado;
+  const usaPix = pixAqui && forma === 'pix';
   const precoCheio = cupom ? PRECO_CHEIO_DA_OFERTA[plano.id] : plano.precoAntigo ? valorDoTexto(plano.precoAntigo) : null;
 
   const erros = useMemo(() => {
@@ -104,8 +122,9 @@ export default function Checkout() {
     if (!emailValido(email)) lista.email = 'Confira o e-mail.';
     const digitos = soDigitos(whatsapp).length;
     if (digitos < 10 || digitos > 11) lista.whatsapp = 'Coloque o WhatsApp com DDD.';
+    if (usaPix && !cpfValido(cpf)) lista.cpf = 'Confira o CPF.';
     return lista;
-  }, [nome, email, whatsapp]);
+  }, [nome, email, whatsapp, cpf, usaPix]);
 
   const trocarPlano = (id: Plano['id']) => {
     const novos = new URLSearchParams(parametros);
@@ -117,7 +136,7 @@ export default function Checkout() {
     evento.preventDefault();
 
     if (Object.keys(erros).length) {
-      setTocados({ nome: true, email: true, whatsapp: true });
+      setTocados({ nome: true, email: true, whatsapp: true, cpf: true });
       setTremer((vezes) => vezes + 1);
       return;
     }
@@ -127,6 +146,19 @@ export default function Checkout() {
       localStorage.setItem(CHAVE_DOS_DADOS, JSON.stringify(dados));
     } catch {
       /* não guardar não impede de pagar */
+    }
+
+    if (usaPix) {
+      setErroPix('');
+      setGerandoPix(true);
+      criarCobrancaPix({ plano: plano.id, ...dados, cpf, cupom: cupom?.cupom ?? null })
+        .then((nova) => {
+          setCobranca(nova);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        })
+        .catch((erro: Error) => setErroPix(erro.message))
+        .finally(() => setGerandoPix(false));
+      return;
     }
 
     const link = montarCheckout(plano, { email: dados.email, nome: dados.nome });
@@ -176,10 +208,25 @@ export default function Checkout() {
       <main className="relative max-w-5xl mx-auto px-5 py-10 md:py-14">
         <div className="mb-8 md:mb-10">
           <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-[-0.02em]">Finalizar compra</h1>
-          <p className="text-slate-400 mt-2">Confira o plano e seus dados. O pagamento é no próximo passo.</p>
+          <p className="text-slate-400 mt-2">
+            {cobranca ? 'Pague com Pix pelo app do seu banco.' : 'Confira o plano, seus dados e escolha como pagar.'}
+          </p>
         </div>
 
+        {cobranca && (
+          <section className="max-w-2xl rounded-2xl border border-white/10 bg-navy-900/70 p-5 sm:p-8">
+            <TelaDoPix
+              cobranca={cobranca}
+              email={email.trim().toLowerCase()}
+              nomeDoPlano={plano.nome}
+              mensal={mensal}
+              aoVoltar={() => setCobranca(null)}
+            />
+          </section>
+        )}
+
         <form
+          hidden={Boolean(cobranca)}
           onSubmit={continuar}
           noValidate
           className="grid lg:grid-cols-[1fr_380px] gap-6 lg:gap-8 items-start"
@@ -277,6 +324,50 @@ export default function Checkout() {
                 Seu acesso é liberado neste e-mail. Use o mesmo quando for criar a sua conta na FORNEXA.
               </p>
             </Etapa>
+
+            {/* 3. Pagamento */}
+            {pixAqui && (
+              <Etapa numero={3} titulo="Forma de pagamento">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <OpcaoDePagamento
+                    ativo={forma === 'pix'}
+                    aoEscolher={() => setForma('pix')}
+                    icone={<QrCode className="w-5 h-5" aria-hidden="true" />}
+                    titulo="Pix"
+                    detalhe="Aprovação na hora, aqui mesmo"
+                    selo="Mais rápido"
+                  />
+                  <OpcaoDePagamento
+                    ativo={forma === 'cartao'}
+                    aoEscolher={() => setForma('cartao')}
+                    icone={<CreditCard className="w-5 h-5" aria-hidden="true" />}
+                    titulo="Cartão de crédito"
+                    detalhe="Pago no ambiente seguro da Applyfy"
+                  />
+                </div>
+
+                {forma === 'pix' && (
+                  <div className="acesso-aviso mt-4 grid sm:grid-cols-2 gap-4">
+                    <CampoDoForm id="ck-cpf" rotulo="CPF" erro={erroDe('cpf')}>
+                      <input
+                        id="ck-cpf"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        value={cpf}
+                        onChange={(e) => setCpf(mascaraDeCpf(e.target.value))}
+                        onBlur={marcar('cpf')}
+                        placeholder="000.000.000-00"
+                        className={classeDoCampo(erroDe('cpf'))}
+                        disabled={gerandoPix}
+                      />
+                    </CampoDoForm>
+                    <p className="self-end pb-3 text-xs text-slate-400 leading-relaxed">
+                      O banco pede o CPF de quem paga o Pix.
+                    </p>
+                  </div>
+                )}
+              </Etapa>
+            )}
           </div>
 
           {/* Resumo */}
@@ -316,12 +407,19 @@ export default function Checkout() {
 
               <button
                 type="submit"
-                disabled={indo}
+                disabled={indo || gerandoPix}
                 className="btn-fnx btn-fnx-primario acesso-botao mt-6 flex w-full h-14 items-center justify-center gap-2 font-semibold disabled:opacity-80"
               >
-                <Lock className="w-4 h-4" aria-hidden="true" />
-                <span>Ir para o pagamento</span>
+                {usaPix ? <QrCode className="w-4 h-4" aria-hidden="true" /> : <Lock className="w-4 h-4" aria-hidden="true" />}
+                <span>{usaPix ? (gerandoPix ? 'Gerando seu Pix…' : 'Gerar Pix') : 'Ir para o pagamento'}</span>
               </button>
+
+              {erroPix && (
+                <p role="alert" className="acesso-aviso mt-3 flex items-start gap-1.5 text-sm text-red-400">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+                  {erroPix} Tente de novo ou pague com cartão.
+                </p>
+              )}
 
               <ul className="mt-6 space-y-3 text-sm text-slate-300">
                 <li className="flex items-center gap-3">
@@ -334,7 +432,7 @@ export default function Checkout() {
                 </li>
                 <li className="flex items-center gap-3">
                   <CreditCard className="w-4 h-4 text-gold shrink-0" aria-hidden="true" />
-                  Seus dados de pagamento não passam pela FORNEXA
+                  Dados do cartão não passam pela FORNEXA
                 </li>
               </ul>
             </div>
@@ -344,6 +442,44 @@ export default function Checkout() {
 
       {indo && <TelaDeIda nome={nome.trim().split(' ')[0]} semCheckout={semCheckout} aoVoltar={() => { setIndo(false); setSemCheckout(false); }} />}
     </div>
+  );
+}
+
+function OpcaoDePagamento({
+  ativo,
+  aoEscolher,
+  icone,
+  titulo,
+  detalhe,
+  selo,
+}: {
+  ativo: boolean;
+  aoEscolher: () => void;
+  icone: ReactNode;
+  titulo: string;
+  detalhe: string;
+  selo?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={aoEscolher}
+      aria-pressed={ativo}
+      className={`relative text-left rounded-xl p-4 border transition-all flex items-start gap-3 ${
+        ativo ? 'border-gold bg-gold/[0.07] shadow-[0_0_0_3px_rgba(255,211,0,0.12)]' : 'border-white/10 bg-white/[0.03] hover:border-white/25'
+      }`}
+    >
+      <span className={`w-10 h-10 shrink-0 rounded-lg flex items-center justify-center ${ativo ? 'bg-gold text-navy-950' : 'bg-white/10 text-slate-300'}`}>
+        {icone}
+      </span>
+      <span>
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          {titulo}
+          {selo && <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">{selo}</span>}
+        </span>
+        <span className="block mt-1 text-xs text-slate-400">{detalhe}</span>
+      </span>
+    </button>
   );
 }
 
