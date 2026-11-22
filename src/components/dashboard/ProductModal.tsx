@@ -1093,6 +1093,31 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </CampoDaCalculadora>
                       </div>
 
+                      {/* A barrinha de sempre, agora mexendo no lucro: arrastar
+                          ajusta o preço na hora. */}
+                      <div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={60}
+                          step={1}
+                          value={Math.round(
+                            Math.min(60, Math.max(0, motor === 'lucro' ? lucroAlvo : contaDaVenda.margemReal))
+                          )}
+                          onChange={(evento) => {
+                            setMotor('lucro');
+                            setLucroTexto(evento.target.value);
+                          }}
+                          className="fornexa-slider w-full"
+                          aria-label="Lucro sobre o preço de venda"
+                        />
+                        <div className="flex justify-between text-[11px] text-gray-400 dark:text-slate-500 mt-1">
+                          <span>0%</span>
+                          <span>30%</span>
+                          <span>60%</span>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-2">
                         <CampoDaCalculadora id="calc-tipo" rotulo="Tipo de anúncio">
                           <select
