@@ -575,9 +575,10 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         announcement_image_urls: fotos.slice(1),
         // Só vai preenchido na segunda tentativa, depois de o vendedor
         // escolher publicar como pago.
-        // Premium escolhido na calculadora vai como premium; o resto segue o
-        // caminho de sempre (o tipo que a conta aceitar).
-        listing_type_id: listingTypeId ?? (tipoAnuncio === 'premium' ? 'gold_pro' : undefined),
+        // O tipo que o vendedor escolheu na calculadora. Antes, "Clássico" ia
+        // vazio e a publicação preferia o anúncio Grátis quando a conta
+        // tinha — pouca exposição e uma conta diferente da que ele viu.
+        listing_type_id: listingTypeId ?? (tipoAnuncio === 'premium' ? 'gold_pro' : 'gold_special'),
       },
     });
 
