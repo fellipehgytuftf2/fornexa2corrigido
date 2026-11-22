@@ -578,9 +578,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         // Premium escolhido na calculadora vai como premium; o resto segue o
         // caminho de sempre (o tipo que a conta aceitar).
         listing_type_id: listingTypeId ?? (tipoAnuncio === 'premium' ? 'gold_pro' : undefined),
-        // Abaixo de R$ 79 o anúncio sai com o frete grátis rápido do jeito
-        // que a calculadora mostrou: desligado, salvo se o vendedor ligou.
-        frete_gratis_rapido: usaFreteRapido,
       },
     });
 
@@ -649,6 +646,16 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
     setPublishing(false);
     setPublishedPermalink(publishResult.permalink ?? '');
+
+    // Abaixo de R$ 79 o anúncio fica com o frete grátis rápido do jeito que a
+    // calculadora mostrou: desligado, salvo se o vendedor ligou. Sem isso ele
+    // herdava a preferência da conta e pagava R$ 12,95 ou mais por venda.
+    // Não segura a tela: se falhar, o anúncio já está no ar e fica registrado.
+    if (publishResult.ml_item_id && precoDeVenda < LIMITE_FRETE_GRATIS) {
+      void supabase.functions.invoke('ml-frete-rapido', {
+        body: { item_id: publishResult.ml_item_id, ligado: usaFreteRapido },
+      });
+    }
   };
 
   /**
