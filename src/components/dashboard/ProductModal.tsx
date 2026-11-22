@@ -273,6 +273,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const [lucroTexto, setLucroTexto] = useState('30');
   const [precoTexto, setPrecoTexto] = useState('');
   const [tipoAnuncio, setTipoAnuncio] = useState<'classico' | 'premium'>('classico');
+  const [verConta, setVerConta] = useState(false);
 
   /** Frete grátis RÁPIDO abaixo de R$ 79: opcional e caro. Começa desligado. */
   const [freteRapido, setFreteRapido] = useState(false);
@@ -737,7 +738,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
               </h2>
 
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                Defina sua margem, veja o lucro calculado e revise o anúncio gerado pelo FORNEXA.
+                Escolha o preço ou o lucro e publique.
               </p>
             </div>
 
@@ -1053,7 +1054,6 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         imposto e lucro lado a lado. Mexer em um ajusta o
                         outro. */}
                     <div className="bg-white dark:bg-navy-800 rounded-xl p-4 border border-gray-200 dark:border-navy-600 space-y-3">
-                      <div className="grid grid-cols-3 gap-2 items-end">
                         <CampoDaCalculadora id="calc-preco" rotulo="Preço de venda" prefixo="R$">
                           <input
                             id="calc-preco"
@@ -1063,9 +1063,11 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                               setMotor('preco');
                               setPrecoTexto(evento.target.value.replace(/[^\d.,]/g, '').slice(0, 10));
                             }}
-                            className={classeDoCampoDaCalculadora}
+                            className={`${classeDoCampoDaCalculadora} h-11 text-lg`}
                           />
                         </CampoDaCalculadora>
+
+                      <div className="grid grid-cols-2 gap-2">
 
                         <CampoDaCalculadora id="calc-imposto" rotulo="Imposto (%)">
                           <input
@@ -1113,7 +1115,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                             className={`${classeDoCampoDaCalculadora} text-xs`}
                           >
                             {freteObrigatorio ? (
-                              <option value="obrigatorio">Grátis (obrigatório)</option>
+                              <option value="obrigatorio">Grátis</option>
                             ) : (
                               <>
                                 <option value="padrao">Comprador paga</option>
@@ -1124,99 +1126,62 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                         </CampoDaCalculadora>
                       </div>
 
-                      <div className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
-                        {motor === 'lucro' ? (
-                          precoPeloLucro ? (
-                            <p className="font-semibold text-navy-900 dark:text-white">
-                              Preço para {lucroAlvo.toFixed(1).replace('.', ',')}% de lucro.
-                            </p>
-                          ) : (
-                            <p className="font-semibold text-red-600 dark:text-red-400">
-                              Esse lucro não fecha com as taxas. Tente um número menor.
-                            </p>
-                          )
-                        ) : null}
-                        <p>
-                          Digite o lucro e o preço se ajusta, ou digite o preço e veja o lucro.
-                          {freteObrigatorio
-                            ? ' A partir de R$ 79 o frete grátis é obrigatório e quem paga é você.'
-                            : ' "Comprador paga" ainda tem o custo de envio do Mercado Livre, que é cobrado em toda venda.'}
+                      {/* Um número só em destaque: quanto sobra por venda. A conta
+                          linha a linha fica guardada atrás de "Ver a conta". */}
+                      {motor === 'lucro' && !precoPeloLucro ? (
+                        <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                          Esse lucro não fecha com as taxas. Tente um número menor.
                         </p>
-                      </div>
-
-                      <dl className="rounded-lg border border-gray-200 dark:border-navy-600 divide-y divide-gray-200 dark:divide-navy-600 text-xs">
-                        <LinhaDaConta rotulo="Custo do produto (você paga ao fornecedor)" valor={formatCurrency(supplierPrice)} />
-                        {taxaEmbalagem > 0 && (
-                          <LinhaDaConta rotulo="Embalagem do fornecedor" valor={formatCurrency(taxaEmbalagem)} />
-                        )}
-                        <LinhaDaConta
-                          rotulo={`Tarifa de venda do Mercado Livre${precoDeVenda > 0 ? ` (${((contaDaVenda.comissao / precoDeVenda) * 100).toFixed(1).replace('.', ',')}%)` : ''}`}
-                          valor={`− ${formatCurrency(contaDaVenda.comissao)}`}
-                          negativo
-                        />
-                        <LinhaDaConta
-                          rotulo={`Custo de envio ${usaFreteRapido || freteObrigatorio ? '(frete grátis por sua conta)' : '(frete por conta do comprador)'}`}
-                          valor={`− ${formatCurrency(contaDaVenda.frete)}`}
-                          negativo
-                        />
-                        <LinhaDaConta
-                          rotulo={`Imposto (${impostoPct.toString().replace('.', ',')}%)`}
-                          valor={`− ${formatCurrency(contaDaVenda.imposto)}`}
-                          negativo
-                        />
-                        <div className="flex items-center justify-between gap-3 px-3 py-2">
-                          <dt className="font-semibold text-navy-900 dark:text-white">Lucro estimado</dt>
-                          <dd
-                            className={
+                      ) : (
+                        <div
+                          className={`rounded-lg px-3 py-3 flex items-center justify-between gap-3 ${
+                            contaDaVenda.lucro <= 0
+                              ? 'bg-red-50 dark:bg-red-900/20'
+                              : 'bg-green-50 dark:bg-green-900/20'
+                          }`}
+                        >
+                          <span className="text-xs text-gray-600 dark:text-slate-300">
+                            Você ganha por venda
+                          </span>
+                          <span
+                            className={`text-xl font-bold tabular-nums whitespace-nowrap ${
                               contaDaVenda.lucro <= 0
-                                ? 'font-bold tabular-nums text-red-600 dark:text-red-400'
-                                : 'font-bold tabular-nums text-green-600 dark:text-green-400'
-                            }
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-green-600 dark:text-green-400'
+                            }`}
                           >
                             {formatCurrency(contaDaVenda.lucro)}
-                          </dd>
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-gray-50 dark:bg-navy-900/60">
-                          <dt className="font-semibold text-navy-900 dark:text-white">
-                            Preço de venda (você cobra do comprador)
-                          </dt>
-                          <dd className="text-base font-bold tabular-nums whitespace-nowrap text-navy-900 dark:text-white">
-                            {formatCurrency(precoDeVenda)}
-                          </dd>
-                        </div>
-                        <p className="px-3 py-2 text-[11px] text-gray-500 dark:text-slate-400">
-                          {informadoPeloML.comissao
-                            ? 'Comissão consultada agora no Mercado Livre, neste tipo de anúncio.'
-                            : 'Comissão estimada pelas vendas reais (conecte o Mercado Livre para ver a exata).'}{' '}
-                          {informadoPeloML.envio
-                            ? 'Envio informado pelo Mercado Livre para a sua conta.'
-                            : 'Envio pela tabela oficial do Mercado Livre.'}
-                        </p>
-                      </dl>
+                      )}
 
-                      <div>
-                        <p className="text-xs font-semibold text-navy-900 dark:text-white">
-                          O que o Mercado Livre usa deste produto
-                        </p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
-                          {embalagem.altura && embalagem.largura && embalagem.comprimento && embalagem.pesoG
-                            ? `Embalagem ${embalagem.comprimento} × ${embalagem.largura} × ${embalagem.altura} cm · ${embalagem.pesoG} g. É por ela que o Mercado Livre calcula o envio.`
-                            : 'Este produto ainda não tem as medidas da embalagem no catálogo; o envio usa a faixa de até 0,3 kg.'}
-                        </p>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setVerConta((aberta) => !aberta)}
+                        aria-expanded={verConta}
+                        className="w-full text-center text-xs font-medium text-gray-500 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white"
+                      >
+                        {verConta ? 'Esconder a conta ▴' : 'Ver a conta ▾'}
+                      </button>
 
-                      <p className="text-[11px] leading-relaxed text-gray-500 dark:text-slate-400">
-                        <strong className="text-navy-900 dark:text-white">Sugestão:</strong> 30% de lucro depois
-                        das taxas (comissão, envio e imposto). É só uma sugestão: você escolhe o preço ou o lucro.
-                      </p>
+                      {verConta && (
+                        <dl className="rounded-lg border border-gray-200 dark:border-navy-600 divide-y divide-gray-200 dark:divide-navy-600 text-xs">
+                          <LinhaDaConta rotulo="Produto + embalagem" valor={formatCurrency(custoDoFornecedor)} />
+                          <LinhaDaConta
+                            rotulo={`Tarifa do ML${precoDeVenda > 0 ? ` (${((contaDaVenda.comissao / precoDeVenda) * 100).toFixed(1).replace('.', ',')}%)` : ''}`}
+                            valor={`− ${formatCurrency(contaDaVenda.comissao)}`}
+                            negativo
+                          />
+                          <LinhaDaConta rotulo="Envio do ML" valor={`− ${formatCurrency(contaDaVenda.frete)}`} negativo />
+                          <LinhaDaConta rotulo="Imposto" valor={`− ${formatCurrency(contaDaVenda.imposto)}`} negativo />
+                        </dl>
+                      )}
                     </div>
 
                     {reputacaoRuim && (
                       <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
                         <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
-                          <strong>Sua reputação está {envioReal?.reputacao === 'red' ? 'vermelha' : 'laranja'}.</strong>{' '}
-                          O Mercado Livre cobra quase o dobro de envio a partir de R$ 79 nessa
-                          reputação. O valor acima já é o seu.
+                          Reputação {envioReal?.reputacao === 'red' ? 'vermelha' : 'laranja'}: o envio sai quase o dobro.
                         </p>
                       </div>
                     )}
@@ -1224,11 +1189,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     {degrau && (
                       <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                         <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                          <strong>Vender a R$ 78,90 deixa mais dinheiro.</strong> Logo acima de
-                          R$ 79 o frete passa a ser seu. Aqui sobram{' '}
-                          {formatCurrency(degrau.lucroAgora)}; a R$ 78,90 sobram{' '}
-                          {formatCurrency(degrau.lucroSugerido)} — e o preço fica menor para o
-                          comprador.
+                          A R$ 78,90 você ganha mais: {formatCurrency(degrau.lucroSugerido)} por venda.
                         </p>
                         <button
                           type="button"
@@ -1243,9 +1204,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     {precoDeVenda > 0 && precoDeVenda < LIMITE_PRODUTO_BARATO && (
                       <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                         <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
-                          <strong>Abaixo de R$ 19 quase toda venda dá prejuízo.</strong> Desde
-                          março, 91 de 99 vendas nessa faixa fecharam no vermelho. Venda em kit
-                          (2 ou 3 unidades): o Mercado Livre cobra um envio só por kit.
+                          Abaixo de R$ 19 quase sempre dá prejuízo. Venda em kit.
                         </p>
                       </div>
                     )}
@@ -1253,18 +1212,14 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                     {vendeNoPrejuizo && (
                       <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
                         <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                          Neste preço você vende no prejuízo
-                        </p>
-
-                        <p className="text-sm text-red-700/80 dark:text-red-300/80 mt-1 leading-relaxed">
-                          A FORNEXA não publica anúncio que dá prejuízo.
+                          Neste preço você perde dinheiro.
                         </p>
                         <button
                           type="button"
                           onClick={usarLucroSugerido}
                           className="mt-2 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500"
                         >
-                          Usar a sugestão de 30% de lucro
+                          Usar 30% de lucro
                         </button>
                       </div>
                     )}
