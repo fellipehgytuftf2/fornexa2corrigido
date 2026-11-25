@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase';
 import Pagination from '../../components/ui/pagination';
 import DivulgarNoFacebook from '../../components/dashboard/DivulgarNoFacebook';
 import EditarAnuncio, { type AnuncioSalvo } from '../../components/dashboard/EditarAnuncio';
+import MarketplaceBadge from '../../components/ui/marketplace-badge';
 import { calcularVenda } from '../../lib/taxasDoMercadoLivre';
 import { useFuncionalidade } from '../../lib/funcionalidades';
 
@@ -497,8 +498,8 @@ export default function MyProducts() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300">
-                          {product.marketplace}
+                        <span className="pl-1.5 pr-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-navy-700 dark:text-slate-300">
+                          <MarketplaceBadge marketplace={product.marketplace} />
                         </span>
 
                         {/* A pausa por falta de estoque não mexe em `status` —
