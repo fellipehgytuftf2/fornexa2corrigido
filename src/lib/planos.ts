@@ -265,7 +265,30 @@ const idDoCheckout = (url: string) => url.match(/\/checkout\/([^/?#]+)/)?.[1];
 /** O `?code=` do endereço, que é como a Applyfy sabe de quem é a venda. */
 const codigoNoCheckout = (url: string) => url.match(/[?&]code=([^&\s]+)/)?.[1];
 
-const CHECKOUTS_DA_CASA = [checkoutBasico, checkoutPremium, checkoutBasicoAntigo, checkoutPremiumAntigo]
+/**
+ * Segunda conta da Applyfy, vendida só pela landing secundária
+ * (fornexa.site/lp2). Fica separada da casa de propósito: quem chega por lá
+ * paga nesta conta, sem afiliado e sem cupom.
+ *
+ * PREENCHER com os links de checkout da conta nova (Básico e Premium). Vazio,
+ * o botão de pagar mostra o aviso de prévia em vez de mandar para lugar nenhum.
+ */
+export const CHECKOUTS_DA_CONTA_2: LinksDeCheckout = {
+  basico: '',
+  premium: '',
+};
+
+/** Onde mora a landing secundária. */
+export const ROTA_DA_LANDING_2 = '/lp2';
+
+const CHECKOUTS_DA_CASA = [
+  checkoutBasico,
+  checkoutPremium,
+  checkoutBasicoAntigo,
+  checkoutPremiumAntigo,
+  CHECKOUTS_DA_CONTA_2.basico,
+  CHECKOUTS_DA_CONTA_2.premium,
+]
   .map(idDoCheckout)
   .filter(Boolean);
 

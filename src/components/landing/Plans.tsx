@@ -6,7 +6,14 @@ import {
   planosComCheckout,
 } from '../../lib/planos';
 
-export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
+export default function Plans({
+  codigoAfiliado,
+  conta,
+}: {
+  codigoAfiliado?: string;
+  /** "2" na landing secundária: os botões levam ao checkout da conta 2. */
+  conta?: '2';
+}) {
   const [planos, setPlanos] = useState(PLANOS);
 
   // Quem chegou por fornexa.site/CODIGO compra no checkout daquele afiliado.
@@ -54,7 +61,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
 
             <div className="mt-auto">
               <a
-                href="/checkout?plano=basico"
+                href={`/checkout?plano=basico${conta ? `&conta=${conta}` : ''}`}
                 className="btn-fnx btn-fnx-secundario flex w-full items-center justify-center py-3 font-medium"
               >
                 <span>{basico.chamada}</span>
@@ -87,7 +94,7 @@ export default function Plans({ codigoAfiliado }: { codigoAfiliado?: string }) {
 
               <div className="mt-auto">
                 <a
-                  href="/checkout?plano=premium"
+                  href={`/checkout?plano=premium${conta ? `&conta=${conta}` : ''}`}
                   className="btn-fnx btn-fnx-primario flex w-full items-center justify-center py-3 font-semibold"
                 >
                   <span>{premium.chamada}</span>

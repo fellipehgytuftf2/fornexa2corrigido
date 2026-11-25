@@ -14,8 +14,14 @@ import FinalCTA from '../components/landing/FinalCTA';
 export default function LandingPage({
   codigoDaRota,
   oferta = false,
+  conta,
 }: {
   codigoDaRota?: string;
+  /**
+   * Landing secundária (fornexa.site/lp2): a mesma página, vendendo pela
+   * segunda conta da Applyfy. Não tem afiliado nem cupom.
+   */
+  conta?: '2';
   /**
    * Landing de oferta (fornexa.site/oferta): a mesma página, mas os planos
    * dão lugar ao Premium de R$ 594 com a caixa de cupom já aberta.
@@ -33,7 +39,7 @@ export default function LandingPage({
   const local = useLocation();
   const doHistorico = (local.state as { afiliado?: string } | null)?.afiliado;
   const doRef = new URLSearchParams(local.search).get('ref')?.trim() || undefined;
-  const codigoAfiliado = codigoDaRota || doHistorico || doRef;
+  const codigoAfiliado = conta ? undefined : codigoDaRota || doHistorico || doRef;
 
   // O endereço principal (fornexa.site, sem afiliado) vende sempre pelo
   // checkout da casa — mesmo que antes, nesta aba, a pessoa tenha passado
@@ -52,7 +58,7 @@ export default function LandingPage({
         <FornexaMotion />
         <Benefits />
         <ZoomMonitor />
-        {oferta ? <PlanoDaOferta /> : <Plans codigoAfiliado={codigoAfiliado} />}
+        {oferta ? <PlanoDaOferta /> : <Plans codigoAfiliado={codigoAfiliado} conta={conta} />}
         <FAQ />
         <FinalCTA />
       </main>

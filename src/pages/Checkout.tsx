@@ -3,7 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, Check, CreditCard, Lock, Mail, ShieldCheck, Ticket, Zap } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
+  CHECKOUTS_DA_CONTA_2,
   PLANOS,
+  ROTA_DA_LANDING_2,
   buscarLinksDeCheckout,
   montarCheckout,
   pegarCodigoDoAfiliado,
@@ -63,10 +65,14 @@ export default function Checkout() {
     // lê do navegador: um cupom esquecido de outra visita não pode mudar uma
     // compra feita pela landing normal ou pelo link de um afiliado.
     const doLink = new URLSearchParams(window.location.search).get('cupom');
+    const daConta2 = new URLSearchParams(window.location.search).get('conta') === '2';
 
     // Com cupom, a compra vai pelos checkouts da casa (é o que a landing de
     // oferta promete). Sem cupom, vale a regra de sempre: afiliado compra no dele.
-    if (doLink) {
+    if (daConta2) {
+      // Veio da landing secundária: paga na conta 2, sem afiliado e sem cupom.
+      setPlanos(planosComCheckout(CHECKOUTS_DA_CONTA_2));
+    } else if (doLink) {
       conferirCupom(doLink).then((resultado) => setCupom(resultado.ok ? resultado.influenciador : null));
     } else {
       buscarLinksDeCheckout(pegarCodigoDoAfiliado()).then((links) => setPlanos(planosComCheckout(links)));
@@ -154,7 +160,7 @@ export default function Checkout() {
 
       <header className="relative border-b border-white/10">
         <div className="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between">
-          <Link to={cupom ? '/oferta#planos' : '/#planos'} className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
+          <Link to={parametros.get('conta') === '2' ? `${ROTA_DA_LANDING_2}#planos` : cupom ? '/oferta#planos' : '/#planos'} className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors">
             <ArrowLeft className="w-4 h-4" aria-hidden="true" />
             <span className="hidden sm:inline">Voltar</span>
           </Link>
