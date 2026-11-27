@@ -6,6 +6,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import { normalizarParaBusca, palavrasDaBusca, pontuarBusca } from '../../lib/busca';
 import { supabase } from '../../lib/supabase';
 import { Product } from '../../types';
 import ProductModal from '../../components/dashboard/ProductModal';
@@ -302,17 +303,35 @@ export default function Catalog() {
     return ['Todos', ...[...encontradas].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
   }, [products]);
 
+  /** Nome e texto de cada produto já limpos para a busca, uma vez só. */
+  const indiceDeBusca = useMemo(
+    () =>
+      new Map(
+        products.map((product) => [
+          product.id,
+          {
+            nome: normalizarParaBusca(product.name),
+            outros: normalizarParaBusca(`${product.category} ${product.description}`),
+          },
+        ])
+      ),
+    [products]
+  );
+
   const filteredProducts = useMemo(() => {
-    const busca = searchTerm.trim().toLowerCase();
+    const palavras = palavrasDaBusca(searchTerm);
+    const pontos = new Map<string, number>();
 
     const encontrados = products.filter((product) => {
       // Sem busca por fornecedor: digitar o nome de um e ver o catálogo dele
       // filtrado revelaria exatamente o que a tela deixou de mostrar.
-      const matchesSearch =
-        !busca ||
-        product.name.toLowerCase().includes(busca) ||
-        product.description.toLowerCase().includes(busca) ||
-        product.category.toLowerCase().includes(busca);
+      //
+      // Sem acento, sem maiúscula e em qualquer ordem: "robo cachorro" acha
+      // "Cachorro Robô". Ver src/lib/busca.ts.
+      const campos = indiceDeBusca.get(product.id) ?? { nome: '', outros: '' };
+      const pontuacao = pontuarBusca(palavras, campos);
+      pontos.set(product.id, pontuacao);
+      const matchesSearch = pontuacao > 0;
 
       // O seletor manda. Só quando ele está em "Todos" o nicho decide o que
       // aparece — é assim que ele é sugestão de abertura e não trava.
@@ -327,12 +346,18 @@ export default function Catalog() {
     // Cópia antes de ordenar: sort altera o array original, e o original aqui
     // é o resultado do filter, mas manter o hábito evita surpresa depois.
     return [...encontrados].sort((a, b) => {
+      // Com busca, o que mais combina vem primeiro — salvo se o vendedor
+      // escolheu ordenar por preço ou nome.
+      if (palavras.length > 0 && ordem === 'recentes') {
+        const diferenca = (pontos.get(b.id) ?? 0) - (pontos.get(a.id) ?? 0);
+        if (diferenca !== 0) return diferenca;
+      }
       if (ordem === 'preco-asc') return a.supplierPrice - b.supplierPrice;
       if (ordem === 'preco-desc') return b.supplierPrice - a.supplierPrice;
       if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');
       return 0; // recentes: mantém a ordem que veio do banco
     });
-  }, [products, searchTerm, selectedCategory, ordem, nicho, nichoAtivo]);
+  }, [products, indiceDeBusca, searchTerm, selectedCategory, ordem, nicho, nichoAtivo]);
 
   /** Liga e desliga o nicho, lembrando a decisão na próxima visita. */
   const guardarNichoAtivo = async (ativo: boolean) => {

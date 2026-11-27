@@ -23,6 +23,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { normalizarParaBusca, palavrasDaBusca, pontuarBusca } from '../../lib/busca';
 import { supabase } from '../../lib/supabase';
 import {
   carregarContatosDosFornecedores,
@@ -682,17 +683,19 @@ export default function AdminCatalogo() {
   }, [suppliers]);
 
   const filteredProducts = useMemo(() => {
-    const search = searchTerm.toLowerCase();
+    // Sem acento e em qualquer ordem, como no catálogo do vendedor.
+    const palavras = palavrasDaBusca(searchTerm);
 
     return products.filter((product) => {
       const supplier = getSupplier(product);
 
       return (
-        product.name.toLowerCase().includes(search) ||
-        product.description.toLowerCase().includes(search) ||
-        product.category.toLowerCase().includes(search) ||
-        supplier?.name?.toLowerCase().includes(search) ||
-        supplier?.company_name?.toLowerCase().includes(search)
+        pontuarBusca(palavras, {
+          nome: normalizarParaBusca(product.name),
+          outros: normalizarParaBusca(
+            `${product.description} ${product.category} ${supplier?.name ?? ''} ${supplier?.company_name ?? ''}`
+          ),
+        }) > 0
       );
     });
   }, [products, searchTerm]);
