@@ -509,6 +509,10 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
    * oferta. Nada disso volta aqui.
    *
    * Regra: só entra o que ajuda quem vai comprar.
+   *
+   * O prazo do fornecedor ("2-3") também saiu: escrito na descrição, deixava o
+   * comprador na dúvida, quando muitas vezes o pacote sai no mesmo dia. O
+   * prazo de entrega de verdade o Mercado Livre já mostra no anúncio.
    */
   const generatedDescription = `
 ${product.description}
@@ -516,7 +520,7 @@ ${product.description}
 Sobre este produto:
 - Produto: ${product.name}
 - Categoria: ${product.category}
-- Prazo médio de envio: ${product.supplierShippingTime || 'Consulte o prazo no anúncio'}
+- Envio imediato
 - Produto novo, com garantia e pronta entrega
 
 Compre com segurança: enviamos com código de rastreio e acompanhamento até a entrega.`;
