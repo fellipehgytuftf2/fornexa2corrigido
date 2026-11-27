@@ -191,6 +191,8 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
    * a tela pergunta ao vendedor, em vez de mandar ele chamar o suporte.
    */
   const [atributosFaltando, setAtributosFaltando] = useState<AtributoFaltando[]>([]);
+  /** O que a FORNEXA preencheu sozinha (idade 3 anos), para ir junto no botão. */
+  const [atributosAutomaticosGuardados, setAtributosAutomaticosGuardados] = useState<Record<string, string>>({});
   const [valoresDosAtributos, setValoresDosAtributos] = useState<
     Record<string, { numero: string; unidade: string; texto: string }>
   >({});
@@ -564,7 +566,11 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
   const canSaveProduct =
     mercadoLivreConnected && hasLinkedSupplier && !loadingMercadoLivre;
 
-  const handlePublish = async (listingTypeId?: string) => {
+  const handlePublish = async (
+    listingTypeId?: string,
+    /** Valores preenchidos sozinhos (ex.: idade padrão), além dos digitados. */
+    atributosAutomaticos?: Record<string, string>
+  ) => {
     if (!canSaveProduct || !product.supplierId) {
       return;
     }
@@ -618,11 +624,14 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         // tinha — pouca exposição e uma conta diferente da que ele viu.
         listing_type_id: listingTypeId ?? (tipoAnuncio === 'premium' ? 'gold_pro' : 'gold_special'),
         // O que o vendedor informou para os atributos que a FORNEXA não tem.
-        atributos_informados: Object.fromEntries(
-          atributosFaltando
-            .map((atributo) => [atributo.id, valorDoAtributo(atributo)] as const)
-            .filter(([, valor]) => valor !== '')
-        ),
+        atributos_informados: {
+          ...Object.fromEntries(
+            atributosFaltando
+              .map((atributo) => [atributo.id, valorDoAtributo(atributo)] as const)
+              .filter(([, valor]) => valor !== '')
+          ),
+          ...atributosAutomaticos,
+        },
       },
     });
 
@@ -673,8 +682,36 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
 
       // A categoria pede um dado que só o vendedor sabe: a tela pergunta.
       if (Array.isArray(corpoDoErro?.atributos_faltando) && corpoDoErro.atributos_faltando.length > 0) {
-        const lista = corpoDoErro.atributos_faltando as AtributoFaltando[];
+        const recebida = corpoDoErro.atributos_faltando as AtributoFaltando[];
+
+        /**
+         * Idade mínima: 3 anos, sem perguntar.
+         *
+         * É o "Recomendado a partir dos 3 anos" das embalagens de brinquedo,
+         * e era o que mais travava publicação (333 tentativas). Decisão do
+         * dono da FORNEXA em 27/11/2026: preencher sozinho. Se a descrição
+         * do fornecedor traz outra idade, a função de publicar já usa a dela
+         * antes de chegar aqui.
+         */
+        const automaticos: Record<string, string> = {};
+        for (const atributo of recebida) {
+          if (atributo.id === 'MIN_RECOMMENDED_AGE') {
+            const anos = atributo.unidades.find((unidade) => /ano/i.test(unidade)) ?? atributo.unidades[0] ?? 'anos';
+            automaticos[atributo.id] = `3 ${anos}`;
+          }
+        }
+
+        const lista = recebida.filter((atributo) => !(atributo.id in automaticos));
+
+        // Só faltava o que a FORNEXA preenche sozinha: publica de novo na hora,
+        // sem mostrar caixa nenhuma. Uma vez só — se voltar, a caixa aparece.
+        if (lista.length === 0 && !atributosAutomaticos) {
+          await handlePublish(listingTypeId, automaticos);
+          return;
+        }
+
         setFlowStage('idle');
+        setAtributosAutomaticosGuardados(automaticos);
         setAtributosFaltando(lista);
         setValoresDosAtributos((atuais) => {
           const novos = { ...atuais };
@@ -928,7 +965,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                   type="button"
                   onClick={() => {
                     setFlowStage('publishing');
-                    handlePublish();
+                    handlePublish(undefined, atributosAutomaticosGuardados);
                   }}
                   disabled={publishing || !todosAtributosPreenchidos}
                   className="mt-4 px-4 py-2 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50"
