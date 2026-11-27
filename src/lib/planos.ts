@@ -155,7 +155,7 @@ export function motivoDoBloqueio(perfil: PerfilDePlano | null | undefined): stri
  */
 export function montarCheckout(
   plano: Plano,
-  dados?: { email?: string | null; nome?: string | null }
+  dados?: { email?: string | null; nome?: string | null; whatsapp?: string | null }
 ): string {
   if (!plano.checkout) {
     return '';
@@ -170,6 +170,14 @@ export function montarCheckout(
 
     if (dados?.nome) {
       url.searchParams.set('name', dados.nome);
+    }
+
+    // O checkout da Applyfy lê `name`, `email`, `phone` e `document` do
+    // endereço (conferido no código da página em 27/11/2026). Sem o telefone,
+    // o comprador digitava o WhatsApp duas vezes: aqui e lá.
+    const telefone = String(dados?.whatsapp ?? '').replace(/\D/g, '');
+    if (telefone.length >= 10) {
+      url.searchParams.set('phone', telefone);
     }
 
     return url.toString();
