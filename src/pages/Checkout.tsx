@@ -129,7 +129,7 @@ export default function Checkout() {
       /* não guardar não impede de pagar */
     }
 
-    const link = montarCheckout(plano, { email: dados.email, nome: dados.nome });
+    const link = montarCheckout(plano, { email: dados.email, nome: dados.nome, whatsapp: dados.whatsapp });
     setIndo(true);
 
     window.setTimeout(() => {
