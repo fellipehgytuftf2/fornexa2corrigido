@@ -67,6 +67,11 @@ const pagamentoEm = (pedido: PedidoParaLinhaDoTempo) =>
 export function etapaAtual(pedido: PedidoParaLinhaDoTempo): IdDaEtapa {
   if (pedido.status === 'delivered') return 'entregue';
   if (pedido.status === 'shipped') return 'enviado';
+  // Sem o pagamento ao fornecedor, o pedido não passa da primeira etapa — mesmo
+  // com a etiqueta já liberada pelo Mercado Livre. Antes a etiqueta pulava
+  // direto para a etapa 4 e marcava "Pagamento confirmado" e "Reservado" sem
+  // nada disso ter acontecido; quem vem do Mercado Livre achava que estava pago.
+  if (!pagamentoEm(pedido)) return 'venda';
   if (
     pedido.status === 'separating' ||
     (pedido.ml_shipment_substatus && ETIQUETA_SAIU.has(pedido.ml_shipment_substatus))
@@ -91,6 +96,9 @@ function oQueAcontece(pedido: PedidoParaLinhaDoTempo, atual: IdDaEtapa): string 
 
   switch (atual) {
     case 'venda':
+      if (pedido.ml_shipment_substatus && ETIQUETA_SAIU.has(pedido.ml_shipment_substatus)) {
+        return 'A etiqueta já saiu no Mercado Livre, mas o fornecedor só separa e despacha depois do seu pagamento. Pague o repasse para não atrasar o envio.';
+      }
       return 'O cliente já pagou no Mercado Livre. Assim que o seu pagamento ao fornecedor cair, ele separa o produto.';
     case 'pagamento':
       return agendado

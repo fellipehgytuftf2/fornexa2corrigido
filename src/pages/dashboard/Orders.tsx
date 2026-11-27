@@ -1061,6 +1061,11 @@ export default function Orders() {
                         </h3>
 
                         <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                          {Number(order.quantidade) > 1 && (
+                            <span className="mr-2 inline-flex items-center rounded-full bg-gold/15 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-gold">
+                              {order.quantidade} unidades
+                            </span>
+                          )}
                           Pedido criado em {formatDate(order.created_at)}
                         </p>
 
@@ -1076,9 +1081,17 @@ export default function Orders() {
                           Venda
                         </p>
 
+                        {/* Com mais de uma unidade, o total — senão "Venda" mostrava
+                            o preço de uma e o repasse de três, e parecia que o
+                            vendedor tinha vendido uma e pagado mais caro. */}
                         <p className="text-sm font-bold text-navy-900 dark:text-white mt-1">
-                          {formatCurrency(order.sale_price)}
+                          {formatCurrency(Number(order.sale_price) * Math.max(1, Number(order.quantidade) || 1))}
                         </p>
+                        {Number(order.quantidade) > 1 && (
+                          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">
+                            {order.quantidade} × {formatCurrency(order.sale_price)}
+                          </p>
+                        )}
                       </div>
 
                       <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-3">
@@ -1087,8 +1100,13 @@ export default function Orders() {
                         </p>
 
                         <p className="text-sm font-bold text-navy-900 dark:text-white mt-1">
-                          {formatCurrency(order.supplier_price)}
+                          {formatCurrency(Number(order.supplier_price) * Math.max(1, Number(order.quantidade) || 1))}
                         </p>
+                        {Number(order.quantidade) > 1 && (
+                          <p className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">
+                            {order.quantidade} × {formatCurrency(order.supplier_price)}
+                          </p>
+                        )}
                       </div>
 
                       <div className="bg-gray-50 dark:bg-navy-700 rounded-xl p-3">

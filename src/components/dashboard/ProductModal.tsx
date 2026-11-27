@@ -425,7 +425,7 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
   const contaDaVenda = calcularVenda(precoDeVenda, custoDoFornecedor, opcoesDaConta);
 
   // Lucro zero ou negativo não publica. Antes era um "publicar mesmo assim?"
-  // e 292 de 486 vendas desde março fecharam no prejuízo.
+  // e 283 de 486 vendas desde março fecharam no prejuízo.
   const vendeNoPrejuizo = !(precoDeVenda > 0) || contaDaVenda.lucro <= 0;
 
   const degrau = sugestaoDoDegrau79(precoDeVenda, custoDoFornecedor, opcoesDaConta);

@@ -20,7 +20,7 @@
  *
  * As vendas de 02/03 a 20/11/2026 confirmam a tabela (mediana de R$ 6,95 de
  * R$ 19 a 48,99; R$ 13,85 de R$ 79 a 99,99) e mostram o estrago de supor zero:
- * 292 de 486 vendas fecharam no prejuízo, perto de R$ 4.380 somados.
+ * 283 de 486 vendas fecharam no prejuízo, perto de R$ 4.140 somados.
  *
  * A comissão continua vindo do Mercado Livre (`ml-taxa-do-anuncio`). As
  * porcentagens por faixa aqui são só a reserva, medidas nas vendas reais.
