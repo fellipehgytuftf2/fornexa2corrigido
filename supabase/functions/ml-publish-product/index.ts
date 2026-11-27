@@ -1432,9 +1432,7 @@ Deno.serve(async (req: Request) => {
       });
       return new Response(
         JSON.stringify({
-          error: `O Mercado Livre pede um dado deste produto que a FORNEXA não tem: ${unresolvedRequiredAttributes.join(
-            ", "
-)}. Confira na embalagem ou com o fornecedor e informe para publicar.`,
+          error: `O Mercado Livre pede um dado deste produto que a FORNEXA não tem: ${unresolvedRequiredAttributes.join(", ")}. Confira na embalagem ou com o fornecedor e informe para publicar.`,
           atributos_faltando: atributosFaltando,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
