@@ -386,6 +386,38 @@ interface PublishBody {
    * `precisa_escolher_tipo_de_anuncio` mais abaixo.
    */
   listing_type_id?: string;
+  /**
+   * Valores que o próprio vendedor informou para atributos obrigatórios que a
+   * FORNEXA não sabe preencher (idade mínima, quantidade de peças...), por id
+   * do atributo: { MIN_RECOMMENDED_AGE: "3 anos" }. Chega na segunda tentativa,
+   * depois de a função devolver `atributos_faltando` e a tela perguntar.
+   */
+  atributos_informados?: Record<string, string>;
+}
+
+/**
+ * A idade mínima escrita na descrição do fornecedor.
+ *
+ * "Idade recomendada: a partir de 6 anos", "indicado para +8 anos",
+ * "Idade: 3+". Só aceita quando há uma idade só — duas idades diferentes no
+ * texto (ex.: "3 anos" e "8 anos") é dúvida, e dúvida volta para o vendedor.
+ */
+function idadeNoTexto(texto: string): string | null {
+  const achadas = new Set<number>();
+  const padroes = [
+    /(?:idade|a partir de|acima de|maiores de|indicad[oa] para|recomendad[oa] para)[^\d\n]{0,25}\+?\s*(\d{1,2})\s*\+?\s*anos/gi,
+    /(?:idade|a partir de|acima de|maiores de)[^\d\n]{0,25}(\d{1,2})\s*\+/gi,
+    /\+\s*(\d{1,2})\s*anos/gi,
+  ];
+
+  for (const padrao of padroes) {
+    for (const casado of texto.matchAll(padrao)) {
+      const idade = Number(casado[1]);
+      if (idade >= 0 && idade <= 18) achadas.add(idade);
+    }
+  }
+
+  return achadas.size === 1 ? `${[...achadas][0]} anos` : null;
 }
 
 /**
@@ -1221,6 +1253,21 @@ Deno.serve(async (req: Request) => {
     const itemAttributes: { id: string; value_name?: string; value_id?: string }[] = [];
     const unresolvedRequiredAttributes: string[] = [];
 
+    /**
+     * Os mesmos atributos, com o que a tela precisa para perguntar ao
+     * vendedor: tipo do valor e unidades aceitas. Antes a publicação parava
+     * com "avise o suporte" — 333 tentativas só por "Idade mínima
+     * recomendada" até 27/11/2026. Agora o vendedor informa e publica.
+     */
+    const atributosFaltando: Array<{
+      id: string;
+      nome: string;
+      tipo: string;
+      unidades: string[];
+    }> = [];
+
+    const informados = body.atributos_informados ?? {};
+
     // Valores padrão para atributos de texto livre com id conhecido.
     const defaultTextAttributeValues: Record<string, string> = {
       BRAND: "Genérica",
@@ -1254,6 +1301,13 @@ Deno.serve(async (req: Request) => {
       for (const attr of categoryAttributesData) {
         const isRequired = attr?.tags?.required === true;
         if (!isRequired) continue;
+
+        // Caso 0: o vendedor já informou este valor na tela.
+        const informado = String(informados[attr.id] ?? "").trim();
+        if (informado) {
+          itemAttributes.push({ id: attr.id, value_name: informado.slice(0, 255) });
+          continue;
+        }
 
         // Caso 1: atributo de texto livre com valor padrão já conhecido
         const defaultText = defaultTextAttributeValues[attr.id];
@@ -1299,10 +1353,33 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        // Caso 4b: idade mínima escrita na descrição do fornecedor.
+        if (attr.id === "MIN_RECOMMENDED_AGE") {
+          const idade = idadeNoTexto(
+            `${body.name ?? ""} ${body.announcement_title ?? ""}\n${body.announcement_description ?? ""}`
+          );
+
+          if (idade) {
+            itemAttributes.push({ id: attr.id, value_name: idade });
+            continue;
+          }
+        }
+
         // Caso 5: número, medida ou sim/não que não deu para descobrir. Aqui
         // chutar é pior do que parar: um peso ou uma voltagem errada no
-        // anúncio engana o comprador.
+        // anúncio engana o comprador. Quem sabe é o vendedor, que tem o
+        // produto ou a ficha do fornecedor — a tela pergunta a ele.
         unresolvedRequiredAttributes.push(attr.name ?? attr.id);
+        atributosFaltando.push({
+          id: String(attr.id),
+          nome: String(attr.name ?? attr.id),
+          tipo: String(attr.value_type ?? "string"),
+          unidades: Array.isArray(attr.allowed_units)
+            ? attr.allowed_units
+                .map((unidade: { id?: string; name?: string }) => String(unidade?.name ?? unidade?.id ?? ""))
+                .filter((unidade: string) => unidade.length > 0)
+            : [],
+        });
       }
     }
 
@@ -1355,9 +1432,10 @@ Deno.serve(async (req: Request) => {
       });
       return new Response(
         JSON.stringify({
-          error: `Essa categoria do Mercado Livre exige uma medida que só o fornecedor sabe: ${unresolvedRequiredAttributes.join(
+          error: `O Mercado Livre pede um dado deste produto que a FORNEXA não tem: ${unresolvedRequiredAttributes.join(
             ", "
-          )}. Não preenchemos sozinhos porque medida errada no anúncio engana o comprador. Avise o suporte do FORNEXA com o nome do produto.`,
+)}. Confira na embalagem ou com o fornecedor e informe para publicar.`,
+          atributos_faltando: atributosFaltando,
         }),
         { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

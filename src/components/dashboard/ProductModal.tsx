@@ -30,6 +30,15 @@ import {
   type OpcoesDaConta,
 } from '../../lib/taxasDoMercadoLivre';
 
+/** Um atributo obrigatório da categoria que só o vendedor sabe preencher. */
+interface AtributoFaltando {
+  id: string;
+  nome: string;
+  /** number_unit, number, boolean ou string, como o Mercado Livre declara. */
+  tipo: string;
+  unidades: string[];
+}
+
 /** Onde o imposto escolhido fica guardado entre um anúncio e outro. */
 const CHAVE_DO_IMPOSTO = 'fornexa_imposto_pct';
 
@@ -175,6 +184,30 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
    * marcado como tal na tela.
    */
   const [publishErrorDetalhe, setPublishErrorDetalhe] = useState('');
+
+  /**
+   * Dados que a categoria do Mercado Livre exige e a FORNEXA não tem (idade
+   * mínima, quantidade de peças, medidas...). A publicação devolve a lista e
+   * a tela pergunta ao vendedor, em vez de mandar ele chamar o suporte.
+   */
+  const [atributosFaltando, setAtributosFaltando] = useState<AtributoFaltando[]>([]);
+  const [valoresDosAtributos, setValoresDosAtributos] = useState<
+    Record<string, { numero: string; unidade: string; texto: string }>
+  >({});
+
+  const valorDoAtributo = (atributo: AtributoFaltando): string => {
+    const valor = valoresDosAtributos[atributo.id];
+    if (!valor) return '';
+    if (atributo.tipo === 'number_unit') {
+      const numero = valor.numero.trim().replace(',', '.');
+      return numero ? `${numero} ${valor.unidade || atributo.unidades[0] || ''}`.trim() : '';
+    }
+    if (atributo.tipo === 'number') return valor.numero.trim().replace(',', '.');
+    return valor.texto.trim();
+  };
+
+  const todosAtributosPreenchidos =
+    atributosFaltando.length > 0 && atributosFaltando.every((atributo) => valorDoAtributo(atributo) !== '');
 
   /**
    * Os tipos de anúncio pagos, quando o grátis é recusado.
@@ -415,10 +448,6 @@ export default function ProductModal({ product, onClose }: ProductModalProps) {
     return () => clearTimeout(relogio);
   }, [precoDeVenda, product.id, tipoAnuncio]);
 
-  const informadoPeloML = {
-    comissao: taxaPct !== undefined,
-    envio: Boolean(envioReal),
-  };
 
   const opcoesDaConta: OpcoesDaConta = { ...opcoesBase, freteRapido: usaFreteRapido };
 
@@ -588,6 +617,12 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         // vazio e a publicação preferia o anúncio Grátis quando a conta
         // tinha — pouca exposição e uma conta diferente da que ele viu.
         listing_type_id: listingTypeId ?? (tipoAnuncio === 'premium' ? 'gold_pro' : 'gold_special'),
+        // O que o vendedor informou para os atributos que a FORNEXA não tem.
+        atributos_informados: Object.fromEntries(
+          atributosFaltando
+            .map((atributo) => [atributo.id, valorDoAtributo(atributo)] as const)
+            .filter(([, valor]) => valor !== '')
+        ),
       },
     });
 
@@ -636,6 +671,24 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
         return;
       }
 
+      // A categoria pede um dado que só o vendedor sabe: a tela pergunta.
+      if (Array.isArray(corpoDoErro?.atributos_faltando) && corpoDoErro.atributos_faltando.length > 0) {
+        const lista = corpoDoErro.atributos_faltando as AtributoFaltando[];
+        setFlowStage('idle');
+        setAtributosFaltando(lista);
+        setValoresDosAtributos((atuais) => {
+          const novos = { ...atuais };
+          for (const atributo of lista) {
+            novos[atributo.id] ??= { numero: '', unidade: atributo.unidades[0] ?? '', texto: '' };
+          }
+          return novos;
+        });
+        setPublishError('');
+        setPublishErrorDetalhe('');
+        window.scrollTo?.({ top: 0 });
+        return;
+      }
+
       // A cota de anúncio grátis acabou. Não é erro para ler e fechar: é uma
       // escolha, e as opções vêm junto na resposta.
       if (corpoDoErro?.precisa_escolher_tipo_de_anuncio) {
@@ -655,6 +708,7 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
     }
 
     setPublishing(false);
+    setAtributosFaltando([]);
     setPublishedPermalink(publishResult.permalink ?? '');
 
     // Abaixo de R$ 79 o anúncio fica com o frete grátis rápido do jeito que a
@@ -801,6 +855,86 @@ Compre com segurança: enviamos com código de rastreio e acompanhamento até a 
                 <p className="text-red-700 dark:text-red-400 text-sm font-medium">
                   {mercadoLivreError}
                 </p>
+              </div>
+            )}
+
+            {atributosFaltando.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  O Mercado Livre pede {atributosFaltando.length === 1 ? 'um dado' : 'alguns dados'} deste produto
+                </p>
+                <p className="mt-1 text-xs text-amber-800/80 dark:text-amber-200/80">
+                  Confira na embalagem, na descrição ou com o fornecedor. Informação errada no anúncio engana o comprador.
+                </p>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {atributosFaltando.map((atributo) => {
+                    const valor = valoresDosAtributos[atributo.id] ?? { numero: '', unidade: '', texto: '' };
+                    const mudar = (parte: Partial<typeof valor>) =>
+                      setValoresDosAtributos((atuais) => ({ ...atuais, [atributo.id]: { ...valor, ...parte } }));
+                    const ehNumero = atributo.tipo === 'number' || atributo.tipo === 'number_unit';
+
+                    return (
+                      <label key={atributo.id} className="block">
+                        <span className="block text-xs font-medium text-amber-900 dark:text-amber-200 mb-1">
+                          {atributo.nome}
+                        </span>
+                        <span className="flex gap-2">
+                          {ehNumero ? (
+                            <input
+                              inputMode="decimal"
+                              value={valor.numero}
+                              onChange={(evento) => mudar({ numero: evento.target.value.replace(/[^\d.,]/g, '').slice(0, 8) })}
+                              placeholder="0"
+                              className="min-w-0 flex-1 h-10 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-navy-900 px-3 text-sm text-navy-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-400/40"
+                            />
+                          ) : atributo.tipo === 'boolean' ? (
+                            <select
+                              value={valor.texto}
+                              onChange={(evento) => mudar({ texto: evento.target.value })}
+                              className="min-w-0 flex-1 h-10 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-navy-900 px-3 text-sm text-navy-900 dark:text-white"
+                            >
+                              <option value="">Escolha</option>
+                              <option value="Sim">Sim</option>
+                              <option value="Não">Não</option>
+                            </select>
+                          ) : (
+                            <input
+                              value={valor.texto}
+                              onChange={(evento) => mudar({ texto: evento.target.value.slice(0, 120) })}
+                              className="min-w-0 flex-1 h-10 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-navy-900 px-3 text-sm text-navy-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-400/40"
+                            />
+                          )}
+                          {atributo.tipo === 'number_unit' && atributo.unidades.length > 0 && (
+                            <select
+                              value={valor.unidade || atributo.unidades[0]}
+                              onChange={(evento) => mudar({ unidade: evento.target.value })}
+                              className="h-10 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-navy-900 px-2 text-sm text-navy-900 dark:text-white"
+                            >
+                              {atributo.unidades.map((unidade) => (
+                                <option key={unidade} value={unidade}>
+                                  {unidade}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFlowStage('publishing');
+                    handlePublish();
+                  }}
+                  disabled={publishing || !todosAtributosPreenchidos}
+                  className="mt-4 px-4 py-2 rounded-lg bg-black hover:bg-gray-900 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {publishing ? 'Publicando…' : 'Publicar com esses dados'}
+                </button>
               </div>
             )}
 
